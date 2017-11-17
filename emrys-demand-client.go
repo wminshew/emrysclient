@@ -24,22 +24,28 @@ func main() {
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
 
 	// global flags shared by subcommands
+	var usernamePtr string
+	var passwordPtr string
 	var envPtr string
 	var trainPtr string
 	// TODO: create own struct implementing Value interface for price
 	var pricePtr string
 
 	// cfg subcommand flag pointers
-	cfgCmd.StringVar(&envPtr, "env", "tensorflow:latest", "Environment to execute within {tensorflow:latest, pytorch:latest}.")
-	cfgCmd.StringVar(&trainPtr, "train", "", "Code to execute. (required)")
+	cfgCmd.StringVar(&usernamePtr, "username", "", "Set the local or global username.")
+	cfgCmd.StringVar(&passwordPtr, "password", "", "Set the local or global password.")
+	cfgCmd.StringVar(&envPtr, "env", "", "Set the local or global environment.")
+	cfgCmd.StringVar(&trainPtr, "train", "", "Set the local or global default train path.")
 	// TODO: create own struct implementing Value interface for price
-	cfgCmd.StringVar(&pricePtr, "price", "", "Maximum acceptable price per calc. (required)")
+	cfgCmd.StringVar(&pricePtr, "price", "", "Set the local or global price per calc.")
 
 	// run subcommand flag pointers
+	runCmd.StringVar(&usernamePtr, "username", "", "Username flag overrides local and global config settings. (required if not set in config)")
+	runCmd.StringVar(&passwordPtr, "password", "", "Password flag overrides local and global config settings. (required if not set in config)")
 	runCmd.StringVar(&envPtr, "env", "tensorflow:latest", "Environment to execute within {tensorflow:latest, pytorch:latest}.")
-	runCmd.StringVar(&trainPtr, "train", "", "Code to execute. (required)")
+	runCmd.StringVar(&trainPtr, "train", "", "Code to execute. (required if not set in config)")
 	// TODO: create own struct implementing Value interface for price
-	runCmd.StringVar(&pricePtr, "price", "", "Maximum acceptable price per calc. (required)")
+	runCmd.StringVar(&pricePtr, "price", "", "Maximum acceptable price per calc. (required if not set in config)")
 
 	// verify that a subcommand has been passed
 	// os.Arg[0]	main command
@@ -60,20 +66,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// global flag handling
-
-	// required flags
-	if trainPtr == "" || pricePtr == "" {
-		cfgCmd.PrintDefaults()
-		os.Exit(1)
-	}
-
-	// choice flags
-	envChoices := map[string]bool{"tensorflow:latest": true, "pytorch:latest": true}
-	if _, validChoices := envChoices[envPtr]; !validChoices {
-		cfgCmd.PrintDefaults()
-		os.Exit(1)
-	}
+	// load global config
+	// load local config (override if necessary)
+	// load flags (override if necessary)
 
 	// executed parsed subcommand
 	if cfgCmd.Parsed() {
@@ -84,14 +79,32 @@ func main() {
 	}
 
 	if runCmd.Parsed() {
+		// run subcommand flag handling
+
+		// required flags
+		if usernamePtr == "" || passwordPtr == "" || trainPtr == "" || pricePtr == "" {
+			runCmd.PrintDefaults()
+			os.Exit(1)
+		}
+
+		// choice flags
+		envChoices := map[string]bool{"tensorflow:latest": true, "pytorch:latest": true}
+		if _, validChoices := envChoices[envPtr]; !validChoices {
+			runCmd.PrintDefaults()
+			os.Exit(1)
+		}
+
 		fmt.Printf("env: %s, train: %s, price: %s\n",
 			envPtr, trainPtr, pricePtr)
 
-		// run subcommand flag handling
-		//
-
 		url := "http://127.0.0.1:8080/"
-		resp, err := http.Get(url)
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		req.SetBasicAuth(usernamePtr, passwordPtr)
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatalln(err)
 		}
