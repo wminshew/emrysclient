@@ -1,10 +1,13 @@
 package main
 
 import (
-	// "context"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
+	// "context"
 )
 
 func main() {
@@ -81,9 +84,20 @@ func main() {
 	}
 
 	if runCmd.Parsed() {
-		// run subcommand flag handling
-
 		fmt.Printf("env: %s, train: %s, price: %s\n",
 			envPtr, trainPtr, pricePtr)
+
+		// run subcommand flag handling
+		//
+
+		url := "http://127.0.0.1:8080/"
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		fmt.Printf("%s\n", body)
+
 	}
 }
