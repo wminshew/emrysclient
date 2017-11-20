@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	// "context"
 )
@@ -227,21 +228,61 @@ func main() {
 			os.Exit(1)
 		}
 
-		url := "http://127.0.0.1:8080/"
+		base_url := "http://127.0.0.1:8080/"
 		client := &http.Client{}
-		req, err := http.NewRequest("GET", url, nil)
+		// GET test
+		// req, err := http.NewRequest("GET", base_url, nil)
+		// if err != nil {
+		// 	log.Fatalln(err)
+		// }
+		// req.SetBasicAuth(cfg.Username, cfg.Password)
+		// resp, err := client.Do(req)
+		// if err != nil {
+		// 	log.Fatalln(err)
+		// }
+		// defer resp.Body.Close()
+		// body, err := ioutil.ReadAll(resp.Body)
+		// fmt.Printf("%s\n", body)
+
+		// POST file test
+		file, err := os.Open(cfg.Train)
 		if err != nil {
-			log.Fatalln(err)
+			log.Fatalf("Failed to open file %s: %v\n", cfg.Train, err)
+		}
+		defer file.Close()
+
+		// create request
+		post_trainpy := "job/upload"
+		req, err := http.NewRequest("POST", base_url+post_trainpy, file)
+		if err != nil {
+			log.Fatalf("Failed to create new http request: %v\n", err)
 		}
 		req.SetBasicAuth(cfg.Username, cfg.Password)
+
+		// print request for debugging
+		requestDump, err := httputil.DumpRequestOut(req, true)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(string(requestDump))
+
+		// send request
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatalln(err)
 		}
+
+		// print response for debugging
+		respDump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(string(respDump))
+
+		// read response
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		fmt.Printf("%s\n", body)
-
 	}
 }
 
