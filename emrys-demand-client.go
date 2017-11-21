@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"gopkg.in/mattes/go-expand-tilde.v1"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -222,9 +224,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		base_url := "http://127.0.0.1:8080/"
-		client := &http.Client{}
 		// GET test
+		// base_url := "http://127.0.0.1:8080/"
+		// client := &http.Client{}
 		// req, err := http.NewRequest("GET", base_url, nil)
 		// if err != nil {
 		// 	log.Fatalln(err)
@@ -239,20 +241,41 @@ func main() {
 		// fmt.Printf("%s\n", body)
 
 		// POST file test
-		file, err := os.Open(cfg.Train)
+		base_url := "http://127.0.0.1:8080/"
+		client := &http.Client{}
+		bodyBuf := &bytes.Buffer{}
+		bodyWriter := multipart.NewWriter(bodyBuf)
+
+		// add [env] params to FormPost
+
+		// TODO: add Train file to FormPost
+		trainWriter, err := bodyWriter.CreateFormFile("Train", cfg.Train)
+		if err != nil {
+			log.Fatalf("Failed to create form file %s: %v\n", cfg.Train, err)
+		}
+		trainFile, err := os.Open(cfg.Train)
 		if err != nil {
 			log.Fatalf("Failed to open file %s: %v\n", cfg.Train, err)
 		}
-		defer file.Close()
+		defer trainFile.Close()
+		_, err = io.Copy(trainWriter, trainFile)
+		if err != nil {
+			log.Fatalf("Failed to copy file %s: %v\n", trainFile, err)
+		}
+		// TODO: add Data-dir to FormPost, if appropriate
+
+		contentType := bodyWriter.FormDataContentType()
+		bodyWriter.Close()
 
 		// create request
 		post_trainpy := "job/upload"
-		req, err := http.NewRequest("POST", base_url+post_trainpy, file)
+		req, err := http.NewRequest("POST", base_url+post_trainpy, bodyBuf)
 		if err != nil {
 			log.Fatalf("Failed to create new http request: %v\n", err)
 		}
 		req.SetBasicAuth(cfg.Username, cfg.Password)
-		req.Header.Set("Content-Type", "text/plain")
+		// req.Header.Set("Content-Type", "text/plain")
+		req.Header.Set("Content-Type", contentType)
 		// req.Header.Set("Content-Encoding", "gzip")
 
 		// print request for debugging
