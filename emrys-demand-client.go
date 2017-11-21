@@ -135,6 +135,7 @@ func main() {
 				fmt.Printf("Success! Wrote to %s\n", path)
 			}
 		}
+
 		if globalCfg {
 			var globalCfg Config
 			path, err := tilde.Expand("~/.emrysconfig")
@@ -156,15 +157,8 @@ func main() {
 			fmt.Printf("New global config: %v\n", globalCfg)
 
 			// write the new global config file
-			fmt.Printf("Writing to current working directory...\n")
-			if err := WriteConfig(path, &globalCfg); err != nil {
-				log.Printf("Failed to save global config file: %v\n", err)
-			} else {
-				fmt.Printf("Success! Wrote to %s\n", path)
-			}
-
 			fmt.Printf("Writing to home directory...\n")
-			if err := WriteConfig(path, &cfg); err != nil {
+			if err := WriteConfig(path, &globalCfg); err != nil {
 				log.Printf("Failed to save global config file: %v\n", err)
 			} else {
 				fmt.Printf("Success! Wrote to %s\n", path)
@@ -258,6 +252,8 @@ func main() {
 			log.Fatalf("Failed to create new http request: %v\n", err)
 		}
 		req.SetBasicAuth(cfg.Username, cfg.Password)
+		req.Header.Set("Content-Type", "text/plain")
+		// req.Header.Set("Content-Encoding", "gzip")
 
 		// print request for debugging
 		requestDump, err := httputil.DumpRequestOut(req, true)
@@ -287,12 +283,14 @@ func main() {
 }
 
 func ReadConfig(path string, v interface{}) error {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("Failed to read file at %s: %v", path, err)
-	}
-	if err := json.NewDecoder(bytes.NewBuffer(data)).Decode(v); err != nil {
-		return fmt.Errorf("Failed to  JSON to buffer: %v", err)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		data, err := ioutil.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("Failed to read file at %s: %v", path, err)
+		}
+		if err := json.NewDecoder(bytes.NewBuffer(data)).Decode(v); err != nil {
+			return fmt.Errorf("Failed to read JSON to buffer: %v", err)
+		}
 	}
 
 	return nil
@@ -315,21 +313,21 @@ func WriteConfig(path string, v interface{}) error {
 	return nil
 }
 
-func (cfg *Config) updateConfig(srcCfg Config) error {
+func (destCfg *Config) updateConfig(srcCfg Config) error {
 	if srcCfg.Username != "" {
-		cfg.Username = srcCfg.Username
+		destCfg.Username = srcCfg.Username
 	}
 	if srcCfg.Password != "" {
-		cfg.Password = srcCfg.Password
+		destCfg.Password = srcCfg.Password
 	}
 	if srcCfg.Env != "" {
-		cfg.Env = srcCfg.Env
+		destCfg.Env = srcCfg.Env
 	}
 	if srcCfg.Train != "" {
-		cfg.Train = srcCfg.Train
+		destCfg.Train = srcCfg.Train
 	}
 	if srcCfg.Price != "" {
-		cfg.Price = srcCfg.Price
+		destCfg.Price = srcCfg.Price
 	}
 	return nil
 }
