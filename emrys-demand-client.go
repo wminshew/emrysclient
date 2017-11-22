@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/mholt/archiver"
 	"gopkg.in/mattes/go-expand-tilde.v1"
 	"io"
 	"io/ioutil"
@@ -21,6 +22,7 @@ type Config struct {
 	Password string `json:"Password,omitempty"`
 	Env      string `json:"Env,omitempty"`
 	Train    string `json:"Train,omitempty"`
+	DataDir  string `json:"DataDir,omitempty"`
 	Price    string `json:"Price,omitempty"`
 }
 
@@ -45,6 +47,7 @@ func main() {
 	var passwordPtr string
 	var envPtr string
 	var trainPtr string
+	var dataDirPtr string
 	// TODO: create own struct implementing Value interface for price
 	var pricePtr string
 	var localCfg bool
@@ -55,6 +58,7 @@ func main() {
 	cfgCmd.StringVar(&passwordPtr, "password", "", "Set the local or global password.")
 	cfgCmd.StringVar(&envPtr, "env", "", "Set the local or global environment.")
 	cfgCmd.StringVar(&trainPtr, "train", "", "Set the local or global default train path.")
+	cfgCmd.StringVar(&dataDirPtr, "data-dir", "", "Set the local or global default data-dir path.")
 	// TODO: create own struct implementing Value interface for price
 	cfgCmd.StringVar(&pricePtr, "price", "", "Set the local or global price per calc.")
 	cfgCmd.BoolVar(&localCfg, "local", false, "Save config locally (saved in this directory).")
@@ -65,6 +69,7 @@ func main() {
 	runCmd.StringVar(&passwordPtr, "password", "", "Password flag overrides local and global config settings. (required if not set in config)")
 	runCmd.StringVar(&envPtr, "env", "", "Environment to execute within {tensorflow:latest, pytorch:latest}.")
 	runCmd.StringVar(&trainPtr, "train", "", "Code to execute. (required if not set in config)")
+	runCmd.StringVar(&dataDirPtr, "data-dir", "", "Data to train & validate model with.")
 	// TODO: create own struct implementing Value interface for price
 	runCmd.StringVar(&pricePtr, "price", "", "Maximum acceptable price per calc. (required if not set in config)")
 
@@ -87,10 +92,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// load global config
-	// load local config (override if necessary)
-	// load flags (override if necessary)
-
 	// executed parsed subcommand
 	if cfgCmd.Parsed() {
 		// config subcommand flag handling
@@ -105,6 +106,9 @@ func main() {
 		}
 		if trainPtr != "" {
 			cfg.Train = trainPtr
+		}
+		if dataDirPtr != "" {
+			cfg.DataDir = dataDirPtr
 		}
 		if pricePtr != "" {
 			cfg.Price = pricePtr
@@ -205,6 +209,9 @@ func main() {
 		if trainPtr != "" {
 			cfg.Train = trainPtr
 		}
+		if dataDirPtr != "" {
+			cfg.DataDir = dataDirPtr
+		}
 		if pricePtr != "" {
 			cfg.Price = pricePtr
 		}
@@ -212,7 +219,7 @@ func main() {
 
 		// required flags
 		// TODO: replace with ValidForRun() call on config or something..
-		if cfg.Username == "" || cfg.Password == "" || cfg.Train == "" || cfg.Price == "" {
+		if cfg.Username == "" || cfg.Password == "" || cfg.Train == "" || cfg.DataDir == "" || cfg.Price == "" {
 			runCmd.PrintDefaults()
 			os.Exit(1)
 		}
@@ -246,9 +253,15 @@ func main() {
 		bodyBuf := &bytes.Buffer{}
 		bodyWriter := multipart.NewWriter(bodyBuf)
 
-		// add [env] params to FormPost
+		// add cfg params to PostForm
+		if err := bodyWriter.WriteField("Env", cfg.Env); err != nil {
+			log.Fatalf("Failed to write Env to PostForm: %v\n", err)
+		}
+		if err = bodyWriter.WriteField("Price", cfg.Price); err != nil {
+			log.Fatalf("Failed to write Price to PostForm: %v\n", err)
+		}
 
-		// TODO: add Train file to FormPost
+		// add Train file to PostForm
 		trainWriter, err := bodyWriter.CreateFormFile("Train", cfg.Train)
 		if err != nil {
 			log.Fatalf("Failed to create form file %s: %v\n", cfg.Train, err)
@@ -262,8 +275,36 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to copy file %s: %v\n", trainFile, err)
 		}
-		// TODO: add Data-dir to FormPost, if appropriate
 
+		// add DataDir to PostForm, if appropriate
+		// archive & gzip data directory
+		dataDirTarGzPath := cfg.DataDir + ".tar.gz"
+		if err = archiver.TarGz.Make(dataDirTarGzPath, []string{cfg.DataDir}); err != nil {
+			log.Fatalf("Failed to tar & gzip data dir %s: %v\n", dataDirTarGzPath, err)
+		}
+
+		// write gzip'd data archive to PostForm
+		dataDirWriter, err := bodyWriter.CreateFormFile("DataDir", dataDirTarGzPath)
+		if err != nil {
+			log.Fatalf("Failed to create form file %s: %v\n", dataDirTarGzPath, err)
+		}
+		dataDirTarGzFile, err := os.Open(dataDirTarGzPath)
+		if err != nil {
+			log.Fatalf("Failed to open file %s: %v\n", dataDirTarGzPath, err)
+		}
+		defer dataDirTarGzFile.Close()
+		_, err = io.Copy(dataDirWriter, dataDirTarGzFile)
+		if err != nil {
+			log.Fatalf("Failed to copy file %s: %v\n", dataDirTarGzFile, err)
+		}
+
+		// remove .tar.gz after sending to server
+		// not sure if i should defer or not? technically should already be copied
+		defer os.Remove(dataDirTarGzPath)
+
+		// TODO: add DataURL to PostForm, if approriate
+
+		// add Form contentType & close Writer
 		contentType := bodyWriter.FormDataContentType()
 		bodyWriter.Close()
 
@@ -348,6 +389,9 @@ func (destCfg *Config) updateConfig(srcCfg Config) error {
 	}
 	if srcCfg.Train != "" {
 		destCfg.Train = srcCfg.Train
+	}
+	if srcCfg.DataDir != "" {
+		destCfg.DataDir = srcCfg.DataDir
 	}
 	if srcCfg.Price != "" {
 		destCfg.Price = srcCfg.Price
