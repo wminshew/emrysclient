@@ -18,12 +18,13 @@ import (
 )
 
 type Config struct {
-	Username string `json:"Username,omitempty"`
-	Password string `json:"Password,omitempty"`
-	Env      string `json:"Env,omitempty"`
-	Train    string `json:"Train,omitempty"`
-	DataDir  string `json:"DataDir,omitempty"`
-	Price    string `json:"Price,omitempty"`
+	Username     string `json:"Username,omitempty"`
+	Password     string `json:"Password,omitempty"`
+	Env          string `json:"Env,omitempty"`
+	Requirements string `json:"Requirements,omitempty"`
+	Train        string `json:"Train,omitempty"`
+	DataDir      string `json:"DataDir,omitempty"`
+	Price        string `json:"Price,omitempty"`
 }
 
 func main() {
@@ -46,6 +47,7 @@ func main() {
 	var usernamePtr string
 	var passwordPtr string
 	var envPtr string
+	var reqPtr string
 	var trainPtr string
 	var dataDirPtr string
 	// TODO: create own struct implementing Value interface for price
@@ -57,6 +59,7 @@ func main() {
 	cfgCmd.StringVar(&usernamePtr, "username", "", "Set the local or global username.")
 	cfgCmd.StringVar(&passwordPtr, "password", "", "Set the local or global password.")
 	cfgCmd.StringVar(&envPtr, "env", "", "Set the local or global environment.")
+	cfgCmd.StringVar(&reqPtr, "requirements", "", "Set the local or global default requirements.txt for additonal libraries outside Env.")
 	cfgCmd.StringVar(&trainPtr, "train", "", "Set the local or global default train path.")
 	cfgCmd.StringVar(&dataDirPtr, "data-dir", "", "Set the local or global default data-dir path.")
 	// TODO: create own struct implementing Value interface for price
@@ -68,6 +71,7 @@ func main() {
 	runCmd.StringVar(&usernamePtr, "username", "", "Username flag overrides local and global config settings. (required if not set in config)")
 	runCmd.StringVar(&passwordPtr, "password", "", "Password flag overrides local and global config settings. (required if not set in config)")
 	runCmd.StringVar(&envPtr, "env", "", "Environment to execute within {tensorflow:latest, pytorch:latest}.")
+	runCmd.StringVar(&reqPtr, "requirements", "", "Packages to load in venv before executing. (optional)")
 	runCmd.StringVar(&trainPtr, "train", "", "Code to execute. (required if not set in config)")
 	runCmd.StringVar(&dataDirPtr, "data-dir", "", "Data to train & validate model with.")
 	// TODO: create own struct implementing Value interface for price
@@ -103,6 +107,9 @@ func main() {
 		}
 		if envPtr != "" {
 			cfg.Env = envPtr
+		}
+		if reqPtr != "" {
+			cfg.Requirements = reqPtr
 		}
 		if trainPtr != "" {
 			cfg.Train = trainPtr
@@ -206,6 +213,9 @@ func main() {
 		if envPtr != "" {
 			cfg.Env = envPtr
 		}
+		if reqPtr != "" {
+			cfg.Requirements = reqPtr
+		}
 		if trainPtr != "" {
 			cfg.Train = trainPtr
 		}
@@ -218,7 +228,7 @@ func main() {
 		fmt.Printf("Config: %v\n", cfg)
 
 		// required flags
-		// TODO: replace with ValidForRun() call on config or something..
+		// TODO: replace with method ValidForRun() call on config or something..
 		if cfg.Username == "" || cfg.Password == "" || cfg.Train == "" || cfg.DataDir == "" || cfg.Price == "" {
 			runCmd.PrintDefaults()
 			os.Exit(1)
@@ -261,6 +271,21 @@ func main() {
 			log.Fatalf("Failed to write Price to PostForm: %v\n", err)
 		}
 
+		// add Requirements file to PostForm [optional]
+		requirementsWriter, err := bodyWriter.CreateFormFile("Requirements", cfg.Requirements)
+		if err != nil {
+			log.Fatalf("Failed to create form file %s: %v\n", cfg.Requirements, err)
+		}
+		requirementsFile, err := os.Open(cfg.Requirements)
+		if err != nil {
+			log.Fatalf("Failed to open file %s: %v\n", cfg.Requirements, err)
+		}
+		defer requirementsFile.Close()
+		_, err = io.Copy(requirementsWriter, requirementsFile)
+		if err != nil {
+			log.Fatalf("Failed to copy file %s: %v\n", requirementsFile, err)
+		}
+
 		// add Train file to PostForm
 		trainWriter, err := bodyWriter.CreateFormFile("Train", cfg.Train)
 		if err != nil {
@@ -299,7 +324,6 @@ func main() {
 		}
 
 		// remove .tar.gz after sending to server
-		// not sure if i should defer or not? technically should already be copied
 		defer os.Remove(dataDirTarGzPath)
 
 		// TODO: add DataURL to PostForm, if approriate
@@ -369,7 +393,6 @@ func WriteConfig(path string, v interface{}) error {
 
 	var readWriteModePerm os.FileMode
 	readWriteModePerm = 0666
-	fmt.Printf("%v\n", readWriteModePerm)
 	if err := ioutil.WriteFile(path, b.Bytes(), readWriteModePerm); err != nil {
 		return fmt.Errorf("Failed to write buffer to file at %s: %v", path, err)
 	}
@@ -386,6 +409,9 @@ func (destCfg *Config) updateConfig(srcCfg Config) error {
 	}
 	if srcCfg.Env != "" {
 		destCfg.Env = srcCfg.Env
+	}
+	if srcCfg.Requirements != "" {
+		destCfg.Requirements = srcCfg.Requirements
 	}
 	if srcCfg.Train != "" {
 		destCfg.Train = srcCfg.Train
