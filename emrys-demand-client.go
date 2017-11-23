@@ -242,7 +242,7 @@ func main() {
 		}
 
 		// GET test
-		// base_url := "http://127.0.0.1:8080/"
+		// base_url := "http://127.0.0.1:8080"
 		// client := &http.Client{}
 		// req, err := http.NewRequest("GET", base_url, nil)
 		// if err != nil {
@@ -258,7 +258,8 @@ func main() {
 		// fmt.Printf("%s\n", body)
 
 		// POST file test
-		base_url := "http://127.0.0.1:8080/"
+		// base_url := "http://127.0.0.1:8080"
+		base_url := "http://wmdlserver.ddns.net:8080"
 		client := &http.Client{}
 		bodyBuf := &bytes.Buffer{}
 		bodyWriter := multipart.NewWriter(bodyBuf)
@@ -333,7 +334,7 @@ func main() {
 		bodyWriter.Close()
 
 		// create request
-		post_trainpy := "job/upload"
+		post_trainpy := "/job/upload"
 		req, err := http.NewRequest("POST", base_url+post_trainpy, bodyBuf)
 		if err != nil {
 			log.Fatalf("Failed to create new http request: %v\n", err)
