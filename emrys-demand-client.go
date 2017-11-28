@@ -308,6 +308,9 @@ func main() {
 		if err = archiver.TarGz.Make(dataDirTarGzPath, []string{cfg.DataDir}); err != nil {
 			log.Fatalf("Failed to tar & gzip data dir %s: %v\n", dataDirTarGzPath, err)
 		}
+		// remove .tar.gz after POST
+		// TODO: figure out why this isn't executing when the connection is refused
+		defer os.Remove(dataDirTarGzPath)
 
 		// write gzip'd data archive to PostForm
 		dataDirWriter, err := bodyWriter.CreateFormFile("DataDir", dataDirTarGzPath)
@@ -323,9 +326,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to copy file %s: %v\n", dataDirTarGzFile, err)
 		}
-
-		// remove .tar.gz after sending to server
-		defer os.Remove(dataDirTarGzPath)
 
 		// TODO: add DataURL to PostForm, if approriate
 
@@ -347,9 +347,9 @@ func main() {
 		// print request for debugging
 		requestDump, err := httputil.DumpRequestOut(req, true)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
-		fmt.Println(string(requestDump))
+		log.Println(string(requestDump))
 
 		// send request
 		resp, err := client.Do(req)
@@ -360,14 +360,14 @@ func main() {
 		// print response for debugging
 		respDump, err := httputil.DumpResponse(resp, true)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
-		fmt.Println(string(respDump))
+		log.Println(string(respDump))
 
 		// read response
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
-		fmt.Printf("%s\n", body)
+		log.Printf("%s\n", body)
 	}
 }
 
