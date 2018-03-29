@@ -1,2 +1,3 @@
-# emrys-demand-client
-go CLI for posting deep learning jobs to emrys-server
+# emrysuser
+
+golang CLI for pushing deep learning jobs to emrys
