@@ -122,6 +122,9 @@ func main() {
 		}
 		fmt.Printf("Config: %v\n", cfg)
 
+		if !localCfg && !globalCfg {
+			fmt.Printf("Use --local or --global to specify which config to set.\n")
+		}
 		if localCfg {
 			var localCfg Config
 			pwd, _ := os.Getwd()
@@ -356,6 +359,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer resp.Body.Close()
 
 		// print response for debugging
 		respDump, err := httputil.DumpResponse(resp, true)
@@ -363,11 +367,6 @@ func main() {
 			log.Println(err)
 		}
 		log.Println(string(respDump))
-
-		// read response
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		log.Printf("%s\n", body)
 	}
 }
 
