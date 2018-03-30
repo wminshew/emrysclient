@@ -241,6 +241,7 @@ func main() {
 		envChoices := map[string]bool{"tensorflow:latest": true, "pytorch:latest": true}
 		if _, validChoices := envChoices[cfg.Env]; !validChoices {
 			runCmd.PrintDefaults()
+			log.Fatalf("Please choose a correct environment.")
 			os.Exit(1)
 		}
 
