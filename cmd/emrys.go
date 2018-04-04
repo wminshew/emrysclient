@@ -246,7 +246,7 @@ func main() {
 		}
 
 		// GET test
-		// baseURL := "http://127.0.0.1:8080"
+		// baseURL := "https://localhost:8080"
 		// client := &http.Client{}
 		// req, err := http.NewRequest("GET", baseURL, nil)
 		// if err != nil {
@@ -262,7 +262,7 @@ func main() {
 		// fmt.Printf("%s\n", body)
 
 		// POST file test
-		// baseURL := "http://127.0.0.1:8080"
+		// baseURL := "https://localhost:8080"
 		// TODO: might have to get new certificate for server for this URL
 		// and update cURLs
 		baseURL := "https://wmdlserver.ddns.net:8080"
