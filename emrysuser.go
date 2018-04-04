@@ -17,7 +17,7 @@ import (
 	// "context"
 )
 
-type Config struct {
+type config struct {
 	Username     string `json:"Username,omitempty"`
 	Password     string `json:"Password,omitempty"`
 	Env          string `json:"Env,omitempty"`
@@ -37,7 +37,7 @@ func main() {
 	flag.Parse()
 
 	// establish config struct
-	cfg := Config{}
+	cfg := config{}
 
 	// subcommands
 	cfgCmd := flag.NewFlagSet("config", flag.ExitOnError)
@@ -126,12 +126,12 @@ func main() {
 			fmt.Printf("Use --local or --global to specify which config to set.\n")
 		}
 		if localCfg {
-			var localCfg Config
+			var localCfg config
 			pwd, _ := os.Getwd()
 			path := pwd + "/.emrysconfig"
 
 			// read the existing local config file
-			if err := ReadConfig(path, &localCfg); err != nil {
+			if err := readConfig(path, &localCfg); err != nil {
 				log.Fatalf("Error reading local config file: %v\n", err)
 			}
 			fmt.Printf("Previous local config: %v\n", localCfg)
@@ -160,7 +160,7 @@ func main() {
 			}
 
 			// read the existing global config file
-			if err := ReadConfig(path, &globalCfg); err != nil {
+			if err := readConfig(path, &globalCfg); err != nil {
 				log.Fatalf("Error reading global config file: %v\n", err)
 			}
 			fmt.Printf("Previous global config: %v\n", globalCfg)
@@ -191,7 +191,7 @@ func main() {
 		}
 
 		// read the existing global config file into config for dispatch
-		if err := ReadConfig(path, &globalCfg); err != nil {
+		if err := readConfig(path, &globalCfg); err != nil {
 			log.Printf("Error reading global config file: %v\n", err)
 		}
 		cfg.updateConfig(globalCfg)
@@ -201,7 +201,7 @@ func main() {
 		path = pwd + "/.emrysconfig"
 
 		// read the existing local config file and override any global settings
-		if err := ReadConfig(path, &localCfg); err != nil {
+		if err := readConfig(path, &localCfg); err != nil {
 			log.Printf("Error reading local config file: %v\n", err)
 		}
 		cfg.updateConfig(localCfg)
@@ -246,9 +246,9 @@ func main() {
 		}
 
 		// GET test
-		// base_url := "http://127.0.0.1:8080"
+		// baseURL := "http://127.0.0.1:8080"
 		// client := &http.Client{}
-		// req, err := http.NewRequest("GET", base_url, nil)
+		// req, err := http.NewRequest("GET", baseURL, nil)
 		// if err != nil {
 		// 	log.Fatalln(err)
 		// }
@@ -262,8 +262,10 @@ func main() {
 		// fmt.Printf("%s\n", body)
 
 		// POST file test
-		// base_url := "http://127.0.0.1:8080"
-		base_url := "http://wmdlserver.ddns.net:8080"
+		// baseURL := "http://127.0.0.1:8080"
+		// TODO: might have to get new certificate for server for this URL
+		// and update cURLs
+		baseURL := "https://wmdlserver.ddns.net:8080"
 		client := &http.Client{}
 		bodyBuf := &bytes.Buffer{}
 		bodyWriter := multipart.NewWriter(bodyBuf)
@@ -288,7 +290,7 @@ func main() {
 		defer requirementsFile.Close()
 		_, err = io.Copy(requirementsWriter, requirementsFile)
 		if err != nil {
-			log.Fatalf("Failed to copy file %s: %v\n", requirementsFile, err)
+			log.Fatalf("Failed to copy file %s: %v\n", requirementsFile.Name(), err)
 		}
 
 		// add Train file to PostForm
@@ -303,7 +305,7 @@ func main() {
 		defer trainFile.Close()
 		_, err = io.Copy(trainWriter, trainFile)
 		if err != nil {
-			log.Fatalf("Failed to copy file %s: %v\n", trainFile, err)
+			log.Fatalf("Failed to copy file %s: %v\n", trainFile.Name(), err)
 		}
 
 		// add DataDir to PostForm, if appropriate
@@ -328,7 +330,7 @@ func main() {
 		defer dataDirTarGzFile.Close()
 		_, err = io.Copy(dataDirWriter, dataDirTarGzFile)
 		if err != nil {
-			log.Fatalf("Failed to copy file %s: %v\n", dataDirTarGzFile, err)
+			log.Fatalf("Failed to copy file %s: %v\n", dataDirTarGzFile.Name(), err)
 		}
 
 		// TODO: add DataURL to PostForm, if approriate
@@ -338,8 +340,8 @@ func main() {
 		bodyWriter.Close()
 
 		// create request
-		post_trainpy := "/job/upload"
-		req, err := http.NewRequest("POST", base_url+post_trainpy, bodyBuf)
+		postTrainPy := "/job/upload"
+		req, err := http.NewRequest("POST", baseURL+postTrainPy, bodyBuf)
 		if err != nil {
 			log.Fatalf("Failed to create new http request: %v\n", err)
 		}
@@ -371,7 +373,7 @@ func main() {
 	}
 }
 
-func ReadConfig(path string, v interface{}) error {
+func readConfig(path string, v interface{}) error {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		data, err := ioutil.ReadFile(path)
 		if err != nil {
@@ -385,7 +387,7 @@ func ReadConfig(path string, v interface{}) error {
 	return nil
 }
 
-func WriteConfig(path string, v interface{}) error {
+func writeConfig(path string, v interface{}) error {
 	var b bytes.Buffer
 
 	if err := json.NewEncoder(&b).Encode(v); err != nil {
