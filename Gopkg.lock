@@ -15,6 +15,12 @@
   revision = "cc9eb1d7ad760af14e8f918698f745e80377af4f"
 
 [[projects]]
+  name = "github.com/inconshreveable/mousetrap"
+  packages = ["."]
+  revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+  version = "v1.0"
+
+[[projects]]
   name = "github.com/mholt/archiver"
   packages = ["."]
   revision = "cdc68dd1f170b8dfc1a0d2231b5bb0967ed67006"
@@ -25,6 +31,18 @@
   name = "github.com/nwaples/rardecode"
   packages = ["."]
   revision = "e06696f847aeda6f39a8f0b7cdff193b7690aef6"
+
+[[projects]]
+  name = "github.com/spf13/cobra"
+  packages = ["."]
+  revision = "a1f051bc3eba734da4772d60e2d677f47cf93ef4"
+  version = "v0.0.2"
+
+[[projects]]
+  name = "github.com/spf13/pflag"
+  packages = ["."]
+  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/ulikunitz/xz"
@@ -38,6 +56,21 @@
   version = "v0.5.4"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "1d206c9fa8975fb4cf00df1dc8bf3283dc24ba0e"
+
+[[projects]]
   branch = "v1"
   name = "gopkg.in/mattes/go-expand-tilde.v1"
   packages = ["."]
@@ -46,6 +79,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "57989998152c025ea288b29c6ba9d707ab6e481e52deaac9705eddfcc3b6bb29"
+  inputs-digest = "16e6201451110c7fedab1c2b18b1659d227fecf45f9c3e0cb93d71bf5a2769f0"
   solver-name = "gps-cdcl"
   solver-version = 1
