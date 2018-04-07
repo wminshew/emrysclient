@@ -2,19 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
-	// "github.com/spf13/viper"
+	"github.com/spf13/viper"
 )
-
-// baseURL := "https://localhost:8080"
-// TODO: might have to get new certificate for server for this URL
-// and update cURLs
-// TODO: test different ports and http vs https
-// var baseURL, _ = url.Parse("https://wmdlserver.ddns.net:4430")
-var baseURL, _ = url.Parse("https://localhost:4430")
 
 var rootCmd = &cobra.Command{
 	Use:   "emrys",
@@ -24,21 +16,24 @@ var rootCmd = &cobra.Command{
 	wherever its most cost effective.
 	Learn more at https://emrys.io`,
 	Run: func(cmd *cobra.Command, args []string) {
-
+		fmt.Printf("Use \"emrys --help\" for more information about subcommands.\n")
 	},
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
-	// TODO: set version
+	// cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
-}
-
-func initConfig() {
-
+	runCmd.Flags().String("config", ".emrys", "Path to your config file for training (don't include extension)")
+	runCmd.Flags().String("requirements", "./requirements.txt", "Path to your requirements file for training")
+	runCmd.Flags().String("train", "./train.py", "Path to your training file")
+	runCmd.Flags().String("data", "./data", "Path to the directory holding your data")
+	runCmd.Flags().SortFlags = false
+	viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
+	viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
+	viper.BindPFlag("train", runCmd.Flags().Lookup("train"))
+	viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
 }
 
 func Execute() {

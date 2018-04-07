@@ -1,0 +1,3 @@
+requirements: "test/numpy/requirements.txt"
+train: "test/numpy/train.py"
+data: "test/numpy/data"
