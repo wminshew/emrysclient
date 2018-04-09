@@ -55,7 +55,7 @@ var loginCmd = &cobra.Command{
 		}
 		defer resp.Body.Close()
 
-		if env == "dev" {
+		if appEnv == "dev" {
 			respDump, err := httputil.DumpResponse(resp, true)
 			if err != nil {
 				log.Println(err)

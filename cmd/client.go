@@ -9,7 +9,7 @@ import (
 )
 
 func resolveClient() *http.Client {
-	if env == "dev" {
+	if appEnv == "dev" {
 		CA_Pool := x509.NewCertPool()
 		serverCert, err := ioutil.ReadFile("./devCert.crt")
 		if err != nil {

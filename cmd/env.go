@@ -6,13 +6,12 @@ import (
 )
 
 var (
-	env = os.Getenv("ENV")
+	appEnv = os.Getenv("APP_ENV")
 )
 
 func resolveBase() *url.URL {
 	var base *url.URL
-	if env == "dev" {
-		// baseURL := "https://localhost:8080"
+	if appEnv == "dev" {
 		// TODO: test different ports and http vs https
 		base, _ = url.Parse("https://localhost:4430")
 	} else {
