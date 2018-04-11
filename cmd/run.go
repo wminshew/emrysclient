@@ -29,6 +29,8 @@ var runCmd = &cobra.Command{
 	spare GPU cycles on the internet to execute your
 	job`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// TODO: check token validity before sending files;
+		// files could be realllly large...
 		token := getToken()
 
 		viper.SetConfigName(viper.GetString("config"))
@@ -51,9 +53,12 @@ var runCmd = &cobra.Command{
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode != http.StatusOK {
+			log.Fatalf("Request error: %v\n", resp.Status)
+		}
+
 		buf := new(bytes.Buffer)
 		io.Copy(buf, resp.Body)
-		resp.Body.Close()
 		fmt.Println(buf.String())
 	},
 }
