@@ -37,7 +37,8 @@ var runCmd = &cobra.Command{
 		viper.AddConfigPath(".")
 		err := viper.ReadInConfig()
 		if err != nil {
-			log.Printf("Error reading config file; using defaults")
+			log.Printf("Error reading config file")
+			return
 		}
 
 		job := &job{
@@ -49,12 +50,14 @@ var runCmd = &cobra.Command{
 
 		resp, err := postJob(job)
 		if err != nil {
-			log.Fatalf("Error posting your job: %v\n", err)
+			log.Printf("Error posting your job: %v\n", err)
+			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			log.Fatalf("Request error: %v\n", resp.Status)
+			log.Printf("Request error: %v\n", resp.Status)
+			return
 		}
 
 		buf := new(bytes.Buffer)
@@ -69,30 +72,36 @@ func postJob(j *job) (*http.Response, error) {
 
 	requirementsWriter, err := bodyWriter.CreateFormFile("requirements", "requirements.txt")
 	if err != nil {
-		log.Fatalf("Failed to create requirements.txt form file: %v\n", err)
+		log.Printf("Failed to create requirements.txt form file: %v\n", err)
+		return nil, err
 	}
 	requirementsFile, err := os.Open(j.Requirements)
 	if err != nil {
-		log.Fatalf("Failed to open file %s: %v\n", j.Requirements, err)
+		log.Printf("Failed to open file %s: %v\n", j.Requirements, err)
+		return nil, err
 	}
 	defer requirementsFile.Close()
 	_, err = io.Copy(requirementsWriter, requirementsFile)
 	if err != nil {
-		log.Fatalf("Failed to copy requirements file: %v\n", err)
+		log.Printf("Failed to copy requirements file: %v\n", err)
+		return nil, err
 	}
 
 	trainWriter, err := bodyWriter.CreateFormFile("train", "train.py")
 	if err != nil {
-		log.Fatalf("Failed to create train.py form file: %v\n", err)
+		log.Printf("Failed to create train.py form file: %v\n", err)
+		return nil, err
 	}
 	trainFile, err := os.Open(j.Train)
 	if err != nil {
-		log.Fatalf("Failed to open file %s: %v\n", j.Train, err)
+		log.Printf("Failed to open file %s: %v\n", j.Train, err)
+		return nil, err
 	}
 	defer trainFile.Close()
 	_, err = io.Copy(trainWriter, trainFile)
 	if err != nil {
-		log.Fatalf("Failed to copy train file %s: %v\n", err)
+		log.Printf("Failed to copy train file %s: %v\n", err)
+		return nil, err
 	}
 
 	// add Data to PostForm, if appropriate
@@ -100,25 +109,30 @@ func postJob(j *job) (*http.Response, error) {
 	// --data [path|url] and the system takes care of the rest
 	// then again, if its a url you should probably be downloading it and arranging
 	// it specifically within train.py......
+	// TODO: upgrade all +'s to filepath.Join
 	dataTarGzPath := j.Data + ".tar.gz"
 	if err = archiver.TarGz.Make(dataTarGzPath, []string{j.Data}); err != nil {
-		log.Fatalf("Failed to tar & gzip %s: %v\n", j.Data, err)
+		log.Printf("Failed to tar & gzip %s: %v\n", j.Data, err)
+		return nil, err
 	}
 	// TODO: figure out why this isn't executing when the connection is refused
 	defer os.Remove(dataTarGzPath)
 
 	dataWriter, err := bodyWriter.CreateFormFile("data", "data.tar.gz")
 	if err != nil {
-		log.Fatalf("Failed to create data.tar.gz file: %v\n", err)
+		log.Printf("Failed to create data.tar.gz file: %v\n", err)
+		return nil, err
 	}
 	dataTarGzFile, err := os.Open(dataTarGzPath)
 	if err != nil {
-		log.Fatalf("Failed to open file %s: %v\n", dataTarGzPath, err)
+		log.Printf("Failed to open file %s: %v\n", dataTarGzPath, err)
+		return nil, err
 	}
 	defer dataTarGzFile.Close()
 	_, err = io.Copy(dataWriter, dataTarGzFile)
 	if err != nil {
-		log.Fatalf("Failed to copy data.tar.gz: %v\n", err)
+		log.Printf("Failed to copy data.tar.gz: %v\n", err)
+		return nil, err
 	}
 
 	bodyWriter.Close()
@@ -127,7 +141,8 @@ func postJob(j *job) (*http.Response, error) {
 	url := base.ResolveReference(uPath)
 	req, err := http.NewRequest("POST", url.String(), bodyBuf)
 	if err != nil {
-		log.Fatalf("Failed to create new http request: %v\n", err)
+		log.Printf("Failed to create new http request: %v\n", err)
+		return nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.Token))
 	contentType := bodyWriter.FormDataContentType()
