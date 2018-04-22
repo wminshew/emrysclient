@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/mholt/archiver"
@@ -60,9 +61,15 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		buf := new(bytes.Buffer)
-		io.Copy(buf, resp.Body)
-		fmt.Println(buf.String())
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadBytes('\n')
+			if err != nil {
+				break
+			}
+
+			log.Print(string(line))
+		}
 	},
 }
 
@@ -70,6 +77,7 @@ func postJob(j *job) (*http.Response, error) {
 	bodyBuf := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(bodyBuf)
 
+	log.Printf("Packing request...\n")
 	requirementsWriter, err := bodyWriter.CreateFormFile("requirements", "requirements.txt")
 	if err != nil {
 		log.Printf("Failed to create requirements.txt form file: %v\n", err)
@@ -139,6 +147,7 @@ func postJob(j *job) (*http.Response, error) {
 	uPath, _ := url.Parse("/job/upload")
 	base := resolveBase()
 	url := base.ResolveReference(uPath)
+	log.Printf("Sending request...\n")
 	req, err := http.NewRequest("POST", url.String(), bodyBuf)
 	if err != nil {
 		log.Printf("Failed to create new http request: %v\n", err)
