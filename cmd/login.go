@@ -33,8 +33,8 @@ var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrys",
 	Long: `After receiving a valid email and password,
-	login save a JSON web token (JWT) locally set to
-	expire in 24 hours.`,
+	login save a JSON web token (JWT) locally. By default,
+	the token expires in 24 hours.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		creds := &credentials{}
 		userLogin(creds)
