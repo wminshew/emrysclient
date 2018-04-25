@@ -109,7 +109,7 @@ func postJob(j *job) (*http.Response, error) {
 	defer check.Err(trainFile.Close)
 	_, err = io.Copy(trainWriter, trainFile)
 	if err != nil {
-		log.Printf("Failed to copy train file %s: %v\n", err)
+		log.Printf("Failed to copy train file %s: %v\n", j.Train, err)
 		return nil, err
 	}
 
@@ -136,7 +136,11 @@ func postJob(j *job) (*http.Response, error) {
 		return nil, err
 	}
 
-	bodyWriter.Close()
+	err = bodyWriter.Close()
+	if err != nil {
+		log.Printf("Failed to close request bodyWriter: %v\n", err)
+		return nil, err
+	}
 	uPath, _ := url.Parse("/job/upload")
 	base := resolveBase()
 	url := base.ResolveReference(uPath)

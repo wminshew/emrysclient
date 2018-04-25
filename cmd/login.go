@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/wminshew/check"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
 	"log"
@@ -53,7 +54,7 @@ var loginCmd = &cobra.Command{
 			log.Fatalf("URL: %v\n", url)
 			log.Fatalf("Body: %v\n", bodyBuf)
 		}
-		defer resp.Body.Close()
+		defer check.Err(resp.Body.Close)
 
 		if appEnv == "dev" {
 			respDump, err := httputil.DumpResponse(resp, true)
@@ -101,7 +102,7 @@ func storeToken(t string) {
 	}
 	dir := path.Join(user.HomeDir, ".config", "emrys")
 	fmt.Print(dir)
-	os.MkdirAll(dir, perm)
+	err = os.MkdirAll(dir, perm)
 	if err != nil {
 		log.Fatalf("Failed to make directory %s to save login token: %v\n", dir, err)
 	}

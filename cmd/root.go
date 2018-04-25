@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log"
+	"os"
 )
 
 var rootCmd = &cobra.Command{
@@ -30,12 +30,25 @@ func init() {
 	runCmd.Flags().String("train", "./train.py", "Path to your training file")
 	runCmd.Flags().String("data", "./data", "Path to the directory holding your data")
 	runCmd.Flags().SortFlags = false
-	viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
-	viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
-	viper.BindPFlag("train", runCmd.Flags().Lookup("train"))
-	viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
+	err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
+	if err != nil {
+		log.Fatalf("Error binding pflag config")
+	}
+	err = viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
+	if err != nil {
+		log.Fatalf("Error binding pflag requirements")
+	}
+	err = viper.BindPFlag("train", runCmd.Flags().Lookup("train"))
+	if err != nil {
+		log.Fatalf("Error binding pflag train")
+	}
+	err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
+	if err != nil {
+		log.Fatalf("Error binding pflag data")
+	}
 }
 
+// Execute the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

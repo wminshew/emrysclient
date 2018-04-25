@@ -10,16 +10,15 @@ import (
 
 func resolveClient() *http.Client {
 	if appEnv == "dev" {
-		CA_Pool := x509.NewCertPool()
+		CAPool := x509.NewCertPool()
 		serverCert, err := ioutil.ReadFile("./devCert.crt")
 		if err != nil {
 			log.Fatalf("Could not load dev certificate: %v\n", err)
 		}
-		CA_Pool.AppendCertsFromPEM(serverCert)
-		config := &tls.Config{RootCAs: CA_Pool}
+		CAPool.AppendCertsFromPEM(serverCert)
+		config := &tls.Config{RootCAs: CAPool}
 		tr := &http.Transport{TLSClientConfig: config}
 		return &http.Client{Transport: tr}
-	} else {
-		return &http.Client{}
 	}
+	return &http.Client{}
 }
