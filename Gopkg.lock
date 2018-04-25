@@ -125,6 +125,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/wminshew/check"
+  packages = ["."]
+  revision = "5dadfebe7fe111ab81a87ac715f1aefbd47e583b"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
@@ -152,12 +158,6 @@
   version = "v0.3.0"
 
 [[projects]]
-  branch = "v1"
-  name = "gopkg.in/mattes/go-expand-tilde.v1"
-  packages = ["."]
-  revision = "cb884138e64c9a8bf5c7d6106d74b0fca082df0c"
-
-[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -166,6 +166,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7c59530a514846a511778b93c1d7abe3863bbce340e22c18b03c0b4e9f9399ee"
+  inputs-digest = "3ad4c2c12688fcad0ac7565fcf7b01eb2099ce6a90ec4b54ea252f454727ec57"
   solver-name = "gps-cdcl"
   solver-version = 1
