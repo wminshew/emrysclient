@@ -7,6 +7,7 @@ import (
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/wminshew/check"
 	"io"
 	"log"
 	"mime/multipart"
@@ -54,7 +55,7 @@ var runCmd = &cobra.Command{
 			log.Printf("Error posting your job: %v\n", err)
 			return
 		}
-		defer resp.Body.Close()
+		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("Request error: %v\n", resp.Status)
@@ -88,7 +89,7 @@ func postJob(j *job) (*http.Response, error) {
 		log.Printf("Failed to open file %s: %v\n", j.Requirements, err)
 		return nil, err
 	}
-	defer requirementsFile.Close()
+	defer check.Err(requirementsFile.Close)
 	_, err = io.Copy(requirementsWriter, requirementsFile)
 	if err != nil {
 		log.Printf("Failed to copy requirements file: %v\n", err)
@@ -105,27 +106,19 @@ func postJob(j *job) (*http.Response, error) {
 		log.Printf("Failed to open file %s: %v\n", j.Train, err)
 		return nil, err
 	}
-	defer trainFile.Close()
+	defer check.Err(trainFile.Close)
 	_, err = io.Copy(trainWriter, trainFile)
 	if err != nil {
 		log.Printf("Failed to copy train file %s: %v\n", err)
 		return nil, err
 	}
 
-	// add Data to PostForm, if appropriate
-	// TODO: add DataURL to PostForm, if approriate; ideally you can just specify
-	// --data [path|url] and the system takes care of the rest
-	// then again, if its a url you should probably be downloading it and arranging
-	// it specifically within train.py......
-	// TODO: upgrade all +'s to filepath.Join
 	dataTarGzPath := j.Data + ".tar.gz"
 	if err = archiver.TarGz.Make(dataTarGzPath, []string{j.Data}); err != nil {
 		log.Printf("Failed to tar & gzip %s: %v\n", j.Data, err)
 		return nil, err
 	}
-	// TODO: figure out why this isn't executing when the connection is refused
-	defer os.Remove(dataTarGzPath)
-
+	defer check.Err(func() error { return os.Remove(dataTarGzPath) })
 	dataWriter, err := bodyWriter.CreateFormFile("data", "data.tar.gz")
 	if err != nil {
 		log.Printf("Failed to create data.tar.gz file: %v\n", err)
@@ -136,7 +129,7 @@ func postJob(j *job) (*http.Response, error) {
 		log.Printf("Failed to open file %s: %v\n", dataTarGzPath, err)
 		return nil, err
 	}
-	defer dataTarGzFile.Close()
+	defer check.Err(dataTarGzFile.Close)
 	_, err = io.Copy(dataWriter, dataTarGzFile)
 	if err != nil {
 		log.Printf("Failed to copy data.tar.gz: %v\n", err)
