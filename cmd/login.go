@@ -44,14 +44,17 @@ var loginCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Failed to encode email & password: %v\n", err)
 		}
-		uPath, _ := url.Parse("/user/signin")
-		base := resolveBase()
-		url := base.ResolveReference(uPath)
+		h := resolveHost()
+		u := url.URL{
+			Scheme: "https",
+			Host:   h,
+			Path:   "/user/signin",
+		}
 		client := resolveClient()
-		resp, err := client.Post(url.String(), "text/plain", bodyBuf)
+		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
 			log.Fatalf("Failed to POST: %v\n", err)
-			log.Fatalf("URL: %v\n", url)
+			log.Fatalf("URL: %v\n", u)
 			log.Fatalf("Body: %v\n", bodyBuf)
 		}
 		defer check.Err(resp.Body.Close)

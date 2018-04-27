@@ -141,11 +141,14 @@ func postJob(j *job) (*http.Response, error) {
 		log.Printf("Failed to close request bodyWriter: %v\n", err)
 		return nil, err
 	}
-	uPath, _ := url.Parse("/job/upload")
-	base := resolveBase()
-	url := base.ResolveReference(uPath)
+	h := resolveHost()
+	u := url.URL{
+		Scheme: "https",
+		Host:   h,
+		Path:   "/job/upload",
+	}
 	log.Printf("Sending request...\n")
-	req, err := http.NewRequest("POST", url.String(), bodyBuf)
+	req, err := http.NewRequest("POST", u.String(), bodyBuf)
 	if err != nil {
 		log.Printf("Failed to create new http request: %v\n", err)
 		return nil, err
