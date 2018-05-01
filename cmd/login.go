@@ -32,27 +32,32 @@ type loginSuccess struct {
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrysminer",
-	Long: `After receiving a valid email and password,
-	login saves a JSON web token (JWT) locally. By default,
-	the token expires in 24 hours.`,
+	Long: `After receiving a valid email and password, 
+login saves a JSON web token (JWT) locally.
+By default, the token expires in 24 hours.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		creds := &credentials{}
-		userLogin(creds)
+		minerLogin(creds)
 
 		bodyBuf := &bytes.Buffer{}
 		err := json.NewEncoder(bodyBuf).Encode(creds)
 		if err != nil {
-			log.Fatalf("Failed to encode email & password: %v\n", err)
+			log.Printf("Failed to encode email & password: %v\n", err)
+			return
 		}
-		uPath, _ := url.Parse("/user/signin")
-		base := resolveBase()
-		url := base.ResolveReference(uPath)
+		h := resolveHost()
+		u := url.URL{
+			Scheme: "https",
+			Host:   h,
+			Path:   "/miner/signin",
+		}
 		client := resolveClient()
-		resp, err := client.Post(url.String(), "text/plain", bodyBuf)
+		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
-			log.Fatalf("Failed to POST: %v\n", err)
-			log.Fatalf("URL: %v\n", url)
-			log.Fatalf("Body: %v\n", bodyBuf)
+			log.Printf("Failed to POST: %v\n", err)
+			log.Printf("URL: %v\n", u)
+			log.Printf("Body: %v\n", bodyBuf)
+			return
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -65,20 +70,22 @@ var loginCmd = &cobra.Command{
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Fatalf("Request error: %v\n", resp.Status)
+			log.Printf("Request error: %v\n", resp.Status)
+			return
 		}
 
 		loginSuccess := loginSuccess{}
 		err = json.NewDecoder(resp.Body).Decode(&loginSuccess)
 		if err != nil {
-			log.Fatalf("Failed to decode response: %v\n", err)
+			log.Printf("Failed to decode response: %v\n", err)
+			return
 		}
 
 		storeToken(loginSuccess.Token)
 	},
 }
 
-func userLogin(c *credentials) {
+func minerLogin(c *credentials) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Email: ")
 	email, _ := reader.ReadString('\n')
@@ -87,7 +94,8 @@ func userLogin(c *credentials) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Fatalf("\nFailed to read password from console: %v\n", err)
+		log.Printf("\nFailed to read password from console: %v\n", err)
+		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
 	fmt.Println()
@@ -100,7 +108,7 @@ func storeToken(t string) {
 	if err != nil {
 		log.Fatalf("Failed to get current user: %v\n", err)
 	}
-	dir := path.Join(user.HomeDir, ".config", "emrys")
+	dir := path.Join(user.HomeDir, ".config", "emrysminer")
 	fmt.Print(dir)
 	err = os.MkdirAll(dir, perm)
 	if err != nil {

@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	// "github.com/spf13/viper"
-	"log"
+	// "log"
 	"os"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "emrysminer",
 	Short: "Emrys is an aggregator for GPU compute",
-	Long: `An easy & effective deep learning training
-	receiver. Emrysminer lets you earn money while 
-	training user models.
-	Learn more at https://emrys.io`,
+	Long: `An easy & effective deep learning miner.
+Emrysminer lets you earn money while training user models.
+
+Learn more at https://emrys.io`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Use \"emrysminer --help\" for more information about subcommands.\n")
 	},
@@ -24,6 +24,7 @@ func init() {
 	// cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(startCmd)
 	// rootCmd.AddCommand(runCmd)
 	// runCmd.Flags().String("config", ".emrys", "Path to your config file for training (don't include extension)")
 	// runCmd.Flags().String("requirements", "./requirements.txt", "Path to your requirements file for training")
