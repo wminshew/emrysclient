@@ -49,7 +49,7 @@ By default, the token expires in 24 hours.`,
 		u := url.URL{
 			Scheme: "https",
 			Host:   h,
-			Path:   "/miner/signin",
+			Path:   "/miner/login",
 		}
 		client := resolveClient()
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
