@@ -121,7 +121,7 @@ func postJob(j *job) (*http.Response, error) {
 	u := url.URL{
 		Scheme: "https",
 		Host:   h,
-		Path:   "/user/job/new",
+		Path:   "/user/job",
 	}
 	req, err := http.NewRequest("POST", u.String(), r)
 	if err != nil {
