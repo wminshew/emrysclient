@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"compress/zlib"
+	"encoding/gob"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"github.com/wminshew/check"
+	"github.com/wminshew/emrys/pkg/job"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -62,16 +66,35 @@ will default to the mining command provided in
 		go func() {
 			defer close(done)
 			for {
-				msgType, message, err := conn.ReadMessage()
+				msgType, r, err := conn.NextReader()
 				if err != nil {
 					log.Printf("Error reading message: %v\n", err)
 					return
 				}
-				if msgType == websocket.BinaryMessage {
-					log.Printf("Binary message\n")
-				} else {
-					log.Printf("recv: %s\n", message)
+				switch msgType {
+				case websocket.BinaryMessage:
+					zr, err := zlib.NewReader(r)
+					if err != nil {
+						log.Printf("Error decompressing message: %v\n", err)
+						return
+					}
+					j := &job.Job{}
+					err = gob.NewDecoder(zr).Decode(j)
+					if err != nil {
+						log.Printf("Error decoding message: %v\n", err)
+						return
+					}
+					log.Printf("Received job: %+v\n", j)
 					response <- []byte("I hear you")
+				case websocket.TextMessage:
+					log.Printf("TextMessage: ")
+					_, err = io.Copy(os.Stdout, r)
+					if err != nil {
+						log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
+					}
+				default:
+					log.Printf("Non-text or binary websocket message received. Closing.\n")
+					return
 				}
 			}
 		}()
