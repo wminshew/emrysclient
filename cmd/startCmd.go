@@ -55,20 +55,24 @@ will default to the mining command provided in
 			log.Println(string(respDump))
 		}
 
-		// conn.ReadMessage
-		// conn.NextReader
+		response := make(chan []byte)
 		done := make(chan struct{})
 		interrupt := make(chan os.Signal, 1)
 
 		go func() {
 			defer close(done)
 			for {
-				_, message, err := conn.ReadMessage()
+				msgType, message, err := conn.ReadMessage()
 				if err != nil {
 					log.Printf("Error reading message: %v\n", err)
 					return
 				}
-				log.Printf("recv: %s", message)
+				if msgType == websocket.BinaryMessage {
+					log.Printf("Binary message\n")
+				} else {
+					log.Printf("recv: %s\n", message)
+					response <- []byte("I hear you")
+				}
 			}
 		}()
 
@@ -79,8 +83,14 @@ will default to the mining command provided in
 			select {
 			case <-done:
 				return
-			case t := <-ticker.C:
-				err := conn.WriteMessage(websocket.TextMessage, []byte(t.String()))
+			// case t := <-ticker.C:
+			// 	err := conn.WriteMessage(websocket.TextMessage, []byte(t.String()))
+			// 	if err != nil {
+			// 		log.Printf("Error writing message: %v\n", err)
+			// 		return
+			// 	}
+			case r := <-response:
+				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
 					log.Printf("Error writing message: %v\n", err)
 					return
