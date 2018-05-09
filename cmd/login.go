@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/wminshew/check"
+	"github.com/wminshew/emrys/pkg/creds"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
 	"log"
@@ -20,11 +21,6 @@ import (
 	"syscall"
 )
 
-type credentials struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 type loginSuccess struct {
 	Token string `json:"token"`
 }
@@ -36,11 +32,11 @@ var loginCmd = &cobra.Command{
 login saves a JSON web token (JWT) locally.
 By default, the token expires in 24 hours.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		creds := &credentials{}
-		minerLogin(creds)
+		c := &creds.Miner{}
+		minerLogin(c)
 
 		bodyBuf := &bytes.Buffer{}
-		err := json.NewEncoder(bodyBuf).Encode(creds)
+		err := json.NewEncoder(bodyBuf).Encode(c)
 		if err != nil {
 			log.Printf("Failed to encode email & password: %v\n", err)
 			return
@@ -85,7 +81,7 @@ By default, the token expires in 24 hours.`,
 	},
 }
 
-func minerLogin(c *credentials) {
+func minerLogin(c *creds.Miner) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Email: ")
 	email, _ := reader.ReadString('\n')

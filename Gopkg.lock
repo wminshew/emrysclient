@@ -35,7 +35,7 @@
   branch = "master"
   name = "github.com/wminshew/emrys"
   packages = ["pkg/job"]
-  revision = "0590747fdff3a908c88ae249a5f6457316b5330b"
+  revision = "e3e849b560276cc04f3d78732f624f95f1c98a04"
 
 [[projects]]
   branch = "master"
