@@ -131,6 +131,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/wminshew/emrys"
+  packages = ["pkg/creds"]
+  revision = "e3e849b560276cc04f3d78732f624f95f1c98a04"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
@@ -166,6 +172,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3ad4c2c12688fcad0ac7565fcf7b01eb2099ce6a90ec4b54ea252f454727ec57"
+  inputs-digest = "584841f9198d05877a780f68222690ec16e9db92a87c731a93cfd8babce23371"
   solver-name = "gps-cdcl"
   solver-version = 1
