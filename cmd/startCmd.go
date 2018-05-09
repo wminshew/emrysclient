@@ -117,6 +117,11 @@ will default to the mining command provided in
 					log.Printf("Error encoding bid: %v\n", err)
 					return
 				}
+				err = zw.Close()
+				if err != nil {
+					log.Printf("Error closing zlib bid writer: %v\n", err)
+					return
+				}
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
