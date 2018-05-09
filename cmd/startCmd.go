@@ -61,32 +61,32 @@ will default to the mining command provided in
 				msgType, r, err := conn.NextReader()
 				if err != nil {
 					log.Printf("Error reading message: %v\n", err)
-					return
+					break
 				}
 				switch msgType {
 				case websocket.BinaryMessage:
 					zr, err := zlib.NewReader(r)
 					if err != nil {
 						log.Printf("Error decompressing message: %v\n", err)
-						return
+						break
 					}
 					j := &job.Job{}
 					err = gob.NewDecoder(zr).Decode(j)
 					if err != nil {
 						log.Printf("Error decoding message: %v\n", err)
-						return
+						break
 					}
 					err = zr.Close()
 					if err != nil {
 						log.Printf("Error closing zlib reader: %v\n", err)
-						return
+						break
 					}
 					log.Printf("Received job: %+v\n", j)
-					response <- []byte("I hear you")
 					b := &job.Bid{
 						JobID:   j.ID,
 						MinRate: 0.2,
 					}
+					log.Printf("Sending bid: %+v\n", b)
 					bid <- b
 				case websocket.TextMessage:
 					log.Printf("TextMessage: ")
@@ -96,7 +96,7 @@ will default to the mining command provided in
 					}
 				default:
 					log.Printf("Non-text or -binary websocket message received. Closing.\n")
-					return
+					break
 				}
 			}
 		}()
@@ -104,29 +104,34 @@ will default to the mining command provided in
 		for {
 			select {
 			case <-done:
-				return
+				break
 			case b := <-bid:
 				w, err := conn.NextWriter(websocket.BinaryMessage)
 				if err != nil {
 					log.Printf("Error generating next bid writer: %v\n", err)
-					return
+					break
 				}
 				zw := zlib.NewWriter(w)
 				err = gob.NewEncoder(zw).Encode(b)
 				if err != nil {
 					log.Printf("Error encoding bid: %v\n", err)
-					return
+					break
 				}
 				err = zw.Close()
 				if err != nil {
 					log.Printf("Error closing zlib bid writer: %v\n", err)
-					return
+					break
+				}
+				err = w.Close()
+				if err != nil {
+					log.Printf("Error closing conn bid writer: %v\n", err)
+					break
 				}
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
 					log.Printf("Error writing message: %v\n", err)
-					return
+					break
 				}
 			case <-interrupt:
 				log.Println("interrupt")
@@ -134,13 +139,13 @@ will default to the mining command provided in
 				err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
 					log.Printf("Error writing close: %v\n", err)
-					return
+					break
 				}
 				select {
 				case <-done:
 				case <-time.After(time.Second):
 				}
-				return
+				break
 			}
 		}
 	},
