@@ -11,7 +11,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"time"
@@ -44,22 +43,15 @@ will default to the mining command provided in
 		reqH := http.Header{}
 		reqH.Set("Authorization", fmt.Sprintf("Bearer %v", token))
 		reqH.Set("Origin", o.String())
-		conn, resp, err := d.Dial(u.String(), reqH)
+		conn, _, err := d.Dial(u.String(), reqH)
 		if err != nil {
 			log.Printf("Error dialing websocket: %v\n", err)
 			return
 		}
 		defer check.Err(conn.Close)
 
-		if appEnv == "dev" {
-			respDump, err := httputil.DumpResponse(resp, true)
-			if err != nil {
-				log.Println(err)
-			}
-			log.Println(string(respDump))
-		}
-
 		response := make(chan []byte)
+		bid := make(chan *job.Bid)
 		done := make(chan struct{})
 		interrupt := make(chan os.Signal, 1)
 
@@ -86,6 +78,12 @@ will default to the mining command provided in
 					}
 					log.Printf("Received job: %+v\n", j)
 					response <- []byte("I hear you")
+					b := &job.Bid{
+						JobID:   j.ID,
+						MinRate: 0.2,
+					}
+					// TODO: make MinRate flag / add miner config
+					bid <- b
 				case websocket.TextMessage:
 					log.Printf("TextMessage: ")
 					_, err = io.Copy(os.Stdout, r)
@@ -93,25 +91,28 @@ will default to the mining command provided in
 						log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
 					}
 				default:
-					log.Printf("Non-text or binary websocket message received. Closing.\n")
+					log.Printf("Non-text or -binary websocket message received. Closing.\n")
 					return
 				}
 			}
 		}()
 
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-
 		for {
 			select {
 			case <-done:
 				return
-			// case t := <-ticker.C:
-			// 	err := conn.WriteMessage(websocket.TextMessage, []byte(t.String()))
-			// 	if err != nil {
-			// 		log.Printf("Error writing message: %v\n", err)
-			// 		return
-			// 	}
+			case b := <-bid:
+				w, err := conn.NextWriter(websocket.BinaryMessage)
+				if err != nil {
+					log.Printf("Error generating next bid writer: %v\n", err)
+					return
+				}
+				zw := zlib.NewWriter(w)
+				err = gob.NewEncoder(zw).Encode(b)
+				if err != nil {
+					log.Printf("Error encoding bid: %v\n", err)
+					return
+				}
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
