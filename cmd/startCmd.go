@@ -76,13 +76,17 @@ will default to the mining command provided in
 						log.Printf("Error decoding message: %v\n", err)
 						return
 					}
+					err = zr.Close()
+					if err != nil {
+						log.Printf("Error closing zlib reader: %v\n", err)
+						return
+					}
 					log.Printf("Received job: %+v\n", j)
 					response <- []byte("I hear you")
 					b := &job.Bid{
 						JobID:   j.ID,
 						MinRate: 0.2,
 					}
-					// TODO: make MinRate flag / add miner config
 					bid <- b
 				case websocket.TextMessage:
 					log.Printf("TextMessage: ")
