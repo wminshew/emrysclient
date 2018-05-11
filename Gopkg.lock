@@ -14,6 +14,12 @@
   version = "v1.0"
 
 [[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/spf13/cobra"
   packages = ["."]
   revision = "a1f051bc3eba734da4772d60e2d677f47cf93ef4"
@@ -34,8 +40,11 @@
 [[projects]]
   branch = "master"
   name = "github.com/wminshew/emrys"
-  packages = ["pkg/job"]
-  revision = "e3e849b560276cc04f3d78732f624f95f1c98a04"
+  packages = [
+    "pkg/creds",
+    "pkg/job"
+  ]
+  revision = "e35a4c60d2c1df8aaffce143c77662fc98c991a7"
 
 [[projects]]
   branch = "master"
@@ -55,6 +64,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a6e204e352d2c9c84bfd8d2fb71d86bfc89e677a9e789e8d42d45998878ef9b2"
+  inputs-digest = "367a63fce93d053ddd0566b8534bbe452e8d38f09b9600208997b9b49a3d6ab4"
   solver-name = "gps-cdcl"
   solver-version = 1
