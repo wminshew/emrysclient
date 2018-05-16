@@ -1,7 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"compress/zlib"
+	"context"
+	"docker.io/go-docker"
+	// "docker.io/go-docker/api/types"
+	// "docker.io/go-docker/api/types/container"
 	"encoding/gob"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -89,11 +94,61 @@ will default to the mining command provided in
 					log.Printf("Sending bid: %+v\n", b)
 					bid <- b
 				case websocket.TextMessage:
-					log.Print("TextMessage: ")
-					_, err = io.Copy(os.Stdout, r)
-					if err != nil {
+					var b bytes.Buffer
+					_, err = io.Copy(&b, r)
+					if err != nil && err != io.EOF {
 						log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
 						break
+					}
+					switch b.String() {
+					case "Image\n":
+						log.Printf("Incoming image\n")
+						msgType, r, err = conn.NextReader()
+						if err != nil {
+							log.Printf("Error reading message: %v\n", err)
+							return
+						}
+						if msgType != websocket.BinaryMessage {
+							log.Printf("Error reading image. Text sent.\n")
+							return
+						}
+						zr, err := zlib.NewReader(r)
+						if err != nil {
+							log.Printf("Error decompressing image: %v\n", err)
+							break
+						}
+
+						ctx := context.Background()
+						cli, err := docker.NewEnvClient()
+						imgResp, err := cli.ImageLoad(ctx, zr, false)
+						if err != nil {
+							log.Printf("Error loading image: %v\n", err)
+							break
+						}
+						err = zr.Close()
+						if err != nil {
+							log.Printf("Error closing zlib reader: %v\n", err)
+							break
+						}
+
+						// TODO: consider httputil dump response?
+						log.Printf("imgResp.Body: %+v\n", imgResp.Body)
+						err = imgResp.Body.Close()
+						if err != nil {
+							log.Printf("Error closing zlib reader: %v\n", err)
+							break
+						}
+
+						log.Printf("Image successfully loaded!\n")
+
+					case "Data\n":
+						log.Printf("Incoming data\n")
+					default:
+						_, err = io.Copy(os.Stdout, &b)
+						if err != nil && err != io.EOF {
+							log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
+							break
+						}
 					}
 				default:
 					log.Printf("Non-text or -binary websocket message received. Closing.\n")
