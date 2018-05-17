@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	// "bufio"
 	"bytes"
-	"compress/zlib"
-	"context"
-	"docker.io/go-docker"
+	"path"
+	// "compress/zlib"
+	// "context"
+	// "docker.io/go-docker"
 	// "docker.io/go-docker/api/types"
 	// "docker.io/go-docker/api/types/container"
-	"encoding/gob"
+	// "encoding/gob"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
@@ -32,31 +35,18 @@ will default to the mining command provided in
 	Run: func(cmd *cobra.Command, args []string) {
 		token := getToken()
 
-		h := resolveHost()
-		u := url.URL{
-			Scheme: "wss",
-			Host:   h,
-			Path:   "/miner/connect",
-		}
-		log.Printf("Connecting to %s...\n", u.String())
-		o := url.URL{
-			Scheme: "https",
-			Host:   h,
-		}
-		d := websocket.DefaultDialer
-		d.TLSClientConfig = resolveTLSConfig()
-		reqH := http.Header{}
-		reqH.Set("Authorization", fmt.Sprintf("Bearer %v", token))
-		reqH.Set("Origin", o.String())
-		conn, _, err := d.Dial(u.String(), reqH)
+		conn, _, err := dialWebsocket(token)
 		if err != nil {
 			log.Printf("Error dialing websocket: %v\n", err)
+			if err == websocket.ErrBadHandshake {
+				log.Printf("Are you logged in? Your token may have expired.\n")
+			}
 			return
 		}
 		defer check.Err(conn.Close)
 
 		response := make(chan []byte)
-		bid := make(chan *job.Bid)
+		// bid := make(chan *job.Bid)
 		done := make(chan struct{})
 		interrupt := make(chan os.Signal, 1)
 
@@ -70,89 +60,166 @@ will default to the mining command provided in
 				}
 				switch msgType {
 				case websocket.BinaryMessage:
-					zr, err := zlib.NewReader(r)
+					m := &job.Message{}
+					err = json.NewDecoder(r).Decode(m)
 					if err != nil {
-						log.Printf("Error decompressing message: %v\n", err)
+						log.Printf("Error decoding json message: %v\n", err)
 						break
 					}
-					j := &job.Job{}
-					err = gob.NewDecoder(zr).Decode(j)
-					if err != nil {
-						log.Printf("Error decoding message: %v\n", err)
+					log.Printf("Message: %v\n", m.Message)
+					if m.Job == nil {
 						break
 					}
-					err = zr.Close()
-					if err != nil {
-						log.Printf("Error closing zlib reader: %v\n", err)
-						break
-					}
-					log.Printf("Received job: %+v\n", j)
+					log.Printf("Job: %+v\n", m.Job)
+
 					b := &job.Bid{
-						JobID:   j.ID,
 						MinRate: 0.2,
 					}
 					log.Printf("Sending bid: %+v\n", b)
-					bid <- b
-				case websocket.TextMessage:
-					var b bytes.Buffer
-					_, err = io.Copy(&b, r)
-					if err != nil && err != io.EOF {
-						log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
+
+					var body bytes.Buffer
+					p := path.Join("job", m.Job.ID.String(), "bid")
+					err = json.NewEncoder(&body).Encode(b)
+					if err != nil {
+						log.Printf("Error encoding json bid: %v\n", err)
 						break
 					}
-					switch b.String() {
-					case "Image\n":
-						log.Printf("Incoming image\n")
-						msgType, r, err = conn.NextReader()
-						if err != nil {
-							log.Printf("Error reading message: %v\n", err)
-							return
-						}
-						if msgType != websocket.BinaryMessage {
-							log.Printf("Error reading image. Text sent.\n")
-							return
-						}
-						zr, err := zlib.NewReader(r)
-						if err != nil {
-							log.Printf("Error decompressing image: %v\n", err)
-							break
-						}
-
-						ctx := context.Background()
-						cli, err := docker.NewEnvClient()
-						imgResp, err := cli.ImageLoad(ctx, zr, false)
-						if err != nil {
-							log.Printf("Error loading image: %v\n", err)
-							break
-						}
-						err = zr.Close()
-						if err != nil {
-							log.Printf("Error closing zlib reader: %v\n", err)
-							break
-						}
-
-						// TODO: consider httputil dump response?
-						log.Printf("imgResp.Body: %+v\n", imgResp.Body)
-						err = imgResp.Body.Close()
-						if err != nil {
-							log.Printf("Error closing zlib reader: %v\n", err)
-							break
-						}
-
-						log.Printf("Image successfully loaded!\n")
-
-					case "Data\n":
-						log.Printf("Incoming data\n")
-					default:
-						_, err = io.Copy(os.Stdout, &b)
-						if err != nil && err != io.EOF {
-							log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
-							break
-						}
+					resp, err := post(p, token, &body)
+					if err != nil {
+						log.Printf("Error POST request: %v\n", err)
+						return
 					}
+					err = resp.Body.Close()
+					if err != nil {
+						log.Printf("Error closing response body: %v\n", err)
+						return
+					}
+
+					// bid <- b
+
+					// switch b.String() {
+					// case "Image\n":
+					// 	log.Printf("Incoming image\n")
+					// 	msgType, r, err = conn.NextReader()
+					// 	if err != nil {
+					// 		log.Printf("Error reading message: %v\n", err)
+					// 		return
+					// 	}
+					// 	if msgType != websocket.BinaryMessage {
+					// 		log.Printf("Error reading image. Text sent.\n")
+					// 		return
+					// 	}
+					// 	zr, err := zlib.NewReader(r)
+					// 	if err != nil {
+					// 		log.Printf("Error decompressing image: %v\n", err)
+					// 		break
+					// 	}
+					//
+					// 	ctx := context.Background()
+					// 	cli, err := docker.NewEnvClient()
+					// 	imgResp, err := cli.ImageLoad(ctx, zr, false)
+					// 	if err != nil {
+					// 		log.Printf("Error loading image: %v\n", err)
+					// 		break
+					// 	}
+					// 	err = zr.Close()
+					// 	if err != nil {
+					// 		log.Printf("Error closing zlib reader: %v\n", err)
+					// 		break
+					// 	}
+					// 	log.Printf("Image successfully loaded!\n")
+					// 	_, err = io.Copy(os.Stdout, imgResp.Body)
+					//
+					// 	// TODO: do I need to preserve users' file structure?
+					// 	// [relative pathing between train.py and path/to/data/]
+					// 	// wd, err := os.Getwd()
+					// 	// if err != nil {
+					// 	// 	log.Printf("Error getting working directory: %v\n", err)
+					// 	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+					// 	// 	return
+					// 	// }
+					// 	// hostDataPath := filepath.Join(wd, userDir, "data")
+					// 	// dockerDataPath := filepath.Join(userHome, "data")
+					// 	// resp, err := cli.ContainerCreate(ctx, &container.Config{
+					// 	// 	// Image: j.ID.String(),
+					// 	// 	Image: string(id),
+					// 	// 	Tty:   true,
+					// 	// }, &container.HostConfig{
+					// 	// 	AutoRemove: true,
+					// 	// 	// Binds: []string{
+					// 	// 	// 	fmt.Sprintf("%s:%s:ro", hostDataPath, dockerDataPath),
+					// 	// 	// },
+					// 	// 	CapDrop: []string{
+					// 	// 		"ALL",
+					// 	// 	},
+					// 	// 	// TODO: mount a rw drive and use readonlyrootfs
+					// 	// 	// ReadonlyRootfs: true,
+					// 	// 	Runtime: "nvidia",
+					// 	// 	SecurityOpt: []string{
+					// 	// 		"no-new-privileges",
+					// 	// 	},
+					// 	// }, nil, "")
+					// 	// if err != nil {
+					// 	// 	log.Printf("Error creating container: %v\n", err)
+					// 	// 	return
+					// 	// }
+					// 	//
+					// 	// if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+					// 	// 	log.Printf("Error starting container: %v\n", err)
+					// 	// 	return
+					// 	// }
+					// 	//
+					// 	// out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{
+					// 	// 	Follow:     true,
+					// 	// 	ShowStdout: true,
+					// 	// })
+					// 	// if err != nil {
+					// 	// 	log.Printf("Error logging container: %v\n", err)
+					// 	// 	return
+					// 	// }
+					// 	//
+					// 	// // tee := io.TeeReader(out, fw)
+					// 	// // _, err = io.Copy(os.Stdout, tee)
+					// 	// // if err != nil && err != io.EOF {
+					// 	// // 	log.Printf("Error copying to stdout: %v\n", err)
+					// 	// // 	return
+					// 	// // }
+					// 	// scanner := bufio.NewScanner(out)
+					// 	// for scanner.Scan() {
+					// 	// 	log.Println(scanner.Text())
+					// 	// }
+					// 	// // response <- []byte(out)
+					// 	//
+					// 	// err = out.Close()
+					// 	// if err != nil {
+					// 	// 	log.Printf("Error closing container log: %v\n", err)
+					// 	// 	break
+					// 	// }
+					//
+					// 	err = imgResp.Body.Close()
+					// 	if err != nil {
+					// 		log.Printf("Error closing zlib reader: %v\n", err)
+					// 		break
+					// 	}
+					// case "Data\n":
+					// 	log.Printf("Incoming data\n")
+					// default:
+					// 	_, err = io.Copy(os.Stdout, &b)
+					// 	if err != nil && err != io.EOF {
+					// 		log.Printf("Error copying websocket.TextMessage to os.Stdout: %v\n", err)
+					// 		break
+					// 	}
+					// }
+
+				case websocket.TextMessage:
+					resp := "Error -- unexpected text message received.\n"
+					log.Printf(resp)
+					_, err = io.Copy(os.Stdout, r)
+					response <- []byte(resp)
+
 				default:
 					log.Printf("Non-text or -binary websocket message received. Closing.\n")
-					break
+					return
 				}
 			}
 		}()
@@ -161,28 +228,28 @@ will default to the mining command provided in
 			select {
 			case <-done:
 				return
-			case b := <-bid:
-				w, err := conn.NextWriter(websocket.BinaryMessage)
-				if err != nil {
-					log.Printf("Error generating next bid writer: %v\n", err)
-					return
-				}
-				zw := zlib.NewWriter(w)
-				err = gob.NewEncoder(zw).Encode(b)
-				if err != nil {
-					log.Printf("Error encoding bid: %v\n", err)
-					break
-				}
-				err = zw.Close()
-				if err != nil {
-					log.Printf("Error closing zlib bid writer: %v\n", err)
-					break
-				}
-				err = w.Close()
-				if err != nil {
-					log.Printf("Error closing conn bid writer: %v\n", err)
-					return
-				}
+			// case b := <-bid:
+			// 	w, err := conn.NextWriter(websocket.BinaryMessage)
+			// 	if err != nil {
+			// 		log.Printf("Error generating next bid writer: %v\n", err)
+			// 		return
+			// 	}
+			// 	zw := zlib.NewWriter(w)
+			// 	err = gob.NewEncoder(zw).Encode(b)
+			// 	if err != nil {
+			// 		log.Printf("Error encoding bid: %v\n", err)
+			// 		break
+			// 	}
+			// 	err = zw.Close()
+			// 	if err != nil {
+			// 		log.Printf("Error closing zlib bid writer: %v\n", err)
+			// 		break
+			// 	}
+			// 	err = w.Close()
+			// 	if err != nil {
+			// 		log.Printf("Error closing conn bid writer: %v\n", err)
+			// 		return
+			// 	}
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
@@ -205,4 +272,43 @@ will default to the mining command provided in
 			}
 		}
 	},
+}
+
+func dialWebsocket(t string) (*websocket.Conn, *http.Response, error) {
+	h := resolveHost()
+	u := url.URL{
+		Scheme: "wss",
+		Host:   h,
+		Path:   "/miner/connect",
+	}
+	log.Printf("Connecting to %s...\n", u.String())
+	o := url.URL{
+		Scheme: "https",
+		Host:   h,
+	}
+	d := websocket.DefaultDialer
+	d.TLSClientConfig = resolveTLSConfig()
+	reqH := http.Header{}
+	reqH.Set("Authorization", fmt.Sprintf("Bearer %v", t))
+	reqH.Set("Origin", o.String())
+	return d.Dial(u.String(), reqH)
+}
+
+func post(path, token string, body io.Reader) (*http.Response, error) {
+	h := resolveHost()
+	u := url.URL{
+		Scheme: "https",
+		Host:   h,
+		Path:   path,
+	}
+	req, err := http.NewRequest("POST", u.String(), body)
+	if err != nil {
+		log.Printf("Failed to create new http request: %v\n", err)
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
+
+	client := resolveClient()
+	log.Printf("POST request...\n")
+	return client.Do(req)
 }
