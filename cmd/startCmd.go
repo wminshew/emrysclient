@@ -78,7 +78,7 @@ will default to the mining command provided in
 					log.Printf("Sending bid: %+v\n", b)
 
 					var body bytes.Buffer
-					p := path.Join("job", m.Job.ID.String(), "bid")
+					p := path.Join("miner", "job", m.Job.ID.String(), "bid")
 					err = json.NewEncoder(&body).Encode(b)
 					if err != nil {
 						log.Printf("Error encoding json bid: %v\n", err)
