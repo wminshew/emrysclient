@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	// "bufio"
-	"bytes"
-	"path"
 	// "compress/zlib"
 	// "context"
 	// "docker.io/go-docker"
 	// "docker.io/go-docker/api/types"
 	// "docker.io/go-docker/api/types/container"
-	// "encoding/gob"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -21,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"time"
 )
 
@@ -86,7 +84,7 @@ will default to the mining command provided in
 					}
 					resp, err := post(p, token, &body)
 					if err != nil {
-						log.Printf("Error POST request: %v\n", err)
+						log.Printf("Error POST %v: %v\n", p, err)
 						return
 					}
 					err = resp.Body.Close()
@@ -309,6 +307,6 @@ func post(path, token string, body io.Reader) (*http.Response, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
 
 	client := resolveClient()
-	log.Printf("POST request...\n")
+	log.Printf("POST %v\n", path)
 	return client.Do(req)
 }
