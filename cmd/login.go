@@ -21,10 +21,6 @@ import (
 	"syscall"
 )
 
-type loginSuccess struct {
-	Token string `json:"token"`
-}
-
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrysminer",
@@ -70,14 +66,14 @@ By default, the token expires in 24 hours.`,
 			return
 		}
 
-		loginSuccess := loginSuccess{}
-		err = json.NewDecoder(resp.Body).Decode(&loginSuccess)
+		loginResp := creds.LoginResp{}
+		err = json.NewDecoder(resp.Body).Decode(&loginResp)
 		if err != nil {
 			log.Printf("Failed to decode response: %v\n", err)
 			return
 		}
 
-		storeToken(loginSuccess.Token)
+		storeToken(loginResp.Token)
 	},
 }
 
