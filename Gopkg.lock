@@ -133,7 +133,7 @@
   branch = "master"
   name = "github.com/wminshew/emrys"
   packages = ["pkg/creds"]
-  revision = "e3e849b560276cc04f3d78732f624f95f1c98a04"
+  revision = "23b2bc9955482ca12c9da522549de43ef44fd6c8"
 
 [[projects]]
   branch = "master"

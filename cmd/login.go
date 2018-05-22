@@ -21,10 +21,6 @@ import (
 	"syscall"
 )
 
-type loginSuccess struct {
-	Token string `json:"token"`
-}
-
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrys",
@@ -67,13 +63,13 @@ var loginCmd = &cobra.Command{
 			log.Fatalf("Request error: %v\n", resp.Status)
 		}
 
-		loginSuccess := loginSuccess{}
-		err = json.NewDecoder(resp.Body).Decode(&loginSuccess)
+		loginResp := creds.LoginResp{}
+		err = json.NewDecoder(resp.Body).Decode(&loginResp)
 		if err != nil {
 			log.Fatalf("Failed to decode response: %v\n", err)
 		}
 
-		storeToken(loginSuccess.Token)
+		storeToken(loginResp.Token)
 	},
 }
 
