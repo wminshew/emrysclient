@@ -44,7 +44,7 @@
     "pkg/creds",
     "pkg/job"
   ]
-  revision = "23b2bc9955482ca12c9da522549de43ef44fd6c8"
+  revision = "c4f9f3273e4e689966a373380482a00982042ed4"
 
 [[projects]]
   branch = "master"

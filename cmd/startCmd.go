@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
@@ -70,28 +71,42 @@ will default to the mining command provided in
 					}
 					log.Printf("Job: %+v\n", m.Job)
 
-					b := &job.Bid{
-						MinRate: 0.2,
-					}
-					log.Printf("Sending bid: %+v\n", b)
+					go func() {
+						b := &job.Bid{
+							MinRate: 0.2,
+						}
+						log.Printf("Sending bid: %+v\n", b)
 
-					var body bytes.Buffer
-					p := path.Join("miner", "job", m.Job.ID.String(), "bid")
-					err = json.NewEncoder(&body).Encode(b)
-					if err != nil {
-						log.Printf("Error encoding json bid: %v\n", err)
-						break
-					}
-					resp, err := post(p, token, &body)
-					if err != nil {
-						log.Printf("Error POST %v: %v\n", p, err)
-						return
-					}
-					err = resp.Body.Close()
-					if err != nil {
-						log.Printf("Error closing response body: %v\n", err)
-						return
-					}
+						var body bytes.Buffer
+						p := path.Join("miner", "job", m.Job.ID.String(), "bid")
+						err = json.NewEncoder(&body).Encode(b)
+						if err != nil {
+							log.Printf("Error encoding json bid: %v\n", err)
+							return
+						}
+						resp, err := post(p, token, &body)
+						if err != nil {
+							log.Printf("Error POST %v: %v\n", p, err)
+							return
+						}
+						defer check.Err(resp.Body.Close)
+
+						if appEnv == "dev" {
+							respDump, err := httputil.DumpResponse(resp, true)
+							if err != nil {
+								log.Println(err)
+							}
+							log.Println(string(respDump))
+						}
+
+						if resp.StatusCode != http.StatusOK {
+							log.Printf("Request error: %v\n", resp.Status)
+							return
+						}
+
+						// TODO: print token if winner
+
+					}()
 
 					// bid <- b
 
