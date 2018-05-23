@@ -104,24 +104,32 @@ will default to the mining command provided in
 							return
 						}
 
-						// TODO: print token if winner
+						bidResp := &job.BidResp{}
+						err = json.NewDecoder(resp.Body).Decode(bidResp)
+						if err != nil {
+							log.Printf("Error decoding json bid response: %v\n", err)
+							return
+						}
 
+						// TODO: use job token to request img / data / run
+
+						// p := path.Join("miner", "job", m.Job.ID.String(), "image")
+						// resp, err := getJob(p, token, bidResp.Token)
+						// if err != nil {
+						// 	log.Printf("Error GET %v: %v\n", p, err)
+						// 	return
+						// }
+						// defer check.Err(resp.Body.Close)
+
+						p = path.Join("miner", "job", m.Job.ID.String(), "data")
+						resp, err = getJob(p, token, bidResp.Token)
+						if err != nil {
+							log.Printf("Error GET %v: %v\n", p, err)
+							return
+						}
+						defer check.Err(resp.Body.Close)
 					}()
 
-					// bid <- b
-
-					// switch b.String() {
-					// case "Image\n":
-					// 	log.Printf("Incoming image\n")
-					// 	msgType, r, err = conn.NextReader()
-					// 	if err != nil {
-					// 		log.Printf("Error reading message: %v\n", err)
-					// 		return
-					// 	}
-					// 	if msgType != websocket.BinaryMessage {
-					// 		log.Printf("Error reading image. Text sent.\n")
-					// 		return
-					// 	}
 					// 	zr, err := zlib.NewReader(r)
 					// 	if err != nil {
 					// 		log.Printf("Error decompressing image: %v\n", err)
@@ -241,28 +249,6 @@ will default to the mining command provided in
 			select {
 			case <-done:
 				return
-			// case b := <-bid:
-			// 	w, err := conn.NextWriter(websocket.BinaryMessage)
-			// 	if err != nil {
-			// 		log.Printf("Error generating next bid writer: %v\n", err)
-			// 		return
-			// 	}
-			// 	zw := zlib.NewWriter(w)
-			// 	err = gob.NewEncoder(zw).Encode(b)
-			// 	if err != nil {
-			// 		log.Printf("Error encoding bid: %v\n", err)
-			// 		break
-			// 	}
-			// 	err = zw.Close()
-			// 	if err != nil {
-			// 		log.Printf("Error closing zlib bid writer: %v\n", err)
-			// 		break
-			// 	}
-			// 	err = w.Close()
-			// 	if err != nil {
-			// 		log.Printf("Error closing conn bid writer: %v\n", err)
-			// 		return
-			// 	}
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
@@ -323,5 +309,25 @@ func post(path, token string, body io.Reader) (*http.Response, error) {
 
 	client := resolveClient()
 	log.Printf("POST %v\n", path)
+	return client.Do(req)
+}
+
+func getJob(path, authToken, jobToken string) (*http.Response, error) {
+	h := resolveHost()
+	u := url.URL{
+		Scheme: "https",
+		Host:   h,
+		Path:   path,
+	}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		log.Printf("Failed to create new http request: %v\n", err)
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req.Header.Set("Job-Authorization", fmt.Sprintf("%v", jobToken))
+
+	client := resolveClient()
+	log.Printf("GET %v\n", path)
 	return client.Do(req)
 }
