@@ -32,20 +32,19 @@ asking rates are below your minimum, emrysminer
 will default to the mining command provided in
 ./mining-script.sh.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		token := getToken()
+		authToken := getToken()
 
-		conn, _, err := dialWebsocket(token)
+		conn, _, err := dialWebsocket(authToken)
 		if err != nil {
 			log.Printf("Error dialing websocket: %v\n", err)
 			if err == websocket.ErrBadHandshake {
-				log.Printf("Are you logged in? Your token may have expired.\n")
+				log.Printf("Are you logged in? Your authToken may have expired.\n")
 			}
 			return
 		}
 		defer check.Err(conn.Close)
 
 		response := make(chan []byte)
-		// bid := make(chan *job.Bid)
 		done := make(chan struct{})
 		interrupt := make(chan os.Signal, 1)
 
@@ -84,7 +83,7 @@ will default to the mining command provided in
 							log.Printf("Error encoding json bid: %v\n", err)
 							return
 						}
-						resp, err := post(p, token, &body)
+						resp, err := post(p, authToken, &body)
 						if err != nil {
 							log.Printf("Error POST %v: %v\n", p, err)
 							return
@@ -104,30 +103,29 @@ will default to the mining command provided in
 							return
 						}
 
-						bidResp := &job.BidResp{}
-						err = json.NewDecoder(resp.Body).Decode(bidResp)
-						if err != nil {
-							log.Printf("Error decoding json bid response: %v\n", err)
+						jobToken := resp.Header.Get("Set-Job-Authorization")
+						if jobToken == "" {
+							log.Printf("Sorry, your bid (%+v) did not win.\n", b)
 							return
 						}
 
-						// TODO: use job token to request img / data / run
-
-						// p := path.Join("miner", "job", m.Job.ID.String(), "image")
-						// resp, err := getJob(p, token, bidResp.Token)
-						// if err != nil {
-						// 	log.Printf("Error GET %v: %v\n", p, err)
-						// 	return
-						// }
-						// defer check.Err(resp.Body.Close)
-
-						p = path.Join("miner", "job", m.Job.ID.String(), "data")
-						resp, err = getJob(p, token, bidResp.Token)
+						p = path.Join("miner", "job", m.Job.ID.String(), "image")
+						resp, err = get(p, authToken, jobToken)
 						if err != nil {
 							log.Printf("Error GET %v: %v\n", p, err)
 							return
 						}
 						defer check.Err(resp.Body.Close)
+
+						p = path.Join("miner", "job", m.Job.ID.String(), "data")
+						resp, err = get(p, authToken, jobToken)
+						if err != nil {
+							log.Printf("Error GET %v: %v\n", p, err)
+							return
+						}
+						defer check.Err(resp.Body.Close)
+
+						// TODO: use job authToken to .. run?
 					}()
 
 					// 	zr, err := zlib.NewReader(r)
@@ -293,7 +291,7 @@ func dialWebsocket(t string) (*websocket.Conn, *http.Response, error) {
 	return d.Dial(u.String(), reqH)
 }
 
-func post(path, token string, body io.Reader) (*http.Response, error) {
+func post(path, authToken string, body io.Reader) (*http.Response, error) {
 	h := resolveHost()
 	u := url.URL{
 		Scheme: "https",
@@ -305,14 +303,14 @@ func post(path, token string, body io.Reader) (*http.Response, error) {
 		log.Printf("Failed to create new http request: %v\n", err)
 		return nil, err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 	client := resolveClient()
 	log.Printf("POST %v\n", path)
 	return client.Do(req)
 }
 
-func getJob(path, authToken, jobToken string) (*http.Response, error) {
+func get(path, authToken, jobToken string) (*http.Response, error) {
 	h := resolveHost()
 	u := url.URL{
 		Scheme: "https",
