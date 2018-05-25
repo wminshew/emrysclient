@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"bufio"
+	// "bufio"
 	"bytes"
 	"compress/zlib"
 	"context"
@@ -89,13 +89,13 @@ will default to the mining command provided in
 						}
 						req, err := postReq(p, authToken, &body)
 						if err != nil {
-							log.Printf("Error creating POST request for path %v: %v\n", p, err)
+							log.Printf("Error creating request POST %v: %v\n", p, err)
 							return
 						}
-						log.Printf("POST %v\n", p)
+						log.Printf("%v %v\n", req.Method, p)
 						resp, err := client.Do(req)
 						if err != nil {
-							log.Printf("Error POST %v: %v\n", p, err)
+							log.Printf("Error %v %v: %v\n", req.Method, p, err)
 							return
 						}
 
@@ -108,7 +108,7 @@ will default to the mining command provided in
 						}
 
 						if resp.StatusCode != http.StatusOK {
-							log.Printf("Response error: %v\n", resp.Status)
+							log.Printf("Response header error: %v\n", resp.Status)
 							check.Err(resp.Body.Close)
 							return
 						}
@@ -126,18 +126,18 @@ will default to the mining command provided in
 						p = path.Join("miner", "job", m.Job.ID.String(), "image")
 						req, err = getJobReq(p, authToken, jobToken)
 						if err != nil {
-							log.Printf("Error creating GET job request for path %v: %v\n", p, err)
+							log.Printf("Error creating request GET %v: %v\n", p, err)
 							return
 						}
-						log.Printf("GET %v\n", p)
+						log.Printf("%v %v\n", req.Method, p)
 						resp, err = client.Do(req)
 						if err != nil {
-							log.Printf("Error GET %v: %v\n", p, err)
+							log.Printf("Error %v %v: %v\n", req.Method, p, err)
 							return
 						}
 
 						if resp.StatusCode != http.StatusOK {
-							log.Printf("Response error: %v\n", resp.Status)
+							log.Printf("Response header error: %v\n", resp.Status)
 							check.Err(resp.Body.Close)
 							return
 						}
@@ -178,18 +178,18 @@ will default to the mining command provided in
 						p = path.Join("miner", "job", m.Job.ID.String(), "data")
 						req, err = getJobReq(p, authToken, jobToken)
 						if err != nil {
-							log.Printf("Error creating GET job request for path %v: %v\n", p, err)
+							log.Printf("Error creating request GET %v: %v\n", p, err)
 							return
 						}
-						log.Printf("GET %v\n", p)
+						log.Printf("%v %v\n", req.Method, p)
 						resp, err = client.Do(req)
 						if err != nil {
-							log.Printf("Error GET %v: %v\n", p, err)
+							log.Printf("Error %v %v: %v\n", req.Method, p, err)
 							return
 						}
 
 						if resp.StatusCode != http.StatusOK {
-							log.Printf("Response error: %v\n", resp.Status)
+							log.Printf("Response header error: %v\n", resp.Status)
 							check.Err(resp.Body.Close)
 							return
 						}
@@ -254,26 +254,57 @@ will default to the mining command provided in
 							return
 						}
 
-						// TODO: use job authToken to .. run?
+						// TODO: use job authToken to post output
 						// // tee := io.TeeReader(out, fw)
 						// // _, err = io.Copy(os.Stdout, tee)
 						// // if err != nil && err != io.EOF {
 						// // 	log.Printf("Error copying to stdout: %v\n", err)
 						// // 	return
 						// // }
-						scanner := bufio.NewScanner(out)
-						for scanner.Scan() {
-							log.Println(scanner.Text())
-						}
-						// // response <- []byte(out)
+						// pr, pw := io.Pipe()
 						//
-						// err = out.Close()
-						// if err != nil {
-						// 	log.Printf("Error closing container log: %v\n", err)
-						// 	break
-						// }
+						// go func() {
+						// 	scanner := bufio.NewScanner(out)
+						// 	for scanner.Scan() {
+						// 		log.Println(scanner.Text())
+						// 	}
+						//
+						// 	err = out.Close()
+						// 	if err != nil {
+						// 		log.Printf("Error closing container log: %v\n", err)
+						// 		break
+						// 	}
+						// }()
+
+						p = path.Join("miner", "job", m.Job.ID.String(), "output", "log")
+						req, err = postJobReq(p, authToken, jobToken, out)
+						if err != nil {
+							log.Printf("Error creating request POST %v: %v\n", p, err)
+							return
+						}
+						log.Printf("%v %v\n", req.Method, p)
+						resp, err = client.Do(req)
+						if err != nil {
+							log.Printf("Error %v %v: %v\n", req.Method, p, err)
+							return
+						}
+
+						if resp.StatusCode != http.StatusOK {
+							log.Printf("Response header error: %v\n", resp.Status)
+							check.Err(resp.Body.Close)
+							return
+						}
+
+						err = out.Close()
+						if err != nil {
+							log.Printf("Error closing container log: %v\n", err)
+							check.Err(resp.Body.Close)
+							return
+						}
+						check.Err(resp.Body.Close)
 
 						// TODO: remove docker image?
+
 					}()
 
 				case websocket.TextMessage:
@@ -366,7 +397,25 @@ func getJobReq(path, authToken, jobToken string) (*http.Request, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	req.Header.Set("Job-Authorization", fmt.Sprintf("%v", jobToken))
+	req.Header.Set("Job-Authorization", jobToken)
+
+	return req, nil
+}
+
+func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request, error) {
+	h := resolveHost()
+	u := url.URL{
+		Scheme: "https",
+		Host:   h,
+		Path:   path,
+	}
+	req, err := http.NewRequest("POST", u.String(), body)
+	if err != nil {
+		log.Printf("Failed to create new http request: %v\n", err)
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req.Header.Set("Job-Authorization", jobToken)
 
 	return req, nil
 }
