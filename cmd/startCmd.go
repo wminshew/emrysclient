@@ -165,6 +165,19 @@ will default to the mining command provided in
 							return
 						}
 						defer check.Err(imgLoadResp.Body.Close)
+						defer func() {
+							imgDelResp, err := cli.ImageRemove(ctx, m.Job.ID.String(), types.ImageRemoveOptions{
+								Force: true,
+							})
+							if err != nil {
+								log.Printf("Error deleting image %v: %v\n", m.Job.ID.String(), err)
+								return
+							}
+							for i := range imgDelResp {
+								log.Printf("Deleted: %v", imgDelResp[i].Deleted)
+								log.Printf("Untagged: %v", imgDelResp[i].Untagged)
+							}
+						}()
 						err = zResp.Close()
 						if err != nil {
 							log.Printf("Error closing zlib img reader: %v\n", err)
@@ -254,27 +267,12 @@ will default to the mining command provided in
 							return
 						}
 
-						// TODO: use job authToken to post output
-						// // tee := io.TeeReader(out, fw)
-						// // _, err = io.Copy(os.Stdout, tee)
-						// // if err != nil && err != io.EOF {
-						// // 	log.Printf("Error copying to stdout: %v\n", err)
-						// // 	return
-						// // }
-						// pr, pw := io.Pipe()
-						//
-						// go func() {
-						// 	scanner := bufio.NewScanner(out)
-						// 	for scanner.Scan() {
-						// 		log.Println(scanner.Text())
-						// 	}
-						//
-						// 	err = out.Close()
-						// 	if err != nil {
-						// 		log.Printf("Error closing container log: %v\n", err)
-						// 		break
-						// 	}
-						// }()
+						// tee := io.TeeReader(out, fw)
+						// _, err = io.Copy(os.Stdout, tee)
+						// if err != nil && err != io.EOF {
+						// 	log.Printf("Error copying to stdout: %v\n", err)
+						// 	return
+						// }
 
 						p = path.Join("miner", "job", m.Job.ID.String(), "output", "log")
 						req, err = postJobReq(p, authToken, jobToken, out)
@@ -295,16 +293,7 @@ will default to the mining command provided in
 							return
 						}
 
-						err = out.Close()
-						if err != nil {
-							log.Printf("Error closing container log: %v\n", err)
-							check.Err(resp.Body.Close)
-							return
-						}
 						check.Err(resp.Body.Close)
-
-						// TODO: remove docker image?
-
 					}()
 
 				case websocket.TextMessage:
