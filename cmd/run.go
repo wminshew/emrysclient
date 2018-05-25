@@ -33,10 +33,21 @@ var runCmd = &cobra.Command{
 	job`,
 	Run: func(cmd *cobra.Command, args []string) {
 		authToken := getToken()
+		claims := &jwt.StandardClaims{}
+		_, _, err := new(jwt.Parser).ParseUnverified(authToken, claims)
+		if err != nil {
+			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			return
+		}
+		if err = claims.Valid(); err != nil {
+			log.Printf("Error invalid authToken claims: %v\n", err)
+			log.Printf("Please login again.\n")
+			return
+		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
-		err := viper.ReadInConfig()
+		err = viper.ReadInConfig()
 		if err != nil {
 			log.Printf("Error reading config file")
 			return
@@ -90,10 +101,10 @@ var runCmd = &cobra.Command{
 		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		check.Err(resp.Body.Close)
 
-		claims := &jwt.StandardClaims{}
+		claims = &jwt.StandardClaims{}
 		_, _, err = new(jwt.Parser).ParseUnverified(jobToken, claims)
 		if err != nil {
-			log.Printf("Error parsing job token %v: %v\n", jobToken, err)
+			log.Printf("Error parsing jobToken %v: %v\n", jobToken, err)
 			return
 		}
 
