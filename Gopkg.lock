@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/dsnet/compress"
   packages = [
@@ -172,6 +178,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "584841f9198d05877a780f68222690ec16e9db92a87c731a93cfd8babce23371"
+  inputs-digest = "da672041d2717e211f91cba922432e01ff43c0e7d75d6a61bb0a7605a36e288f"
   solver-name = "gps-cdcl"
   solver-version = 1
