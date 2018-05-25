@@ -11,10 +11,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
 	"github.com/wminshew/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -72,6 +74,7 @@ will default to the mining command provided in
 					log.Printf("Job: %+v\n", m.Job)
 
 					go func() {
+						client := resolveClient()
 						b := &job.Bid{
 							MinRate: 0.2,
 						}
@@ -84,12 +87,17 @@ will default to the mining command provided in
 							log.Printf("Error encoding json bid: %v\n", err)
 							return
 						}
-						resp, err := post(p, authToken, &body)
+						req, err := postReq(p, authToken, &body)
+						if err != nil {
+							log.Printf("Error creating POST request for path %v: %v\n", p, err)
+							return
+						}
+						log.Printf("POST %v\n", p)
+						resp, err := client.Do(req)
 						if err != nil {
 							log.Printf("Error POST %v: %v\n", p, err)
 							return
 						}
-						defer check.Err(resp.Body.Close)
 
 						if appEnv == "dev" {
 							respDump, err := httputil.DumpResponse(resp, true)
@@ -100,27 +108,44 @@ will default to the mining command provided in
 						}
 
 						if resp.StatusCode != http.StatusOK {
-							log.Printf("Request error: %v\n", resp.Status)
+							log.Printf("Response error: %v\n", resp.Status)
+							check.Err(resp.Body.Close)
 							return
 						}
 
 						jobToken := resp.Header.Get("Set-Job-Authorization")
 						if jobToken == "" {
 							log.Printf("Sorry, your bid (%+v) did not win.\n", b)
+							check.Err(resp.Body.Close)
 							return
 						}
 
+						_, _ = io.Copy(ioutil.Discard, resp.Body)
+						check.Err(resp.Body.Close)
+
 						p = path.Join("miner", "job", m.Job.ID.String(), "image")
-						resp, err = get(p, authToken, jobToken)
+						req, err = getJobReq(p, authToken, jobToken)
+						if err != nil {
+							log.Printf("Error creating GET job request for path %v: %v\n", p, err)
+							return
+						}
+						log.Printf("GET %v\n", p)
+						resp, err = client.Do(req)
 						if err != nil {
 							log.Printf("Error GET %v: %v\n", p, err)
 							return
 						}
-						defer check.Err(resp.Body.Close)
+
+						if resp.StatusCode != http.StatusOK {
+							log.Printf("Response error: %v\n", resp.Status)
+							check.Err(resp.Body.Close)
+							return
+						}
 
 						zResp, err := zlib.NewReader(resp.Body)
 						if err != nil {
 							log.Printf("Error creating zlib img reader: %v\n", err)
+							check.Err(resp.Body.Close)
 							return
 						}
 
@@ -128,52 +153,78 @@ will default to the mining command provided in
 						cli, err := docker.NewEnvClient()
 						if err != nil {
 							log.Printf("Error creating docker client: %v\n", err)
+							check.Err(resp.Body.Close)
+							check.Err(zResp.Close)
 							return
 						}
 						imgLoadResp, err := cli.ImageLoad(ctx, zResp, false)
 						if err != nil {
 							log.Printf("Error loading image: %v\n", err)
+							check.Err(resp.Body.Close)
+							check.Err(zResp.Close)
 							return
 						}
 						defer check.Err(imgLoadResp.Body.Close)
 						err = zResp.Close()
 						if err != nil {
 							log.Printf("Error closing zlib img reader: %v\n", err)
+							check.Err(resp.Body.Close)
 							return
 						}
-						_, err = io.Copy(os.Stdout, imgLoadResp.Body)
+
+						_, _ = io.Copy(ioutil.Discard, resp.Body)
+						check.Err(resp.Body.Close)
+
+						p = path.Join("miner", "job", m.Job.ID.String(), "data")
+						req, err = getJobReq(p, authToken, jobToken)
 						if err != nil {
-							log.Printf("Error copying to stdout: %v\n", err)
+							log.Printf("Error creating GET job request for path %v: %v\n", p, err)
+							return
+						}
+						log.Printf("GET %v\n", p)
+						resp, err = client.Do(req)
+						if err != nil {
+							log.Printf("Error GET %v: %v\n", p, err)
 							return
 						}
 
-						// p = path.Join("miner", "job", m.Job.ID.String(), "data")
-						// resp, err = get(p, authToken, jobToken)
-						// if err != nil {
-						// 	log.Printf("Error GET %v: %v\n", p, err)
-						// 	return
-						// }
-						// defer check.Err(resp.Body.Close)
+						if resp.StatusCode != http.StatusOK {
+							log.Printf("Response error: %v\n", resp.Status)
+							check.Err(resp.Body.Close)
+							return
+						}
 
-						// TODO: use job authToken to .. run?
-						// TODO: do I need to preserve users' file structure?
-						// [relative pathing between train.py and path/to/data/]
-						// wd, err := os.Getwd()
-						// if err != nil {
-						// 	log.Printf("Error getting working directory: %v\n", err)
-						// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-						// 	return
-						// }
-						// hostDataPath := filepath.Join(wd, userDir, "data")
-						// dockerDataPath := filepath.Join(userHome, "data")
+						wd, err := os.Getwd()
+						if err != nil {
+							log.Printf("Error getting working directory: %v\n", err)
+							check.Err(resp.Body.Close)
+							return
+						}
+						hostDataDir := path.Join(wd, ".emrysminer", "temp-job-data")
+						hostDataPath := path.Join(hostDataDir, "data")
+
+						if err = os.MkdirAll(hostDataPath, 0755); err != nil {
+							log.Printf("Error making data dir %v: %v\n", hostDataPath, err)
+							check.Err(resp.Body.Close)
+							return
+						}
+						if err = archiver.TarGz.Read(resp.Body, hostDataDir); err != nil {
+							log.Printf("Error unpacking .tar.gz into data dir %v: %v\n", hostDataPath, err)
+							check.Err(resp.Body.Close)
+							return
+						}
+						check.Err(resp.Body.Close)
+						defer check.Err(func() error { return os.RemoveAll(hostDataDir) })
+						userHome := "/home/user"
+						dockerDataPath := path.Join(userHome, "data")
 						c, err := cli.ContainerCreate(ctx, &container.Config{
 							Image: m.Job.ID.String(),
 							Tty:   true,
 						}, &container.HostConfig{
 							AutoRemove: true,
-							// Binds: []string{
-							// 	fmt.Sprintf("%s:%s:ro", hostDataPath, dockerDataPath),
-							// },
+							Binds: []string{
+								fmt.Sprintf("%s:%s:ro", hostDataPath, dockerDataPath),
+							},
 							CapDrop: []string{
 								"ALL",
 							},
@@ -202,7 +253,8 @@ will default to the mining command provided in
 							log.Printf("Error logging container: %v\n", err)
 							return
 						}
-						//
+
+						// TODO: use job authToken to .. run?
 						// // tee := io.TeeReader(out, fw)
 						// // _, err = io.Copy(os.Stdout, tee)
 						// // if err != nil && err != io.EOF {
@@ -220,6 +272,8 @@ will default to the mining command provided in
 						// 	log.Printf("Error closing container log: %v\n", err)
 						// 	break
 						// }
+
+						// TODO: remove docker image?
 					}()
 
 				case websocket.TextMessage:
@@ -282,7 +336,7 @@ func dialWebsocket(t string) (*websocket.Conn, *http.Response, error) {
 	return d.Dial(u.String(), reqH)
 }
 
-func post(path, authToken string, body io.Reader) (*http.Response, error) {
+func postReq(path, authToken string, body io.Reader) (*http.Request, error) {
 	h := resolveHost()
 	u := url.URL{
 		Scheme: "https",
@@ -296,12 +350,10 @@ func post(path, authToken string, body io.Reader) (*http.Response, error) {
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-	client := resolveClient()
-	log.Printf("POST %v\n", path)
-	return client.Do(req)
+	return req, nil
 }
 
-func get(path, authToken, jobToken string) (*http.Response, error) {
+func getJobReq(path, authToken, jobToken string) (*http.Request, error) {
 	h := resolveHost()
 	u := url.URL{
 		Scheme: "https",
@@ -316,7 +368,5 @@ func get(path, authToken, jobToken string) (*http.Response, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 	req.Header.Set("Job-Authorization", fmt.Sprintf("%v", jobToken))
 
-	client := resolveClient()
-	log.Printf("GET %v\n", path)
-	return client.Do(req)
+	return req, nil
 }
