@@ -131,15 +131,12 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/wminshew/emrys/pkg/check"
-  packages = ["."]
-  revision = "5dadfebe7fe111ab81a87ac715f1aefbd47e583b"
-
-[[projects]]
-  branch = "master"
   name = "github.com/wminshew/emrys"
-  packages = ["pkg/creds"]
-  revision = "23b2bc9955482ca12c9da522549de43ef44fd6c8"
+  packages = [
+    "pkg/check",
+    "pkg/creds"
+  ]
+  revision = "aa89681e1dfac36bc974d97654f7089fe11626c6"
 
 [[projects]]
   branch = "master"
@@ -178,6 +175,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "da672041d2717e211f91cba922432e01ff43c0e7d75d6a61bb0a7605a36e288f"
+  inputs-digest = "e542b849290e32cdc5390c65afb3f35932146808ead1944367d914e88f4d5d9f"
   solver-name = "gps-cdcl"
   solver-version = 1
