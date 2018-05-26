@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
-	"github.com/wminshew/check"
+	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"io/ioutil"
