@@ -56,6 +56,19 @@
   version = "v0.3.3"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/dsnet/compress"
+  packages = [
+    ".",
+    "bzip2",
+    "bzip2/internal/sais",
+    "internal",
+    "internal/errors",
+    "internal/prefix"
+  ]
+  revision = "cc9eb1d7ad760af14e8f918698f745e80377af4f"
+
+[[projects]]
   name = "github.com/gogo/protobuf"
   packages = ["proto"]
   revision = "100ba4e885062801d56799d78530b73b178a78f3"
@@ -72,6 +85,18 @@
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
+
+[[projects]]
+  name = "github.com/mholt/archiver"
+  packages = ["."]
+  revision = "cdc68dd1f170b8dfc1a0d2231b5bb0967ed67006"
+  version = "v2.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/nwaples/rardecode"
+  packages = ["."]
+  revision = "e06696f847aeda6f39a8f0b7cdff193b7690aef6"
 
 [[projects]]
   name = "github.com/opencontainers/go-digest"
@@ -113,19 +138,25 @@
   version = "v1.0.1"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/wminshew/emrys/pkg/check"
-  packages = ["."]
-  revision = "5dadfebe7fe111ab81a87ac715f1aefbd47e583b"
+  name = "github.com/ulikunitz/xz"
+  packages = [
+    ".",
+    "internal/hash",
+    "internal/xlog",
+    "lzma"
+  ]
+  revision = "0c6b41e72360850ca4f98dc341fd999726ea007f"
+  version = "v0.5.4"
 
 [[projects]]
   branch = "master"
   name = "github.com/wminshew/emrys"
   packages = [
+    "pkg/check",
     "pkg/creds",
     "pkg/job"
   ]
-  revision = "c4f9f3273e4e689966a373380482a00982042ed4"
+  revision = "aa89681e1dfac36bc974d97654f7089fe11626c6"
 
 [[projects]]
   branch = "master"
@@ -156,6 +187,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1cf7a00085bfa821447c9494fea3e0e398a144c97145613965196f1a2e0f975f"
+  inputs-digest = "954b97977042c918ce02d6ac59841f2b4ab1891ab086b767ca7def387c1c673a"
   solver-name = "gps-cdcl"
   solver-version = 1
