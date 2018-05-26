@@ -7,7 +7,7 @@ import (
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wminshew/check"
+	"github.com/wminshew/emrys/pkg/check"
 	"io"
 	"io/ioutil"
 	"log"

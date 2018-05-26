@@ -131,7 +131,7 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/wminshew/check"
+  name = "github.com/wminshew/emrys/pkg/check"
   packages = ["."]
   revision = "5dadfebe7fe111ab81a87ac715f1aefbd47e583b"
 
