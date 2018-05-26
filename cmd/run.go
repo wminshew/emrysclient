@@ -129,17 +129,12 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		r = bufio.NewReader(resp.Body)
-		for {
-			line, err := r.ReadBytes('\n')
-			if err != nil {
-				break
-			}
-
-			log.Print(string(line))
+		_, err = io.Copy(os.Stdout, resp.Body)
+		if err != nil {
+			log.Printf("Error copying response body: %v\n", err)
+			check.Err(resp.Body.Close)
+			return
 		}
-
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		check.Err(resp.Body.Close)
 
 		// p = path.Join("user", "job", j.ID.String(), "output", "dir")
