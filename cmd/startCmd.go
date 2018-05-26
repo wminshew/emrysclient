@@ -267,13 +267,6 @@ will default to the mining command provided in
 							return
 						}
 
-						// tee := io.TeeReader(out, fw)
-						// _, err = io.Copy(os.Stdout, tee)
-						// if err != nil && err != io.EOF {
-						// 	log.Printf("Error copying to stdout: %v\n", err)
-						// 	return
-						// }
-
 						p = path.Join("miner", "job", m.Job.ID.String(), "output", "log")
 						req, err = postJobReq(p, authToken, jobToken, out)
 						if err != nil {
