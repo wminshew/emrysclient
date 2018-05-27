@@ -116,10 +116,10 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		log.Printf("Sending GET %v...\n", p)
+		log.Printf("Sending %v %v...\n", req.Method, p)
 		resp, err = client.Do(req)
 		if err != nil {
-			log.Printf("Error GET %v: %v\n", p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
 			return
 		}
 
@@ -137,38 +137,39 @@ var runCmd = &cobra.Command{
 		}
 		check.Err(resp.Body.Close)
 
-		// p = path.Join("user", "job", j.ID.String(), "output", "dir")
-		// req, err := getJobOutputDir(p, j)
-		// if err != nil {
-		// 	log.Printf("Error creating request POST %v: %v\n", p, err)
-		// 	return
-		// }
-		//
-		// log.Printf("Sending GET %v...\n", p)
-		// resp, err := client.Do(req)
-		// if err != nil {
-		// 	log.Printf("Error GET %v: %v\n", p, err)
-		// 	return
-		// }
-		//
-		// if resp.StatusCode != http.StatusOK {
-		// 	log.Printf("Response header error: %v\n", resp.Status)
-		// 	check.Err(resp.Body.Close)
-		// 	return
-		// }
-		//
-		// reader := bufio.NewReader(resp.Body)
-		// for {
-		// 	line, err := reader.ReadBytes('\n')
-		// 	if err != nil {
-		// 		break
-		// 	}
-		//
-		// 	log.Print(string(line))
-		// }
-		//
-		// _, _ = io.Copy(ioutil.Discard, resp.Body)
-		// check.Err(resp.Body.Close)
+		p = path.Join("user", "job", jID, "output", "dir")
+		req, err = getJobOutput(p, authToken, jobToken)
+		if err != nil {
+			log.Printf("Error creating request GET %v: %v\n", p, err)
+			return
+		}
+
+		log.Printf("Sending %v %v...\n", req.Method, p)
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Response header error: %v\n", resp.Status)
+			check.Err(resp.Body.Close)
+			return
+		}
+
+		wd, err := os.Getwd()
+		if err != nil {
+			log.Printf("Error retrieving working directory to save down output directory: %v\n", err)
+			check.Err(resp.Body.Close)
+			return
+		}
+		outputDir := path.Join(wd, "output")
+		if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
+			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", outputDir, err)
+			check.Err(resp.Body.Close)
+			return
+		}
+		check.Err(resp.Body.Close)
 	},
 }
 
