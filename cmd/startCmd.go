@@ -22,7 +22,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/user"
 	"path"
+	"syscall"
 	"time"
 )
 
@@ -321,41 +323,51 @@ func bid(authToken string, m *job.Message) {
 		return
 	}
 
-	wd, err := os.Getwd()
+	user, err := user.Current()
 	if err != nil {
-		log.Printf("Error getting working directory: %v\n", err)
+		log.Printf("Error getting current user: %v\n", err)
 		check.Err(resp.Body.Close)
 		return
 	}
-	hostDataDir := path.Join(wd, ".emrysminer", "temp-job-data")
-	hostDataPath := path.Join(hostDataDir, "data")
+	hostDataDir := path.Join(user.HomeDir, ".emrys", m.Job.ID.String(), "data")
+	hostOutputDir := path.Join(user.HomeDir, ".emrys", m.Job.ID.String(), "output")
 
-	if err = os.MkdirAll(hostDataPath, 0755); err != nil {
-		log.Printf("Error making data dir %v: %v\n", hostDataPath, err)
+	if err = os.MkdirAll(hostDataDir, 0755); err != nil {
+		log.Printf("Error making data dir %v: %v\n", hostDataDir, err)
 		check.Err(resp.Body.Close)
 		return
 	}
+	defer check.Err(func() error { return os.RemoveAll(hostDataDir) })
+	oldUMask := syscall.Umask(000)
+	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
+		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
+		check.Err(resp.Body.Close)
+		return
+	}
+	_ = syscall.Umask(oldUMask)
+	defer check.Err(func() error { return os.RemoveAll(hostOutputDir) })
 	if err = archiver.TarGz.Read(resp.Body, hostDataDir); err != nil {
-		log.Printf("Error unpacking .tar.gz into data dir %v: %v\n", hostDataPath, err)
+		log.Printf("Error unpacking .tar.gz into data dir %v: %v\n", hostDataDir, err)
 		check.Err(resp.Body.Close)
 		return
 	}
 	check.Err(resp.Body.Close)
-	defer check.Err(func() error { return os.RemoveAll(hostDataDir) })
+
 	userHome := "/home/user"
-	dockerDataPath := path.Join(userHome, "data")
+	dockerDataDir := path.Join(userHome, "data")
+	dockerOutputDir := path.Join(userHome, "output")
 	c, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: m.Job.ID.String(),
 		Tty:   true,
 	}, &container.HostConfig{
 		AutoRemove: true,
 		Binds: []string{
-			fmt.Sprintf("%s:%s:ro", hostDataPath, dockerDataPath),
+			fmt.Sprintf("%s:%s:ro", hostDataDir, dockerDataDir),
+			fmt.Sprintf("%s:%s:rw", hostOutputDir, dockerOutputDir),
 		},
 		CapDrop: []string{
 			"ALL",
 		},
-		// TODO: mount a rw drive and use readonlyrootfs
 		// ReadonlyRootfs: true,
 		Runtime: "nvidia",
 		SecurityOpt: []string{
@@ -383,6 +395,44 @@ func bid(authToken string, m *job.Message) {
 
 	p = path.Join("miner", "job", m.Job.ID.String(), "output", "log")
 	req, err = postJobReq(p, authToken, jobToken, out)
+	if err != nil {
+		log.Printf("Error creating request POST %v: %v\n", p, err)
+		return
+	}
+	log.Printf("%v %v\n", req.Method, p)
+	resp, err = client.Do(req)
+	if err != nil {
+		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Response header error: %v\n", resp.Status)
+		check.Err(resp.Body.Close)
+		return
+	}
+
+	check.Err(resp.Body.Close)
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer check.Err(pw.Close)
+		files, err := ioutil.ReadDir(hostOutputDir)
+		outputFiles := make([]string, len(files))
+		if err != nil {
+			log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+			return
+		}
+		for _, file := range files {
+			outputFiles = append(outputFiles, hostOutputDir+file.Name())
+		}
+		if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
+			log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
+			return
+		}
+	}()
+	p = path.Join("miner", "job", m.Job.ID.String(), "output", "dir")
+	req, err = postJobReq(p, authToken, jobToken, pr)
 	if err != nil {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
 		return
