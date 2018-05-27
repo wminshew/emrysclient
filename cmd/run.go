@@ -22,6 +22,7 @@ type jobReq struct {
 	requirements string
 	main         string
 	data         string
+	output       string
 }
 
 var runCmd = &cobra.Command{
@@ -57,6 +58,7 @@ var runCmd = &cobra.Command{
 			requirements: viper.GetString("requirements"),
 			main:         viper.GetString("main"),
 			data:         viper.GetString("data"),
+			output:       viper.GetString("output"),
 		}
 
 		client := resolveClient()
@@ -157,15 +159,16 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		wd, err := os.Getwd()
-		if err != nil {
-			log.Printf("Error retrieving working directory to save down output directory: %v\n", err)
-			check.Err(resp.Body.Close)
-			return
-		}
-		outputDir := path.Join(wd, "output")
-		if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
-			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", outputDir, err)
+		// wd, err := os.Getwd()
+		// if err != nil {
+		// 	log.Printf("Error retrieving working directory to save down output directory: %v\n", err)
+		// 	check.Err(resp.Body.Close)
+		// 	return
+		// }
+		// outputDir := path.Join(wd, "output")
+		// if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
+		if err = archiver.TarGz.Read(resp.Body, j.output); err != nil {
+			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", j.output, err)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -214,6 +217,20 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			return
 		}
 
+		// defer check.Err(pw.Close)
+		// files, err := ioutil.ReadDir(hostOutputDir)
+		// outputFiles := make([]string, len(files))
+		// if err != nil {
+		// 	log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+		// 	return
+		// }
+		// for _, file := range files {
+		// 	outputFiles = append(outputFiles, hostOutputDir+file.Name())
+		// }
+		// if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
+		// 	log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
+		// 	return
+		// }
 		dataTarGzPath := j.data + ".tar.gz"
 		if err = archiver.TarGz.Make(dataTarGzPath, []string{j.data}); err != nil {
 			log.Printf("Failed to tar & gzip %s: %v\n", j.data, err)

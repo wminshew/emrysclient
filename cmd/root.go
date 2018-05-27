@@ -30,6 +30,7 @@ func init() {
 	runCmd.Flags().String("requirements", "./requirements.txt", "Path to requirements file")
 	runCmd.Flags().String("main", "./main.py", "Path to main execution file")
 	runCmd.Flags().String("data", "./data", "Path to the data directory (must be named data)")
+	runCmd.Flags().String("output", "./output", "Path to the output directory")
 	runCmd.Flags().SortFlags = false
 	err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
@@ -46,6 +47,10 @@ func init() {
 	err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
 	if err != nil {
 		log.Fatalf("Error binding pflag data")
+	}
+	err = viper.BindPFlag("output", runCmd.Flags().Lookup("output"))
+	if err != nil {
+		log.Fatalf("Error binding pflag output")
 	}
 }
 
