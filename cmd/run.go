@@ -18,16 +18,16 @@ import (
 	"path"
 )
 
-type job struct {
+type jobReq struct {
 	requirements string
-	train        string
+	main         string
 	data         string
 }
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Dispatch a deep learning job",
-	Long: `Syncs the appropriate training files & data
+	Long: `Syncs the appropriate maining files & data
 	with the central server, then locates the cheapest
 	spare GPU cycles on the internet to execute your
 	job`,
@@ -53,9 +53,9 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		j := &job{
+		j := &jobReq{
 			requirements: viper.GetString("requirements"),
-			train:        viper.GetString("train"),
+			main:         viper.GetString("main"),
 			data:         viper.GetString("data"),
 		}
 
@@ -192,7 +192,7 @@ func addFormFile(w *multipart.Writer, name, filename, filepath string) error {
 	return nil
 }
 
-func postJobReq(p, authToken string, j *job) (*http.Request, error) {
+func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 	r, w := io.Pipe()
 	bodyW := multipart.NewWriter(w)
 
@@ -207,9 +207,9 @@ func postJobReq(p, authToken string, j *job) (*http.Request, error) {
 			return
 		}
 
-		err = addFormFile(bodyW, "train", "train.py", j.train)
+		err = addFormFile(bodyW, "main", "main.py", j.main)
 		if err != nil {
-			log.Printf("Failed to add train to POST: %v\n", err)
+			log.Printf("Failed to add main to POST: %v\n", err)
 			_ = w.CloseWithError(err)
 			return
 		}

@@ -26,10 +26,10 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().String("config", ".emrys", "Path to your config file for training (don't include extension)")
-	runCmd.Flags().String("requirements", "./requirements.txt", "Path to your requirements file for training")
-	runCmd.Flags().String("train", "./train.py", "Path to your training file")
-	runCmd.Flags().String("data", "./data", "Path to the directory holding your data")
+	runCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
+	runCmd.Flags().String("requirements", "./requirements.txt", "Path to requirements file")
+	runCmd.Flags().String("main", "./main.py", "Path to main execution file")
+	runCmd.Flags().String("data", "./data", "Path to the data directory (must be named data)")
 	runCmd.Flags().SortFlags = false
 	err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
@@ -39,9 +39,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Error binding pflag requirements")
 	}
-	err = viper.BindPFlag("train", runCmd.Flags().Lookup("train"))
+	err = viper.BindPFlag("main", runCmd.Flags().Lookup("main"))
 	if err != nil {
-		log.Fatalf("Error binding pflag train")
+		log.Fatalf("Error binding pflag main")
 	}
 	err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
 	if err != nil {
