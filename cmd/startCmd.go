@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -294,15 +295,19 @@ func bid(authToken string, m *job.Message) {
 			log.Printf("Untagged: %v", imgDelResp[i].Untagged)
 		}
 	}()
-	err = zResp.Close()
+	check.Err(zResp.Close)
+	check.Err(resp.Body.Close)
+
+	user, err := user.Current()
 	if err != nil {
-		log.Printf("Error closing zlib img reader: %v\n", err)
-		check.Err(resp.Body.Close)
+		log.Printf("Error getting current user: %v\n", err)
 		return
 	}
-
-	_, _ = io.Copy(ioutil.Discard, resp.Body)
-	check.Err(resp.Body.Close)
+	jobDir := filepath.Join(user.HomeDir, ".emrys", m.Job.ID.String())
+	if err = os.MkdirAll(jobDir, 0755); err != nil {
+		log.Printf("Error making job dir %v: %v\n", jobDir, err)
+		return
+	}
 
 	p = path.Join("miner", "job", m.Job.ID.String(), "data")
 	req, err = getJobReq(p, authToken, jobToken)
@@ -323,39 +328,27 @@ func bid(authToken string, m *job.Message) {
 		return
 	}
 
-	user, err := user.Current()
-	if err != nil {
-		log.Printf("Error getting current user: %v\n", err)
-		check.Err(resp.Body.Close)
-		return
-	}
-	hostDataDir := path.Join(user.HomeDir, ".emrys", m.Job.ID.String(), "data")
-	hostOutputDir := path.Join(user.HomeDir, ".emrys", m.Job.ID.String(), "output")
-
-	if err = os.MkdirAll(hostDataDir, 0755); err != nil {
-		log.Printf("Error making data dir %v: %v\n", hostDataDir, err)
-		check.Err(resp.Body.Close)
-		return
-	}
-	defer check.Err(func() error { return os.RemoveAll(hostDataDir) })
-	oldUMask := syscall.Umask(000)
-	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
-		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
-		check.Err(resp.Body.Close)
-		return
-	}
-	_ = syscall.Umask(oldUMask)
-	defer check.Err(func() error { return os.RemoveAll(hostOutputDir) })
-	if err = archiver.TarGz.Read(resp.Body, hostDataDir); err != nil {
-		log.Printf("Error unpacking .tar.gz into data dir %v: %v\n", hostDataDir, err)
+	if err = archiver.TarGz.Read(resp.Body, jobDir); err != nil {
+		log.Printf("Error unpacking .tar.gz into job dir %v: %v\n", jobDir, err)
 		check.Err(resp.Body.Close)
 		return
 	}
 	check.Err(resp.Body.Close)
 
+	fileInfos, err := ioutil.ReadDir(jobDir)
+	hostDataDir := filepath.Join(jobDir, fileInfos[0].Name())
+
+	hostOutputDir := filepath.Join(jobDir, "output")
+	oldUMask := syscall.Umask(000)
+	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
+		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
+		return
+	}
+	_ = syscall.Umask(oldUMask)
+
 	userHome := "/home/user"
-	dockerDataDir := path.Join(userHome, "data")
-	dockerOutputDir := path.Join(userHome, "output")
+	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
+	dockerOutputDir := filepath.Join(userHome, "output")
 	c, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: m.Job.ID.String(),
 		Tty:   true,
@@ -418,13 +411,14 @@ func bid(authToken string, m *job.Message) {
 	go func() {
 		defer check.Err(pw.Close)
 		files, err := ioutil.ReadDir(hostOutputDir)
-		outputFiles := make([]string, len(files))
+		outputFiles := make([]string, 0, len(files))
 		if err != nil {
 			log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
 			return
 		}
 		for _, file := range files {
-			outputFiles = append(outputFiles, hostOutputDir+file.Name())
+			outputFile := filepath.Join(hostOutputDir, file.Name())
+			outputFiles = append(outputFiles, outputFile)
 		}
 		if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
 			log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
