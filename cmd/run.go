@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 type jobReq struct {
@@ -173,16 +174,17 @@ var runCmd = &cobra.Command{
 			return
 		}
 		check.Err(resp.Body.Close)
+		log.Printf("Job complete!\n")
 	},
 }
 
-func addFormFile(w *multipart.Writer, name, filename, filepath string) error {
-	tempW, err := w.CreateFormFile(name, filename)
+func addFormFile(w *multipart.Writer, name, fpath string) error {
+	tempW, err := w.CreateFormFile(name, filepath.Base(fpath))
 	if err != nil {
 		return err
 	}
 
-	file, err := os.Open(filepath)
+	file, err := os.Open(fpath)
 	if err != nil {
 		return err
 	}
@@ -201,47 +203,46 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 
 	log.Printf("Packing request...\n")
 	go func() {
-		defer check.Err(w.Close)
-
-		err := addFormFile(bodyW, "requirements", "requirements.txt", j.requirements)
+		err := addFormFile(bodyW, "requirements", j.requirements)
 		if err != nil {
 			log.Printf("Failed to add requirements to POST: %v\n", err)
 			_ = w.CloseWithError(err)
+			check.Err(bodyW.Close)
 			return
 		}
 
-		err = addFormFile(bodyW, "main", "main.py", j.main)
+		err = addFormFile(bodyW, "main", j.main)
 		if err != nil {
 			log.Printf("Failed to add main to POST: %v\n", err)
 			_ = w.CloseWithError(err)
+			check.Err(bodyW.Close)
 			return
 		}
 
-		// defer check.Err(pw.Close)
-		// files, err := ioutil.ReadDir(hostOutputDir)
-		// outputFiles := make([]string, len(files))
+		tempW, err := bodyW.CreateFormFile("data", filepath.Base(j.data)+".tar.gz")
+		if err != nil {
+			log.Printf("Failed to add j.data %v form file to POST: %v\n", j.data, err)
+			_ = w.CloseWithError(err)
+			check.Err(bodyW.Close)
+			return
+		}
+
+		// files, err := ioutil.ReadDir(j.data)
+		// dataFiles := make([]string, len(files))
 		// if err != nil {
-		// 	log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+		// 	log.Printf("Error reading files in j.data %v: %v\n", j.data, err)
+		// 	_ = w.CloseWithError(err)
+		// 	check.Err(bodyW.Close)
 		// 	return
 		// }
 		// for _, file := range files {
-		// 	outputFiles = append(outputFiles, hostOutputDir+file.Name())
+		// 	dataFiles = append(dataFiles, j.data+file.Name())
 		// }
-		// if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-		// 	log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
-		// 	return
-		// }
-		dataTarGzPath := j.data + ".tar.gz"
-		if err = archiver.TarGz.Make(dataTarGzPath, []string{j.data}); err != nil {
-			log.Printf("Failed to tar & gzip %s: %v\n", j.data, err)
+		// if err = archiver.TarGz.Write(tempW, dataFiles); err != nil {
+		if err = archiver.TarGz.Write(tempW, []string{j.data}); err != nil {
+			log.Printf("Error packing j.data dir %v: %v\n", j.data, err)
 			_ = w.CloseWithError(err)
-			return
-		}
-		defer check.Err(func() error { return os.Remove(dataTarGzPath) })
-		err = addFormFile(bodyW, "data", "data.tar.gz", dataTarGzPath)
-		if err != nil {
-			log.Printf("Failed to add data to POST: %v\n", err)
-			_ = w.CloseWithError(err)
+			check.Err(bodyW.Close)
 			return
 		}
 
@@ -251,6 +252,8 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			_ = w.CloseWithError(err)
 			return
 		}
+
+		check.Err(w.Close)
 	}()
 
 	h := resolveHost()
