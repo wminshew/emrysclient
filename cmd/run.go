@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mholt/archiver"
@@ -60,6 +61,10 @@ var runCmd = &cobra.Command{
 			main:         viper.GetString("main"),
 			data:         viper.GetString("data"),
 			output:       viper.GetString("output"),
+		}
+		if err = checkJobReq(j); err != nil {
+			log.Printf("Error with user-defined job requirements: %v\n", err)
+			return
 		}
 
 		client := resolveClient()
@@ -275,4 +280,24 @@ func getJobOutput(p, authToken, jobToken string) (*http.Request, error) {
 	req.Header.Set("Job-Authorization", jobToken)
 
 	return req, nil
+}
+
+func checkJobReq(j *jobReq) error {
+	if j.data == j.output {
+		return errors.New("can't use same directory for data and output")
+	}
+	if filepath.Base(j.data) == "output" {
+		return errors.New("can't name data directory \"output\"")
+	}
+	if filepath.Dir(j.main) != filepath.Dir(j.data) {
+		return fmt.Errorf("main (%v) and data (%v) must be in the same directory", j.main, j.data)
+	}
+	if filepath.Dir(j.main) != filepath.Dir(j.output) {
+		log.Printf(`Warning! Main (%v) will still only be able to save locally to ./output when executing, 
+		even though output (%v) has been set to a different directory. Local output to ./output will be saved
+		to your output (%v) at the end of execution. If this is your intended workflow,
+		please ignore this warning.`, j.main, j.output, j.output)
+		log.Println()
+	}
+	return nil
 }
