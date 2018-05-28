@@ -160,16 +160,14 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		// wd, err := os.Getwd()
-		// if err != nil {
-		// 	log.Printf("Error retrieving working directory to save down output directory: %v\n", err)
-		// 	check.Err(resp.Body.Close)
-		// 	return
-		// }
-		// outputDir := path.Join(wd, "output")
-		// if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
-		if err = archiver.TarGz.Read(resp.Body, j.output); err != nil {
-			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", j.output, err)
+		outputDir := filepath.Join(j.output, jID)
+		if err = os.MkdirAll(outputDir, 0755); err != nil {
+			log.Printf("Error making output dir %v: %v\n", outputDir, err)
+			check.Err(resp.Body.Close)
+			return
+		}
+		if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
+			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", outputDir, err)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -219,7 +217,7 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			return
 		}
 
-		tempW, err := bodyW.CreateFormFile("data", filepath.Base(j.data)+".tar.gz")
+		tempW, err := bodyW.CreateFormFile("data", "data.tar.gz")
 		if err != nil {
 			log.Printf("Failed to add j.data %v form file to POST: %v\n", j.data, err)
 			_ = w.CloseWithError(err)
@@ -227,18 +225,6 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			return
 		}
 
-		// files, err := ioutil.ReadDir(j.data)
-		// dataFiles := make([]string, len(files))
-		// if err != nil {
-		// 	log.Printf("Error reading files in j.data %v: %v\n", j.data, err)
-		// 	_ = w.CloseWithError(err)
-		// 	check.Err(bodyW.Close)
-		// 	return
-		// }
-		// for _, file := range files {
-		// 	dataFiles = append(dataFiles, j.data+file.Name())
-		// }
-		// if err = archiver.TarGz.Write(tempW, dataFiles); err != nil {
 		if err = archiver.TarGz.Write(tempW, []string{j.data}); err != nil {
 			log.Printf("Error packing j.data dir %v: %v\n", j.data, err)
 			_ = w.CloseWithError(err)
