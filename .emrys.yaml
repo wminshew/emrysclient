@@ -1,4 +1,3 @@
 requirements: "test/numpy/requirements.txt"
 main: "test/numpy/main.py"
-data: "test/numpy/data"
 output: "test/numpy/output"
