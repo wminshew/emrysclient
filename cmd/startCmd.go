@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	// "bufio"
 	"bytes"
 	"compress/zlib"
 	"context"
@@ -308,6 +307,7 @@ func bid(authToken string, m *job.Message) {
 		log.Printf("Error making job dir %v: %v\n", jobDir, err)
 		return
 	}
+	defer check.Err(func() error { return os.RemoveAll(jobDir) })
 
 	p = path.Join("miner", "job", m.Job.ID.String(), "data")
 	req, err = getJobReq(p, authToken, jobToken)
@@ -340,8 +340,14 @@ func bid(authToken string, m *job.Message) {
 
 	hostOutputDir := filepath.Join(jobDir, "output")
 	oldUMask := syscall.Umask(000)
+	if err = os.Chmod(hostDataDir, 0777); err != nil {
+		log.Printf("Error modifying data dir %v permissions: %v\n", hostDataDir, err)
+		_ = syscall.Umask(oldUMask)
+		return
+	}
 	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
 		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
+		_ = syscall.Umask(oldUMask)
 		return
 	}
 	_ = syscall.Umask(oldUMask)
@@ -355,14 +361,14 @@ func bid(authToken string, m *job.Message) {
 	}, &container.HostConfig{
 		AutoRemove: true,
 		Binds: []string{
-			fmt.Sprintf("%s:%s:ro", hostDataDir, dockerDataDir),
+			fmt.Sprintf("%s:%s:rw", hostDataDir, dockerDataDir),
 			fmt.Sprintf("%s:%s:rw", hostOutputDir, dockerOutputDir),
 		},
 		CapDrop: []string{
 			"ALL",
 		},
-		// ReadonlyRootfs: true,
-		Runtime: "nvidia",
+		ReadonlyRootfs: true,
+		Runtime:        "nvidia",
 		SecurityOpt: []string{
 			"no-new-privileges",
 		},
