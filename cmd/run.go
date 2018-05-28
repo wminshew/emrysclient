@@ -206,15 +206,7 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 
 	log.Printf("Packing request...\n")
 	go func() {
-		err := addFormFile(bodyW, "requirements", j.requirements)
-		if err != nil {
-			log.Printf("Failed to add requirements to POST: %v\n", err)
-			_ = w.CloseWithError(err)
-			check.Err(bodyW.Close)
-			return
-		}
-
-		err = addFormFile(bodyW, "main", j.main)
+		err := addFormFile(bodyW, "main", j.main)
 		if err != nil {
 			log.Printf("Failed to add main to POST: %v\n", err)
 			_ = w.CloseWithError(err)
@@ -222,6 +214,24 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			return
 		}
 
+		err = addFormFile(bodyW, "requirements", j.requirements)
+		if err != nil {
+			log.Printf("Failed to add requirements to POST: %v\n", err)
+			_ = w.CloseWithError(err)
+			check.Err(bodyW.Close)
+			return
+		}
+
+		if j.data == "" {
+			j.data, err = ioutil.TempDir(".", ".emrys-temp-data")
+			if err != nil {
+				log.Printf("Error creating temporary, empty data directory: %v\n", err)
+				_ = w.CloseWithError(err)
+				check.Err(bodyW.Close)
+				return
+			}
+			defer check.Err(func() error { return os.RemoveAll(j.data) })
+		}
 		tempW, err := bodyW.CreateFormFile("data", "data.tar.gz")
 		if err != nil {
 			log.Printf("Failed to add j.data %v form file to POST: %v\n", j.data, err)
@@ -243,7 +253,6 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 			_ = w.CloseWithError(err)
 			return
 		}
-
 		check.Err(w.Close)
 	}()
 
@@ -283,14 +292,25 @@ func getJobOutput(p, authToken, jobToken string) (*http.Request, error) {
 }
 
 func checkJobReq(j *jobReq) error {
+	if j.main == "" {
+		return errors.New("must specify a main execution file in config or with flag")
+	}
+	if j.requirements == "" {
+		return errors.New("must specify a requirements file in config or with flag")
+	}
+	if j.output == "" {
+		return errors.New("must specify an output directory in config or with flag")
+	}
 	if j.data == j.output {
 		return errors.New("can't use same directory for data and output")
 	}
 	if filepath.Base(j.data) == "output" {
 		return errors.New("can't name data directory \"output\"")
 	}
-	if filepath.Dir(j.main) != filepath.Dir(j.data) {
-		return fmt.Errorf("main (%v) and data (%v) must be in the same directory", j.main, j.data)
+	if j.data != "" {
+		if filepath.Dir(j.main) != filepath.Dir(j.data) {
+			return fmt.Errorf("main (%v) and data (%v) must be in the same directory", j.main, j.data)
+		}
 	}
 	if filepath.Dir(j.main) != filepath.Dir(j.output) {
 		log.Printf(`Warning! Main (%v) will still only be able to save locally to ./output when executing, 

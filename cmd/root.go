@@ -27,10 +27,10 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
-	runCmd.Flags().String("requirements", "./requirements.txt", "Path to requirements file")
-	runCmd.Flags().String("main", "./main.py", "Path to main execution file")
-	runCmd.Flags().String("data", "./data", "Path to the data directory (must be named data)")
-	runCmd.Flags().String("output", "./output", "Path to the output directory")
+	runCmd.Flags().String("requirements", "", "Path to requirements file (required)")
+	runCmd.Flags().String("main", "", "Path to main execution file (required)")
+	runCmd.Flags().String("data", "", "Path to the data directory (optional)")
+	runCmd.Flags().String("output", "", "Path to save the output directory (required)")
 	runCmd.Flags().SortFlags = false
 	err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
