@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io"
@@ -50,6 +52,18 @@ will default to the mining command provided in
 			log.Printf("Please login again.\n")
 			return
 		}
+
+		viper.SetConfigName(viper.GetString("config"))
+		viper.AddConfigPath(".")
+		err = viper.ReadInConfig()
+		if err != nil {
+			log.Printf("Error reading config file: %v\n", err)
+			return
+		}
+		viper.WatchConfig()
+		viper.OnConfigChange(func(e fsnotify.Event) {
+			log.Printf("Config file changed: %v\n", e.Name)
+		})
 
 		conn, _, err := dialWebsocket(authToken)
 		if err != nil {
@@ -201,7 +215,7 @@ func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request
 func bid(authToken string, m *job.Message) {
 	client := resolveClient()
 	b := &job.Bid{
-		MinRate: 0.2,
+		MinRate: viper.GetFloat64("bid-rate"),
 	}
 	log.Printf("Sending bid: %+v\n", b)
 

@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	// "github.com/spf13/viper"
-	// "log"
+	"github.com/spf13/viper"
+	"log"
 	"os"
 )
 
@@ -25,28 +25,17 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(startCmd)
-	// rootCmd.AddCommand(runCmd)
-	// runCmd.Flags().String("config", ".emrys", "Path to your config file for training (don't include extension)")
-	// runCmd.Flags().String("requirements", "./requirements.txt", "Path to your requirements file for training")
-	// runCmd.Flags().String("train", "./train.py", "Path to your training file")
-	// runCmd.Flags().String("data", "./data", "Path to the directory holding your data")
-	// runCmd.Flags().SortFlags = false
-	// err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
-	// if err != nil {
-	// 	log.Fatalf("Error binding pflag config")
-	// }
-	// err = viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
-	// if err != nil {
-	// 	log.Fatalf("Error binding pflag requirements")
-	// }
-	// err = viper.BindPFlag("train", runCmd.Flags().Lookup("train"))
-	// if err != nil {
-	// 	log.Fatalf("Error binding pflag train")
-	// }
-	// err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
-	// if err != nil {
-	// 	log.Fatalf("Error binding pflag data")
-	// }
+	startCmd.Flags().String("config", ".emrysminer", "Path to config file (don't include extension)")
+	startCmd.Flags().Float64("bid-rate", 0, "Bid rate ($/hr) for mining jobs (required)")
+	startCmd.Flags().SortFlags = false
+	err := viper.BindPFlag("config", startCmd.Flags().Lookup("config"))
+	if err != nil {
+		log.Fatalf("Error binding pflag config")
+	}
+	err = viper.BindPFlag("bid-rate", startCmd.Flags().Lookup("bid-rate"))
+	if err != nil {
+		log.Fatalf("Error binding pflag bid-rate")
+	}
 }
 
 // Execute the root command
