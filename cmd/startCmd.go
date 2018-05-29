@@ -62,7 +62,7 @@ will default to the mining command provided in
 		}
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
-			log.Printf("Config file changed: %v\n", e.Name)
+			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 		})
 
 		conn, _, err := dialWebsocket(authToken)
