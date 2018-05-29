@@ -9,6 +9,7 @@ import (
 	"docker.io/go-docker/api/types/container"
 	"encoding/json"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/websocket"
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
@@ -38,13 +39,21 @@ will default to the mining command provided in
 ./mining-script.sh.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		authToken := getToken()
+		claims := &jwt.StandardClaims{}
+		_, _, err := new(jwt.Parser).ParseUnverified(authToken, claims)
+		if err != nil {
+			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			return
+		}
+		if err = claims.Valid(); err != nil {
+			log.Printf("Error invalid authToken claims: %v\n", err)
+			log.Printf("Please login again.\n")
+			return
+		}
 
 		conn, _, err := dialWebsocket(authToken)
 		if err != nil {
 			log.Printf("Error dialing websocket: %v\n", err)
-			if err == websocket.ErrBadHandshake {
-				log.Printf("Are you logged in? Your authToken may have expired.\n")
-			}
 			return
 		}
 		defer check.Err(conn.Close)
