@@ -52,7 +52,7 @@ var runCmd = &cobra.Command{
 		viper.AddConfigPath(".")
 		err = viper.ReadInConfig()
 		if err != nil {
-			log.Printf("Error reading config file")
+			log.Printf("Error reading config file: %v\n", err)
 			return
 		}
 
