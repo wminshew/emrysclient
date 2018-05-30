@@ -76,10 +76,10 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		log.Printf("Sending POST %v...\n", p)
+		log.Printf("Sending %v %v...\n", req.Method, p)
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("Error POST %v: %v\n", p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
 			return
 		}
 
