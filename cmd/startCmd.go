@@ -21,7 +21,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httputil"
+	// "net/http/httputil"
 	"net/url"
 	"os"
 	"os/user"
@@ -96,7 +96,7 @@ will default to the mining command provided in
 					if m.Job == nil {
 						break
 					}
-					log.Printf("Job: %+v\n", m.Job)
+					log.Printf("Job: %v\n", m.Job.ID.String())
 
 					go bid(authToken, m)
 				case websocket.TextMessage:
@@ -217,7 +217,7 @@ func bid(authToken string, m *job.Message) {
 	b := &job.Bid{
 		MinRate: viper.GetFloat64("bid-rate"),
 	}
-	log.Printf("Sending bid: %+v\n", b)
+	log.Printf("Sending bid with rate: %v\n", b.MinRate)
 
 	var body bytes.Buffer
 	p := path.Join("miner", "job", m.Job.ID.String(), "bid")
@@ -237,14 +237,14 @@ func bid(authToken string, m *job.Message) {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
 		return
 	}
-
-	if appEnv == "dev" {
-		respDump, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println(string(respDump))
-	}
+	//
+	// if appEnv == "dev" {
+	// 	respDump, err := httputil.DumpResponse(resp, true)
+	// 	if err != nil {
+	// 		log.Println(err)
+	// 	}
+	// 	log.Println(string(respDump))
+	// }
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Response header error: %v\n", resp.Status)
@@ -254,7 +254,7 @@ func bid(authToken string, m *job.Message) {
 
 	jobToken := resp.Header.Get("Set-Job-Authorization")
 	if jobToken == "" {
-		log.Printf("Sorry, your bid (%+v) did not win.\n", b)
+		log.Printf("Your bid for job %v was not selected.\n", m.Job.ID.String())
 		check.Err(resp.Body.Close)
 		return
 	}
@@ -262,6 +262,7 @@ func bid(authToken string, m *job.Message) {
 	_, _ = io.Copy(ioutil.Discard, resp.Body)
 	check.Err(resp.Body.Close)
 
+	log.Printf("Your bid for job %v was selected!\n", m.Job.ID.String())
 	p = path.Join("miner", "job", m.Job.ID.String(), "image")
 	req, err = getJobReq(p, authToken, jobToken)
 	if err != nil {
