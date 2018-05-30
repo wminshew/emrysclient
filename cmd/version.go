@@ -10,7 +10,6 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of emrys",
 	Long:  `All software has versions. This is emrys's`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: decide on a versioning scheme; likely semver
-		fmt.Println("emrys v0.1")
+		fmt.Println("emrys v0.1.0")
 	},
 }
