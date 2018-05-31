@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	// "net/http/httputil"
 	"net/url"
 	"os"
 	"os/user"
@@ -52,6 +51,7 @@ will default to the mining command provided in
 			log.Printf("Please login again.\n")
 			return
 		}
+		mID := claims.Subject
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
@@ -65,7 +65,7 @@ will default to the mining command provided in
 			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 		})
 
-		conn, _, err := dialWebsocket(authToken)
+		conn, _, err := dialWebsocket(mID, authToken)
 		if err != nil {
 			log.Printf("Error dialing websocket: %v\n", err)
 			return
@@ -98,7 +98,7 @@ will default to the mining command provided in
 					}
 					log.Printf("Job: %v\n", m.Job.ID.String())
 
-					go bid(authToken, m)
+					go bid(mID, authToken, m)
 				case websocket.TextMessage:
 					resp := "Error -- unexpected text message received.\n"
 					log.Printf(resp)
@@ -139,12 +139,14 @@ will default to the mining command provided in
 	},
 }
 
-func dialWebsocket(t string) (*websocket.Conn, *http.Response, error) {
+func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
 	h := resolveHost()
+
+	p := path.Join("miner", mID, "connect")
 	u := url.URL{
 		Scheme: "wss",
 		Host:   h,
-		Path:   "/miner/connect",
+		Path:   p,
 	}
 	log.Printf("Connecting to %s...\n", u.String())
 	o := url.URL{
@@ -212,7 +214,7 @@ func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request
 	return req, nil
 }
 
-func bid(authToken string, m *job.Message) {
+func bid(mID, authToken string, m *job.Message) {
 	client := resolveClient()
 	b := &job.Bid{
 		MinRate: viper.GetFloat64("bid-rate"),
@@ -220,7 +222,8 @@ func bid(authToken string, m *job.Message) {
 	log.Printf("Sending bid with rate: %v\n", b.MinRate)
 
 	var body bytes.Buffer
-	p := path.Join("miner", "job", m.Job.ID.String(), "bid")
+	jobPath := path.Join("miner", mID, "job", m.Job.ID.String())
+	p := path.Join(jobPath, "bid")
 	err := json.NewEncoder(&body).Encode(b)
 	if err != nil {
 		log.Printf("Error encoding json bid: %v\n", err)
@@ -237,14 +240,6 @@ func bid(authToken string, m *job.Message) {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
 		return
 	}
-	//
-	// if appEnv == "dev" {
-	// 	respDump, err := httputil.DumpResponse(resp, true)
-	// 	if err != nil {
-	// 		log.Println(err)
-	// 	}
-	// 	log.Println(string(respDump))
-	// }
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Response header error: %v\n", resp.Status)
@@ -263,7 +258,7 @@ func bid(authToken string, m *job.Message) {
 	check.Err(resp.Body.Close)
 
 	log.Printf("Your bid for job %v was selected!\n", m.Job.ID.String())
-	p = path.Join("miner", "job", m.Job.ID.String(), "image")
+	p = path.Join(jobPath, "image")
 	req, err = getJobReq(p, authToken, jobToken)
 	if err != nil {
 		log.Printf("Error creating request GET %v: %v\n", p, err)
@@ -333,7 +328,7 @@ func bid(authToken string, m *job.Message) {
 	}
 	defer check.Err(func() error { return os.RemoveAll(jobDir) })
 
-	p = path.Join("miner", "job", m.Job.ID.String(), "data")
+	p = path.Join(jobPath, "data")
 	req, err = getJobReq(p, authToken, jobToken)
 	if err != nil {
 		log.Printf("Error creating request GET %v: %v\n", p, err)
@@ -416,7 +411,7 @@ func bid(authToken string, m *job.Message) {
 		return
 	}
 
-	p = path.Join("miner", "job", m.Job.ID.String(), "output", "log")
+	p = path.Join(jobPath, "output", "log")
 	req, err = postJobReq(p, authToken, jobToken, out)
 	if err != nil {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
@@ -455,7 +450,7 @@ func bid(authToken string, m *job.Message) {
 			return
 		}
 	}()
-	p = path.Join("miner", "job", m.Job.ID.String(), "output", "dir")
+	p = path.Join(jobPath, "output", "dir")
 	req, err = postJobReq(p, authToken, jobToken, pr)
 	if err != nil {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
