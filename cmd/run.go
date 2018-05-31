@@ -47,6 +47,7 @@ var runCmd = &cobra.Command{
 			log.Printf("Please login again.\n")
 			return
 		}
+		uID := claims.Subject
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
@@ -69,7 +70,7 @@ var runCmd = &cobra.Command{
 
 		client := resolveClient()
 
-		p := path.Join("user", "job")
+		p := path.Join("user", uID, "job")
 		req, err := postJobReq(p, authToken, j)
 		if err != nil {
 			log.Printf("Error creating request POST %v: %v\n", p, err)
@@ -117,7 +118,8 @@ var runCmd = &cobra.Command{
 		}
 
 		jID := claims.Subject
-		p = path.Join("user", "job", jID, "output", "log")
+		jobPath := path.Join("user", uID, "job", jID)
+		p = path.Join(jobPath, "output", "log")
 		req, err = getJobOutput(p, authToken, jobToken)
 		if err != nil {
 			log.Printf("Error creating request GET %v: %v\n", p, err)
@@ -145,7 +147,7 @@ var runCmd = &cobra.Command{
 		}
 		check.Err(resp.Body.Close)
 
-		p = path.Join("user", "job", jID, "output", "dir")
+		p = path.Join(jobPath, "output", "dir")
 		req, err = getJobOutput(p, authToken, jobToken)
 		if err != nil {
 			log.Printf("Error creating request GET %v: %v\n", p, err)
