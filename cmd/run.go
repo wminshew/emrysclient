@@ -99,7 +99,7 @@ var runCmd = &cobra.Command{
 
 		err = job.ReadJSON(resp.Body)
 		if err != nil {
-			log.Printf("Error reading response JSON: %v\n", err)
+			log.Printf("Error posting job: %v\n", err)
 			check.Err(resp.Body.Close)
 			return
 		}
