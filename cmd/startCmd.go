@@ -405,6 +405,7 @@ func bid(mID, authToken string, m *job.Message) {
 	out, err := cli.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
+		ShowStderr: true,
 	})
 	if err != nil {
 		log.Printf("Error logging container: %v\n", err)
