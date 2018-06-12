@@ -254,7 +254,6 @@ func bid(mID, authToken string, m *job.Message) {
 		for s.Scan() {
 			log.Println(s.Text())
 		}
-		log.Printf("Your bid for job %v was not selected.\n", m.Job.ID.String())
 		check.Err(resp.Body.Close)
 		return
 	}
