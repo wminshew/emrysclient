@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"context"
@@ -249,6 +250,10 @@ func bid(mID, authToken string, m *job.Message) {
 
 	jobToken := resp.Header.Get("Set-Job-Authorization")
 	if jobToken == "" {
+		s := bufio.NewScanner(resp.Body)
+		for s.Scan() {
+			log.Println(s.Text())
+		}
 		log.Printf("Your bid for job %v was not selected.\n", m.Job.ID.String())
 		check.Err(resp.Body.Close)
 		return
