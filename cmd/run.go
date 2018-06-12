@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
@@ -9,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
+	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"io/ioutil"
 	"log"
@@ -97,17 +97,12 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		r := bufio.NewReader(resp.Body)
-		for {
-			line, err := r.ReadBytes('\n')
-			if err != nil {
-				break
-			}
-
-			log.Print(string(line))
+		err = job.ReadJSON(resp.Body)
+		if err != nil {
+			log.Printf("Error reading response JSON: %v\n", err)
+			check.Err(resp.Body.Close)
+			return
 		}
-
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		check.Err(resp.Body.Close)
 
 		claims = &jwt.StandardClaims{}
