@@ -28,13 +28,19 @@ var loginCmd = &cobra.Command{
 	login save a JSON web token (JWT) locally. By default,
 	the token expires in 24 hours.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := checkVersion(); err != nil {
+			log.Printf("Version error: %v\n", err)
+			return
+		}
+
 		c := &creds.User{}
 		userLogin(c)
 
 		bodyBuf := &bytes.Buffer{}
 		err := json.NewEncoder(bodyBuf).Encode(c)
 		if err != nil {
-			log.Fatalf("Failed to encode email & password: %v\n", err)
+			log.Printf("Failed to encode email & password: %v\n", err)
+			return
 		}
 		h := resolveHost()
 		u := url.URL{
@@ -45,9 +51,8 @@ var loginCmd = &cobra.Command{
 		client := resolveClient()
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
-			log.Fatalf("Failed to POST: %v\n", err)
-			log.Fatalf("URL: %v\n", u)
-			log.Fatalf("Body: %v\n", bodyBuf)
+			log.Printf("Failed to POST %v: %v\n", u.Path, err)
+			return
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -60,13 +65,15 @@ var loginCmd = &cobra.Command{
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Fatalf("Request error: %v\n", resp.Status)
+			log.Printf("Request error: %v\n", resp.Status)
+			return
 		}
 
 		loginResp := creds.LoginResp{}
 		err = json.NewDecoder(resp.Body).Decode(&loginResp)
 		if err != nil {
-			log.Fatalf("Failed to decode response: %v\n", err)
+			log.Printf("Failed to decode response: %v\n", err)
+			return
 		}
 
 		storeToken(loginResp.Token)
@@ -82,7 +89,8 @@ func userLogin(c *creds.User) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Fatalf("\nFailed to read password from console: %v\n", err)
+		log.Printf("\nFailed to read password from console: %v\n", err)
+		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
 	fmt.Println()
@@ -93,16 +101,19 @@ func storeToken(t string) {
 	perm = 0755
 	user, err := user.Current()
 	if err != nil {
-		log.Fatalf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v\n", err)
+		return
 	}
 	dir := path.Join(user.HomeDir, ".config", "emrys")
 	fmt.Print(dir)
 	err = os.MkdirAll(dir, perm)
 	if err != nil {
-		log.Fatalf("Failed to make directory %s to save login token: %v\n", dir, err)
+		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
+		return
 	}
 	path := path.Join(dir, "jwt")
 	if err := ioutil.WriteFile(path, []byte(t), perm); err != nil {
-		log.Fatalf("Failed to write login token to disk at %s: %v", path, err)
+		log.Printf("Failed to write login token to disk at %s: %v", path, err)
+		return
 	}
 }

@@ -49,6 +49,11 @@ var runCmd = &cobra.Command{
 		}
 		uID := claims.Subject
 
+		if err := checkVersion(); err != nil {
+			log.Printf("Version error: %v\n", err)
+			return
+		}
+
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		err = viper.ReadInConfig()

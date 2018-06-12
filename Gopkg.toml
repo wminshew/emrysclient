@@ -44,3 +44,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/wminshew/emrys"
+
+[[constraint]]
+  name = "github.com/blang/semver"
+  version = "3.5.1"
