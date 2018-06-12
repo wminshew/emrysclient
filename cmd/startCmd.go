@@ -54,6 +54,11 @@ will default to the mining command provided in
 		}
 		mID := claims.Subject
 
+		if err := checkVersion(); err != nil {
+			log.Printf("Version error: %v\n", err)
+			return
+		}
+
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		err = viper.ReadInConfig()
@@ -216,6 +221,11 @@ func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request
 }
 
 func bid(mID, authToken string, m *job.Message) {
+	if err := checkVersion(); err != nil {
+		log.Printf("Version error: %v\n", err)
+		return
+	}
+
 	client := resolveClient()
 	b := &job.Bid{
 		MinRate: viper.GetFloat64("bid-rate"),
@@ -235,6 +245,7 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
 		return
 	}
+	// time.Sleep(7 * time.Second)
 	log.Printf("%v %v\n", req.Method, p)
 	resp, err := client.Do(req)
 	if err != nil {

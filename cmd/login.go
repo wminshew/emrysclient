@@ -28,6 +28,11 @@ var loginCmd = &cobra.Command{
 login saves a JSON web token (JWT) locally.
 By default, the token expires in 24 hours.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := checkVersion(); err != nil {
+			log.Printf("Version error: %v\n", err)
+			return
+		}
+
 		c := &creds.Miner{}
 		minerLogin(c)
 

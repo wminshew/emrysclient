@@ -32,6 +32,12 @@
   version = "v0.4.7"
 
 [[projects]]
+  name = "github.com/blang/semver"
+  packages = ["."]
+  revision = "2ee87856327ba09384cabd113bc6b5d174e9ec0f"
+  version = "v3.5.1"
+
+[[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
@@ -248,7 +254,7 @@
     "pkg/creds",
     "pkg/job"
   ]
-  revision = "aa89681e1dfac36bc974d97654f7089fe11626c6"
+  revision = "5ed6f2eb27f9a3f36e4fe94b06edbefb41dcc922"
 
 [[projects]]
   branch = "master"
@@ -298,6 +304,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "196c30a768cb87e2be7f91fc8854f0f6795bd1f8e4d022099970443f2835d0d4"
+  inputs-digest = "6ffcd2103e149b8cf18d0c86b68c837624f01be12bfce8bb048ca412404d97c1"
   solver-name = "gps-cdcl"
   solver-version = 1
