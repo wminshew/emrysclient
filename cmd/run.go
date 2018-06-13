@@ -18,6 +18,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 )
 
 type jobReq struct {
@@ -48,6 +49,11 @@ var runCmd = &cobra.Command{
 			return
 		}
 		uID := claims.Subject
+		exp := claims.ExpiresAt
+		remaining := time.Until(time.Unix(exp, 0))
+		if remaining <= 24*time.Hour {
+			log.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
+		}
 
 		if err := checkVersion(); err != nil {
 			log.Printf("Version error: %v\n", err)
