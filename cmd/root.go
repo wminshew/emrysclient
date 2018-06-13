@@ -26,13 +26,18 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
+	loginCmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
 	runCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
 	runCmd.Flags().String("requirements", "", "Path to requirements file (required)")
 	runCmd.Flags().String("main", "", "Path to main execution file (required)")
 	runCmd.Flags().String("data", "", "Path to the data directory (optional)")
 	runCmd.Flags().String("output", "", "Path to save the output directory (required)")
 	runCmd.Flags().SortFlags = false
-	err := viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
+	err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save"))
+	if err != nil {
+		log.Fatalf("Error binding pflag config")
+	}
+	err = viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
 		log.Fatalf("Error binding pflag config")
 	}

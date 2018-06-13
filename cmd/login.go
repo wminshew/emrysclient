@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
 	"golang.org/x/crypto/ssh/terminal"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -35,6 +37,7 @@ var loginCmd = &cobra.Command{
 
 		c := &creds.User{}
 		userLogin(c)
+		c.Duration = strconv.Itoa(viper.GetInt("save"))
 
 		bodyBuf := &bytes.Buffer{}
 		err := json.NewEncoder(bodyBuf).Encode(c)
