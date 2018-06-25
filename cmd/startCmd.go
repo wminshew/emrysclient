@@ -103,7 +103,8 @@ will default to the mining command provided in
 						log.Printf("Error decoding json message: %v\n", err)
 						break
 					}
-					log.Printf("Message: %v\n", m.Message)
+					// log.Printf("Message: %v\n", m.Message)
+					log.Printf("%v\n", m.Message)
 					if m.Job == nil {
 						break
 					}
@@ -159,7 +160,8 @@ func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
 		Host:   h,
 		Path:   p,
 	}
-	log.Printf("Connecting to %s...\n", u.String())
+	log.Printf("Connecting to emrys...\n")
+	// log.Printf("Connecting to %s...\n", u.String())
 	o := url.URL{
 		Scheme: "https",
 		Host:   h,
@@ -250,8 +252,9 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
 		return
 	}
-	// time.Sleep(7 * time.Second)
-	log.Printf("%v %v\n", req.Method, p)
+
+	log.Printf("Sending bid...\n")
+	// log.Printf("%v %v\n", req.Method, p)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -259,7 +262,8 @@ func bid(mID, authToken string, m *job.Message) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response header error: %v\n", resp.Status)
+		log.Printf("Response error header: %v\n", resp.Status)
+		log.Printf("Response error message: %v\n", resp.Body)
 		check.Err(resp.Body.Close)
 		return
 	}
@@ -284,7 +288,8 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request GET %v: %v\n", p, err)
 		return
 	}
-	log.Printf("%v %v\n", req.Method, p)
+	log.Printf("Downloading image...\n")
+	// log.Printf("%v %v\n", req.Method, p)
 	resp, err = client.Do(req)
 	if err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -354,7 +359,8 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request GET %v: %v\n", p, err)
 		return
 	}
-	log.Printf("%v %v\n", req.Method, p)
+	log.Printf("Downloading data...\n")
+	// log.Printf("%v %v\n", req.Method, p)
 	resp, err = client.Do(req)
 	if err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -438,7 +444,8 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
 		return
 	}
-	log.Printf("%v %v\n", req.Method, p)
+	log.Printf("Running container...\n")
+	// log.Printf("%v %v\n", req.Method, p)
 	resp, err = client.Do(req)
 	if err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -477,7 +484,8 @@ func bid(mID, authToken string, m *job.Message) {
 		log.Printf("Error creating request POST %v: %v\n", p, err)
 		return
 	}
-	log.Printf("%v %v\n", req.Method, p)
+	log.Printf("Uploading output...\n")
+	// log.Printf("%v %v\n", req.Method, p)
 	resp, err = client.Do(req)
 	if err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, p, err)
