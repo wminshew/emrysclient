@@ -181,7 +181,7 @@ var runCmd = &cobra.Command{
 		}
 		log.Printf("Auction completed!\n")
 
-		log.Printf("Streaming log output... (may take a few minutes to begin)\n")
+		log.Printf("Streaming output log... (may take a few minutes to begin)\n")
 		p = path.Join(jobPath, "output", "log")
 		u.Path = p
 		req, err = http.NewRequest("GET", u.String(), nil)
