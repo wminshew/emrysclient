@@ -181,7 +181,7 @@ var runCmd = &cobra.Command{
 		}
 		log.Printf("Auction completed!\n")
 
-		log.Printf("Streaming log output... (this may take a few minutes to begin, depending on the size of your job)\n")
+		log.Printf("Streaming log output... (may take a few minutes to begin)\n")
 		p = path.Join(jobPath, "output", "log")
 		u.Path = p
 		req, err = http.NewRequest("GET", u.String(), nil)
@@ -215,7 +215,7 @@ var runCmd = &cobra.Command{
 		}
 		check.Err(resp.Body.Close)
 
-		log.Printf("Downloading output directory... (this may take a few minutes to complete, depending on the size of your output)\n")
+		log.Printf("Downloading output directory... (may take a few minutes to complete)\n")
 		p = path.Join(jobPath, "output", "dir")
 		u.Path = p
 		req, err = http.NewRequest("GET", u.String(), nil)
