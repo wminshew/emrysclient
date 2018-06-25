@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
-	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"io/ioutil"
 	"log"
@@ -80,15 +79,22 @@ var runCmd = &cobra.Command{
 		}
 
 		client := resolveClient()
-
+		s := "https"
+		h := resolveHost()
 		p := path.Join("user", uID, "job")
-		req, err := postJobReq(p, authToken, j)
+		u := url.URL{
+			Scheme: s,
+			Host:   h,
+			Path:   p,
+		}
+		log.Printf("Sending job requirements...\n")
+		req, err := createJobReq(u, authToken, j)
 		if err != nil {
 			log.Printf("Error creating request POST %v: %v\n", p, err)
 			return
 		}
 
-		log.Printf("Sending %v %v...\n", req.Method, p)
+		// log.Printf("Sending %v %v...\n", req.Method, p)
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -96,21 +102,17 @@ var runCmd = &cobra.Command{
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Response header error: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
+		log.Printf("Job requirements sent!\n")
 
 		jobToken := resp.Header.Get("Set-Job-Authorization")
 		if jobToken == "" {
 			log.Printf("Error: Received no job authorization token.\n")
-			check.Err(resp.Body.Close)
-			return
-		}
-
-		err = job.ReadJSON(resp.Body)
-		if err != nil {
-			log.Printf("Error posting job: %v\n", err)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -122,17 +124,21 @@ var runCmd = &cobra.Command{
 			log.Printf("Error parsing jobToken %v: %v\n", jobToken, err)
 			return
 		}
-
 		jID := claims.Subject
 		jobPath := path.Join("user", uID, "job", jID)
-		p = path.Join(jobPath, "output", "log")
-		req, err = getJobOutput(p, authToken, jobToken)
+
+		log.Printf("Building image...\n")
+		p = path.Join(jobPath, "image")
+		u.Path = p
+		req, err = http.NewRequest("POST", u.String(), nil)
 		if err != nil {
-			log.Printf("Error creating request GET %v: %v\n", p, err)
+			log.Printf("Error creating request POST %v: %v\n", p, err)
 			return
 		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Job-Authorization", jobToken)
 
-		log.Printf("Sending %v %v...\n", req.Method, p)
+		// log.Printf("Sending %v %v...\n", req.Method, p)
 		resp, err = client.Do(req)
 		if err != nil {
 			log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -140,7 +146,63 @@ var runCmd = &cobra.Command{
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Response header error: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
+			check.Err(resp.Body.Close)
+			return
+		}
+		log.Printf("Image built!\n")
+
+		log.Printf("Running auction...\n")
+		p = path.Join(jobPath, "auction")
+		u.Path = p
+		req, err = http.NewRequest("POST", u.String(), nil)
+		if err != nil {
+			log.Printf("Error creating request POST %v: %v\n", p, err)
+			return
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Job-Authorization", jobToken)
+
+		// log.Printf("Sending %v %v...\n", req.Method, p)
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
+			check.Err(resp.Body.Close)
+			return
+		}
+		log.Printf("Auction completed!\n")
+
+		log.Printf("Streaming log output... (this may take a few minutes to begin, depending on the size of your job)\n")
+		p = path.Join(jobPath, "output", "log")
+		u.Path = p
+		req, err = http.NewRequest("GET", u.String(), nil)
+		if err != nil {
+			log.Printf("Failed to create new http request: %v\n", err)
+			return
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Job-Authorization", jobToken)
+
+		// log.Printf("Sending %v %v...\n", req.Method, p)
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -153,14 +215,18 @@ var runCmd = &cobra.Command{
 		}
 		check.Err(resp.Body.Close)
 
+		log.Printf("Downloading output directory... (this may take a few minutes to complete, depending on the size of your output)\n")
 		p = path.Join(jobPath, "output", "dir")
-		req, err = getJobOutput(p, authToken, jobToken)
+		u.Path = p
+		req, err = http.NewRequest("GET", u.String(), nil)
 		if err != nil {
-			log.Printf("Error creating request GET %v: %v\n", p, err)
+			log.Printf("Failed to create new http request: %v\n", err)
 			return
 		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Job-Authorization", jobToken)
 
-		log.Printf("Sending %v %v...\n", req.Method, p)
+		// log.Printf("Sending %v %v...\n", req.Method, p)
 		resp, err = client.Do(req)
 		if err != nil {
 			log.Printf("Error %v %v: %v\n", req.Method, p, err)
@@ -168,7 +234,9 @@ var runCmd = &cobra.Command{
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Response header error: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -208,7 +276,7 @@ func addFormFile(w *multipart.Writer, name, fpath string) error {
 	return nil
 }
 
-func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
+func createJobReq(u url.URL, authToken string, j *jobReq) (*http.Request, error) {
 	r, w := io.Pipe()
 	bodyW := multipart.NewWriter(w)
 
@@ -264,12 +332,6 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 		check.Err(w.Close)
 	}()
 
-	h := resolveHost()
-	u := url.URL{
-		Scheme: "https",
-		Host:   h,
-		Path:   p,
-	}
 	req, err := http.NewRequest("POST", u.String(), r)
 	if err != nil {
 		log.Printf("Failed to create new http request: %v\n", err)
@@ -277,24 +339,6 @@ func postJobReq(p, authToken string, j *jobReq) (*http.Request, error) {
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 	req.Header.Set("Content-Type", bodyW.FormDataContentType())
-
-	return req, nil
-}
-
-func getJobOutput(p, authToken, jobToken string) (*http.Request, error) {
-	h := resolveHost()
-	u := url.URL{
-		Scheme: "https",
-		Host:   h,
-		Path:   p,
-	}
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		log.Printf("Failed to create new http request: %v\n", err)
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	req.Header.Set("Job-Authorization", jobToken)
 
 	return req, nil
 }
