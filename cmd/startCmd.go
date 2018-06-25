@@ -262,7 +262,8 @@ func bid(mID, authToken string, m *job.Message) {
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Response error header: %v\n", resp.Status)
-		log.Printf("Response error message: %v\n", resp.Body)
+		b, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("Response error detail: %s\n", b)
 		check.Err(resp.Body.Close)
 		return
 	}
