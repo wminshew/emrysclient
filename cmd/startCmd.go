@@ -237,7 +237,6 @@ func bid(mID, authToken string, m *job.Message) {
 	b := &job.Bid{
 		MinRate: viper.GetFloat64("bid-rate"),
 	}
-	log.Printf("Sending bid with rate: %v\n", b.MinRate)
 
 	var body bytes.Buffer
 	jobPath := path.Join("miner", mID, "job", m.Job.ID.String())
@@ -253,7 +252,7 @@ func bid(mID, authToken string, m *job.Message) {
 		return
 	}
 
-	log.Printf("Sending bid...\n")
+	log.Printf("Sending bid with rate: %v...\n", b.MinRate)
 	// log.Printf("%v %v\n", req.Method, p)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -499,4 +498,5 @@ func bid(mID, authToken string, m *job.Message) {
 	}
 
 	check.Err(resp.Body.Close)
+	log.Printf("Job completed!\n")
 }
