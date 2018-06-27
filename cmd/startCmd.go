@@ -34,11 +34,10 @@ import (
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Begin mining on emrys",
-	Long: `Start executing deep learning jobs
-for money. When no jobs are available, or if the
-asking rates are below your minimum, emrysminer
-will default to the mining command provided in
-./mining-script.sh.`,
+	Long: "Start executing deep learning jobs for money. " +
+		"When no jobs are available, or if the asking rates are " +
+		"below your minimum, emrysminer will default to the mining " +
+		"command provided in ./mining-script.sh.",
 	Run: func(cmd *cobra.Command, args []string) {
 		authToken := getToken()
 		claims := &jwt.StandardClaims{}

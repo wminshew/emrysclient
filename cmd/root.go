@@ -11,10 +11,9 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "emrysminer",
 	Short: "Emrys is an aggregator for GPU compute",
-	Long: `An easy & effective deep learning miner.
-Emrysminer lets you earn money while training user models.
-
-Learn more at https://emrys.io`,
+	Long: "An easy & effective deep learning miner. Emrysminer " +
+		"lets you earn money while training user models.\n" +
+		"Learn more at https://emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Use \"emrysminer --help\" for more information about subcommands.\n")
 	},

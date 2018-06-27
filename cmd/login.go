@@ -26,9 +26,9 @@ import (
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrysminer",
-	Long: `After receiving a valid email and password, 
-login saves a JSON web token (JWT) locally.
-By default, the token expires in 24 hours.`,
+	Long: "After receiving a valid email and password,login " +
+		"saves a JSON web token (JWT) locally. By default, the " +
+		"token expires in 24 hours.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkVersion(); err != nil {
 			log.Printf("Version error: %v\n", err)
