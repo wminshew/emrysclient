@@ -30,10 +30,9 @@ type jobReq struct {
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Dispatch a deep learning job",
-	Long: `Syncs the appropriate maining files & data
-	with the central server, then locates the cheapest
-	spare GPU cycles on the internet to execute your
-	job`,
+	Long: "Syncs the appropriate maining files & data " +
+		"with the central server, then locates the cheapest " +
+		"spare GPU cycles on the internet to execute your job",
 	Run: func(cmd *cobra.Command, args []string) {
 		authToken := getToken()
 		claims := &jwt.StandardClaims{}
@@ -365,11 +364,11 @@ func checkJobReq(j *jobReq) error {
 		}
 	}
 	if filepath.Dir(j.main) != filepath.Dir(j.output) {
-		log.Printf(`Warning! Main (%v) will still only be able to save locally to ./output when executing, 
-		even though output (%v) has been set to a different directory. Local output to ./output will be saved
-		to your output (%v) at the end of execution. If this is your intended workflow,
-		please ignore this warning.`, j.main, j.output, j.output)
-		log.Println()
+		log.Printf("Warning! Main (%v) will still only be able to save locally to "+
+			"./output when executing, even though output (%v) has been set to a different "+
+			"directory. Local output to ./output will be saved to your output (%v) at the end "+
+			"of execution. If this is your intended workflow, please ignore this warning.\n",
+			j.main, j.output, j.output)
 	}
 	return nil
 }
