@@ -47,7 +47,8 @@ var loginCmd = &cobra.Command{
 		}
 		h := resolveHost()
 		u := url.URL{
-			Scheme: "https",
+			// Scheme: "https",
+			Scheme: "http",
 			Host:   h,
 			Path:   "/miner/login",
 		}

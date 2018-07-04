@@ -152,18 +152,19 @@ var startCmd = &cobra.Command{
 
 func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
 	h := resolveHost()
-
 	p := path.Join("miner", mID, "connect")
 	u := url.URL{
-		Scheme: "wss",
-		Host:   h,
-		Path:   p,
+		Scheme: "ws",
+		// Scheme: "wss",
+		Host: h,
+		Path: p,
 	}
 	log.Printf("Connecting to emrys...\n")
 	// log.Printf("Connecting to %s...\n", u.String())
 	o := url.URL{
-		Scheme: "https",
-		Host:   h,
+		Scheme: "http",
+		// Scheme: "https",
+		Host: h,
 	}
 	d := websocket.DefaultDialer
 	d.TLSClientConfig = resolveTLSConfig()
@@ -176,9 +177,10 @@ func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
 func postReq(path, authToken string, body io.Reader) (*http.Request, error) {
 	h := resolveHost()
 	u := url.URL{
-		Scheme: "https",
-		Host:   h,
-		Path:   path,
+		Scheme: "http",
+		// Scheme: "https",
+		Host: h,
+		Path: path,
 	}
 	req, err := http.NewRequest("POST", u.String(), body)
 	if err != nil {
@@ -193,9 +195,10 @@ func postReq(path, authToken string, body io.Reader) (*http.Request, error) {
 func getJobReq(path, authToken, jobToken string) (*http.Request, error) {
 	h := resolveHost()
 	u := url.URL{
-		Scheme: "https",
-		Host:   h,
-		Path:   path,
+		Scheme: "http",
+		// Scheme: "https",
+		Host: h,
+		Path: path,
 	}
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -211,9 +214,10 @@ func getJobReq(path, authToken, jobToken string) (*http.Request, error) {
 func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request, error) {
 	h := resolveHost()
 	u := url.URL{
-		Scheme: "https",
-		Host:   h,
-		Path:   path,
+		Scheme: "http",
+		// Scheme: "https",
+		Host: h,
+		Path: path,
 	}
 	req, err := http.NewRequest("POST", u.String(), body)
 	if err != nil {
@@ -324,19 +328,20 @@ func bid(mID, authToken string, m *job.Message) {
 		return
 	}
 	defer check.Err(imgLoadResp.Body.Close)
-	defer func() {
-		imgDelResp, err := cli.ImageRemove(ctx, m.Job.ID.String(), types.ImageRemoveOptions{
-			Force: true,
-		})
-		if err != nil {
-			log.Printf("Error deleting image %v: %v\n", m.Job.ID.String(), err)
-			return
-		}
-		for i := range imgDelResp {
-			log.Printf("Deleted: %v", imgDelResp[i].Deleted)
-			log.Printf("Untagged: %v", imgDelResp[i].Untagged)
-		}
-	}()
+	// TODO:
+	// defer func() {
+	// 	imgDelResp, err := cli.ImageRemove(ctx, m.Job.ID.String(), types.ImageRemoveOptions{
+	// 		Force: true,
+	// 	})
+	// 	if err != nil {
+	// 		log.Printf("Error deleting image %v: %v\n", m.Job.ID.String(), err)
+	// 		return
+	// 	}
+	// 	for i := range imgDelResp {
+	// 		log.Printf("Deleted: %v", imgDelResp[i].Deleted)
+	// 		log.Printf("Untagged: %v", imgDelResp[i].Untagged)
+	// 	}
+	// }()
 	check.Err(zResp.Close)
 	check.Err(resp.Body.Close)
 
@@ -411,8 +416,8 @@ func bid(mID, authToken string, m *job.Message) {
 		CapDrop: []string{
 			"ALL",
 		},
-		ReadonlyRootfs: true,
-		Runtime:        "nvidia",
+		// ReadonlyRootfs: true,
+		Runtime: "nvidia",
 		SecurityOpt: []string{
 			"no-new-privileges",
 		},

@@ -27,16 +27,18 @@ var versionCmd = &cobra.Command{
 }
 
 func checkVersion() error {
+	s := "http"
+	// s := "https"
 	h := resolveHost()
 	u := url.URL{
-		Scheme: "https",
+		Scheme: s,
 		Host:   h,
 		Path:   "/miner/version",
 	}
 	client := resolveClient()
 	resp, err := client.Get(u.String())
 	if err != nil {
-		log.Printf("Failed to POST %v\n", u.Path)
+		log.Printf("Failed to GET %v\n", u.Path)
 		return err
 	}
 	defer check.Err(resp.Body.Close)
