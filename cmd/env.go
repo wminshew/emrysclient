@@ -9,8 +9,9 @@ var (
 )
 
 func resolveHost() string {
-	if appEnv == "dev" {
-		return "localhost:4430"
-	}
-	return "wmdlserver.ddns.net:4430"
+	// if appEnv == "dev" {
+	// 	return "localhost:4430"
+	// }
+	// return "wmdlserver.ddns.net:4430"
+	return "localhost:8080"
 }

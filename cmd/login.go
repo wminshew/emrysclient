@@ -47,9 +47,10 @@ var loginCmd = &cobra.Command{
 		}
 		h := resolveHost()
 		u := url.URL{
-			Scheme: "https",
-			Host:   h,
-			Path:   "/user/login",
+			Scheme: "http",
+			// Scheme: "https",
+			Host: h,
+			Path: "/user/login",
 		}
 		client := resolveClient()
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)

@@ -78,7 +78,7 @@ var runCmd = &cobra.Command{
 		}
 
 		client := resolveClient()
-		s := "https"
+		s := "http"
 		h := resolveHost()
 		p := path.Join("user", uID, "job")
 		u := url.URL{
