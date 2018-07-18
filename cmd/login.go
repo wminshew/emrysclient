@@ -45,14 +45,15 @@ var loginCmd = &cobra.Command{
 			log.Printf("Failed to encode email & password: %v\n", err)
 			return
 		}
+		s := "https"
 		h := resolveHost()
+		p := path.Join("user", "login")
 		u := url.URL{
-			Scheme: "http",
-			// Scheme: "https",
-			Host: h,
-			Path: "/user/login",
+			Scheme: s,
+			Host:   h,
+			Path:   p,
 		}
-		client := resolveClient()
+		client := &http.Client{}
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
 			log.Printf("Failed to POST %v: %v\n", u.Path, err)

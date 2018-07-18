@@ -8,7 +8,9 @@ import (
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
 	"log"
+	"net/http"
 	"net/url"
+	"path"
 )
 
 var userVer = semver.Version{
@@ -27,14 +29,15 @@ var versionCmd = &cobra.Command{
 }
 
 func checkVersion() error {
+	s := "https"
 	h := resolveHost()
+	p := path.Join("user", "version")
 	u := url.URL{
-		Scheme: "http",
-		// Scheme: "https",
-		Host: h,
-		Path: "/user/version",
+		Scheme: s,
+		Host:   h,
+		Path:   p,
 	}
-	client := resolveClient()
+	client := &http.Client{}
 	resp, err := client.Get(u.String())
 	if err != nil {
 		log.Printf("Failed to GET %v\n", u.Path)

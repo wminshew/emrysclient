@@ -77,7 +77,7 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		client := resolveClient()
+		client := &http.Client{}
 		s := "http"
 		h := resolveHost()
 		p := path.Join("user", uID, "job")
