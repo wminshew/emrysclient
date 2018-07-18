@@ -11,7 +11,6 @@ import (
 	"github.com/wminshew/emrys/pkg/creds"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -28,10 +27,10 @@ var loginCmd = &cobra.Command{
 	Short: "Log in to emrys",
 	Long: "After receiving a valid email and password, " +
 		"login save a JSON web token (JWT) locally. By default, " +
-		"the token expires in 24 hours.",
+		"the token expires in 7 days.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkVersion(); err != nil {
-			log.Printf("Version error: %v\n", err)
+			fmt.Printf("Version error: %v\n", err)
 			return
 		}
 
@@ -42,7 +41,7 @@ var loginCmd = &cobra.Command{
 		bodyBuf := &bytes.Buffer{}
 		err := json.NewEncoder(bodyBuf).Encode(c)
 		if err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+			fmt.Printf("Failed to encode email & password: %v\n", err)
 			return
 		}
 		s := "https"
@@ -56,7 +55,7 @@ var loginCmd = &cobra.Command{
 		client := &http.Client{}
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
-			log.Printf("Failed to POST %v: %v\n", u.Path, err)
+			fmt.Printf("Failed to POST %v: %v\n", u.Path, err)
 			return
 		}
 		defer check.Err(resp.Body.Close)
@@ -64,24 +63,25 @@ var loginCmd = &cobra.Command{
 		if appEnv == "dev" {
 			respDump, err := httputil.DumpResponse(resp, true)
 			if err != nil {
-				log.Println(err)
+				fmt.Println(err)
 			}
-			log.Println(string(respDump))
+			fmt.Println(string(respDump))
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Request error: %v\n", resp.Status)
+			fmt.Printf("Request error: %v\n", resp.Status)
 			return
 		}
 
 		loginResp := creds.LoginResp{}
 		err = json.NewDecoder(resp.Body).Decode(&loginResp)
 		if err != nil {
-			log.Printf("Failed to decode response: %v\n", err)
+			fmt.Printf("Failed to decode response: %v\n", err)
 			return
 		}
 
 		storeToken(loginResp.Token)
+		fmt.Printf("Success! Your login token will expire in %s days\n", c.Duration)
 	},
 }
 
@@ -94,7 +94,7 @@ func userLogin(c *creds.User) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Printf("\nFailed to read password from console: %v\n", err)
+		fmt.Printf("\nFailed to read password from console: %v\n", err)
 		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
@@ -106,19 +106,18 @@ func storeToken(t string) {
 	perm = 0755
 	user, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		fmt.Printf("Failed to get current user: %v\n", err)
 		return
 	}
 	dir := path.Join(user.HomeDir, ".config", "emrys")
-	fmt.Print(dir)
 	err = os.MkdirAll(dir, perm)
 	if err != nil {
-		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
+		fmt.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
 		return
 	}
 	path := path.Join(dir, "jwt")
 	if err := ioutil.WriteFile(path, []byte(t), perm); err != nil {
-		log.Printf("Failed to write login token to disk at %s: %v", path, err)
+		fmt.Printf("Failed to write login token to disk at %s: %v", path, err)
 		return
 	}
 }

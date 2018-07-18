@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
 	"os"
 )
 
@@ -13,7 +12,7 @@ var rootCmd = &cobra.Command{
 	Short: "Emrys is an aggregator for GPU compute",
 	Long: "An easy & cost-effective deep learning training " +
 		"dispatcher. Emrys lets you quickly train models " +
-		"wherever its safest & most cost effective.\n" +
+		"wherever its safe & most cost effective.\n" +
 		"Learn more at https://emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Use \"emrys --help\" for more information about subcommands.\n")
@@ -25,6 +24,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(registerCmd)
 	loginCmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
 	runCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
 	runCmd.Flags().String("requirements", "", "Path to requirements file (required)")
@@ -34,27 +34,33 @@ func init() {
 	runCmd.Flags().SortFlags = false
 	err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save"))
 	if err != nil {
-		log.Fatalf("Error binding pflag config")
+		fmt.Printf("Error binding pflag config")
+		panic(err)
 	}
 	err = viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
-		log.Fatalf("Error binding pflag config")
+		fmt.Printf("Error binding pflag config")
+		panic(err)
 	}
 	err = viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
 	if err != nil {
-		log.Fatalf("Error binding pflag requirements")
+		fmt.Printf("Error binding pflag requirements")
+		panic(err)
 	}
 	err = viper.BindPFlag("main", runCmd.Flags().Lookup("main"))
 	if err != nil {
-		log.Fatalf("Error binding pflag main")
+		fmt.Printf("Error binding pflag main")
+		panic(err)
 	}
 	err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
 	if err != nil {
-		log.Fatalf("Error binding pflag data")
+		fmt.Printf("Error binding pflag data")
+		panic(err)
 	}
 	err = viper.BindPFlag("output", runCmd.Flags().Lookup("output"))
 	if err != nil {
-		log.Fatalf("Error binding pflag output")
+		fmt.Printf("Error binding pflag output")
+		panic(err)
 	}
 }
 

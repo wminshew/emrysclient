@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -40,7 +39,7 @@ func checkVersion() error {
 	client := &http.Client{}
 	resp, err := client.Get(u.String())
 	if err != nil {
-		log.Printf("Failed to GET %v\n", u.Path)
+		fmt.Printf("Failed to GET %v\n", u.Path)
 		return err
 	}
 	defer check.Err(resp.Body.Close)
@@ -48,20 +47,20 @@ func checkVersion() error {
 	verResp := creds.VersionResp{}
 	err = json.NewDecoder(resp.Body).Decode(&verResp)
 	if err != nil {
-		log.Printf("Failed to decode version response\n")
+		fmt.Printf("Failed to decode version response\n")
 		return err
 	}
 
 	latestUserVer, err := semver.Make(verResp.Version)
 	if err != nil {
-		log.Printf("Failed to convert version response to semver\n")
+		fmt.Printf("Failed to convert version response to semver\n")
 		return err
 	}
 	if userVer.Major < latestUserVer.Major {
 		return fmt.Errorf("your user version %v is incompatible with the latest and must be updated to continue (%v)", userVer, latestUserVer)
 	}
 	if userVer.LT(latestUserVer) {
-		log.Printf("Warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
+		fmt.Printf("Warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
 	}
 
 	return nil
