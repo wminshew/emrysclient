@@ -29,7 +29,8 @@ var loginCmd = &cobra.Command{
 		"login save a JSON web token (JWT) locally. By default, " +
 		"the token expires in 7 days.",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := checkVersion(); err != nil {
+		client := &http.Client{}
+		if err := checkVersion(client); err != nil {
 			fmt.Printf("Version error: %v\n", err)
 			return
 		}
@@ -52,7 +53,6 @@ var loginCmd = &cobra.Command{
 			Host:   h,
 			Path:   p,
 		}
-		client := &http.Client{}
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
 			fmt.Printf("Failed to POST %v: %v\n", u.Path, err)

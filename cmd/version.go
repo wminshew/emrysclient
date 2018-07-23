@@ -27,7 +27,7 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func checkVersion() error {
+func checkVersion(client *http.Client) error {
 	s := "https"
 	h := resolveHost()
 	p := path.Join("user", "version")
@@ -36,7 +36,6 @@ func checkVersion() error {
 		Host:   h,
 		Path:   p,
 	}
-	client := &http.Client{}
 	resp, err := client.Get(u.String())
 	if err != nil {
 		fmt.Printf("Failed to GET %v\n", u.Path)

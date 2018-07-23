@@ -8,6 +8,12 @@
   version = "v3.5.1"
 
 [[projects]]
+  name = "github.com/cenkalti/backoff"
+  packages = ["."]
+  revision = "2ea60e5f094469f9e65adb9cd103795b73ae743e"
+  version = "v2.0.0"
+
+[[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
@@ -170,6 +176,12 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = [
     "unix",
@@ -199,6 +211,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0250854f335c61fd13a1cfc589bdc1e49b1f2d46b6211fd0db61f1181580acdf"
+  inputs-digest = "bac627c3933e45a4c0b2800a57e6f9bd3c78920acf4b81f2e58b04c84dac5b43"
   solver-name = "gps-cdcl"
   solver-version = 1

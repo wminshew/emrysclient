@@ -19,7 +19,8 @@ var registerCmd = &cobra.Command{
 	Long: "Submit your email and a password to create a new " +
 		"account on https://emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := checkVersion(); err != nil {
+		client := &http.Client{}
+		if err := checkVersion(client); err != nil {
 			fmt.Printf("Version error: %v\n", err)
 			return
 		}
@@ -41,7 +42,6 @@ var registerCmd = &cobra.Command{
 			Host:   h,
 			Path:   p,
 		}
-		client := &http.Client{}
 		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 		if err != nil {
 			fmt.Printf("Failed to POST %v: %v\n", u.Path, err)
@@ -62,7 +62,7 @@ var registerCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("We emailed a confirmation link to %s. Please click that link "+
+		fmt.Printf("We emailed a confirmation link to %s. Please follow the link "+
 			"to finish registering (if you can't find the email, please check your spam folder just in case.)", c.Email)
 	},
 }
