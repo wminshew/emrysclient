@@ -2,5 +2,6 @@ vendor
 emrysuser
 output
 .emrysconfig
+tags
 *.swp
 *.swo
