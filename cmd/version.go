@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/blang/semver"
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
@@ -36,15 +37,21 @@ func checkVersion(client *http.Client) error {
 		Host:   h,
 		Path:   p,
 	}
-	resp, err := client.Get(u.String())
-	if err != nil {
-		fmt.Printf("Failed to GET %v\n", u.Path)
+	var resp *http.Response
+	operation := func() error {
+		var err error
+		resp, err = client.Get(u.String())
+		return err
+	}
+	expBackOff := backoff.NewExponentialBackOff()
+	if err := backoff.Retry(operation, expBackOff); err != nil {
+		fmt.Printf("Error GET %v: %v\n", u.String(), err)
 		return err
 	}
 	defer check.Err(resp.Body.Close)
 
 	verResp := creds.VersionResp{}
-	err = json.NewDecoder(resp.Body).Decode(&verResp)
+	err := json.NewDecoder(resp.Body).Decode(&verResp)
 	if err != nil {
 		fmt.Printf("Failed to decode version response\n")
 		return err

@@ -15,30 +15,33 @@ import (
 func syncData(u url.URL, jID, authToken string, data []string) {
 	fmt.Printf("Syncing data...\n")
 
-	r, w := io.Pipe()
-	go func() {
-		if err := archiver.TarGz.Write(w, data); err != nil {
-			fmt.Printf("Error tar-gzipping docker context files: %v\n", err)
-			return
-		}
-	}()
-
 	m := "POST"
 	p := path.Join("data", jID)
 	u.Path = p
-	req, err := http.NewRequest(m, u.String(), r)
-	if err != nil {
-		fmt.Printf("Error creating request %v %v: %v\n", m, p, err)
-		return
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 	client := &http.Client{}
+	var req *http.Request
 	var resp *http.Response
 	operation := func() error {
 		var err error
-		resp, err = client.Do(req)
-		return err
+		r, w := io.Pipe()
+		go func() {
+			if err := archiver.TarGz.Write(w, data); err != nil {
+				fmt.Printf("Error tar-gzipping docker context files: %v\n", err)
+				return
+			}
+		}()
+		if req, err = http.NewRequest(m, u.String(), r); err != nil {
+			fmt.Printf("Error creating request %v %v: %v\n", m, p, err)
+			return err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+		if resp, err = client.Do(req); err != nil {
+			fmt.Printf("Error executing request %v %v: %v\n", m, p, err)
+			return err
+		}
+		return nil
 	}
 	expBackOff := backoff.NewExponentialBackOff()
 	if err := backoff.Retry(operation, expBackOff); err != nil {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
@@ -53,9 +54,15 @@ var loginCmd = &cobra.Command{
 			Host:   h,
 			Path:   p,
 		}
-		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
-		if err != nil {
-			fmt.Printf("Failed to POST %v: %v\n", u.Path, err)
+		var resp *http.Response
+		operation := func() error {
+			var err error
+			resp, err = client.Post(u.String(), "text/plain", bodyBuf)
+			return err
+		}
+		expBackOff := backoff.NewExponentialBackOff()
+		if err := backoff.Retry(operation, expBackOff); err != nil {
+			fmt.Printf("Error POST %v: %v\n", u.String(), err)
 			return
 		}
 		defer check.Err(resp.Body.Close)
