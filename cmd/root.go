@@ -22,9 +22,9 @@ var rootCmd = &cobra.Command{
 func init() {
 	// cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(registerCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
-	rootCmd.AddCommand(registerCmd)
 	loginCmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
 	runCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
 	runCmd.Flags().String("requirements", "", "Path to requirements file (required)")
