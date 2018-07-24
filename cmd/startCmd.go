@@ -12,7 +12,6 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/fsnotify/fsnotify"
-	"github.com/gorilla/websocket"
 	"github.com/mholt/archiver"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,6 +28,20 @@ import (
 	"syscall"
 	"time"
 )
+
+type pollResponse struct {
+	Events    []pollEvent `json:"events"`
+	Timestamp int64       `json:"timestamp"`
+}
+
+// source: https://github.com/jcuga/golongpoll/blob/master/go-client/glpclient/client.go
+type pollEvent struct {
+	// Timestamp is milliseconds since epoch to match javascrits Date.getTime()
+	Timestamp int64  `json:"timestamp"`
+	Category  string `json:"category"`
+	// NOTE: Data can be anything that is able to passed to json.Marshal()
+	Data json.RawMessage `json:"data"`
+}
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -75,103 +88,157 @@ var startCmd = &cobra.Command{
 			fmt.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 		})
 
-		var conn *websocket.Conn
-		operation := func() error {
-			var err error
-			conn, _, err = dialWebsocket(mID, authToken)
-			return err
+		client := &http.Client{}
+		m := "GET"
+		s := "https"
+		h := resolveHost()
+		p := path.Join("miner", "connect")
+		u := url.URL{
+			Scheme: s,
+			Host:   h,
+			Path:   p,
 		}
-		expBackOff := backoff.NewExponentialBackOff()
-		if err := backoff.Retry(operation, expBackOff); err != nil {
-			fmt.Printf("Error dialing websocket: %v\n", err)
-			return
-		}
-		defer check.Err(conn.Close)
+		q := u.Query()
+		q.Set("timeout", "600")
+		// q.Set("since_time", fmt.Sprintf("%d", sinceTime))
+		u.RawQuery = q.Encode()
 
-		response := make(chan []byte)
-		done := make(chan struct{})
-		interrupt := make(chan os.Signal, 1)
-
-		go func() {
-			defer close(done)
-			for {
-				msgType, r, err := conn.NextReader()
-				if err != nil {
-					fmt.Printf("Error reading message: %v\n", err)
-					return
+		// could use: https://github.com/jcuga/golongpoll/tree/master/go-client/glpclient
+		var req *http.Request
+		var resp *http.Response
+		var operation backoff.Operation
+		var expBackOff *backoff.ExponentialBackOff
+		sinceTime := time.Now().Unix() * 1000
+		fmt.Printf("Connecting to emrys...\n")
+		for {
+			operation = func() error {
+				if req, err = http.NewRequest(m, u.String(), nil); err != nil {
+					fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
+					return err
 				}
-				switch msgType {
-				case websocket.BinaryMessage:
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+				resp, err = client.Do(req)
+				return err
+			}
+			expBackOff = backoff.NewExponentialBackOff()
+			if err := backoff.Retry(operation, expBackOff); err != nil {
+				fmt.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+				fmt.Printf("Unable to connect to emrys. Retrying in 5 minutes...\n")
+				time.Sleep(5 * time.Minute)
+				continue
+			}
+
+			fmt.Println("Waiting for jobs...")
+			if resp.StatusCode != http.StatusOK {
+				fmt.Printf("Response error header: %v\n", resp.Status)
+				b, _ := ioutil.ReadAll(resp.Body)
+				fmt.Printf("Response error detail: %s\n", b)
+				check.Err(resp.Body.Close)
+				continue
+			}
+			fmt.Println("Job received!")
+
+			pr := pollResponse{}
+			if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+				fmt.Printf("Error decoding json pollResponse: %v\n", err)
+				check.Err(resp.Body.Close)
+				continue
+			}
+			check.Err(resp.Body.Close)
+
+			if len(pr.Events) > 0 {
+				fmt.Println(len(pr.Events), "job(s) up for auction")
+				for _, event := range pr.Events {
+					sinceTime = event.Timestamp
 					msg := &job.Message{}
-					if err := json.NewDecoder(r).Decode(msg); err != nil {
-						fmt.Printf("Error decoding json message: %v\n", err)
-						break
+					if err := json.Unmarshal(event.Data, msg); err != nil {
+						fmt.Printf("Error unmarshaling json message: %v\n", err)
+						fmt.Println("json message: ", string(event.Data))
+						continue
 					}
 					fmt.Printf("%v\n", msg.Message)
 					if msg.Job == nil {
-						break
+						continue
 					}
 					fmt.Printf("Job: %v\n", msg.Job.ID.String())
 
 					go bid(mID, authToken, msg)
-				case websocket.TextMessage:
-					fmt.Printf("Error -- unexpected text message received.\n")
-					_, err = io.Copy(os.Stdout, r)
-					response <- []byte("pong")
-				default:
-					fmt.Printf("Non-text or -binary websocket message received. Closing.\n")
-					return
+				}
+			} else {
+				if pr.Timestamp > sinceTime {
+					sinceTime = pr.Timestamp
 				}
 			}
-		}()
 
-		for {
-			select {
-			case <-done:
-				return
-			case r := <-response:
-				err := conn.WriteMessage(websocket.TextMessage, r)
-				if err != nil {
-					fmt.Printf("Error writing message: %v\n", err)
-					return
-				}
-			case <-interrupt:
-				fmt.Println("interrupt")
-
-				err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				if err != nil {
-					fmt.Printf("Error writing close: %v\n", err)
-					return
-				}
-				select {
-				case <-done:
-				case <-time.After(time.Second):
-				}
-				return
-			}
+			q := u.Query()
+			q.Set("since_time", fmt.Sprintf("%d", sinceTime))
+			u.RawQuery = q.Encode()
 		}
-	},
-}
 
-func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
-	s := "wss"
-	h := resolveHost()
-	p := path.Join("miner", mID, "connect")
-	u := url.URL{
-		Scheme: s,
-		Host:   h,
-		Path:   p,
-	}
-	fmt.Printf("Connecting to emrys...\n")
-	// o := url.URL{
-	// 	Scheme: "https",
-	// 	Host: h,
-	// }
-	d := websocket.DefaultDialer
-	reqH := http.Header{}
-	reqH.Set("Authorization", fmt.Sprintf("Bearer %v", t))
-	// reqH.Set("Origin", o.String())
-	return d.Dial(u.String(), reqH)
+		// response := make(chan []byte)
+		// done := make(chan struct{})
+		// interrupt := make(chan os.Signal, 1)
+		//
+		// go func() {
+		// 	defer close(done)
+		// 	for {
+		// 		msgType, r, err := conn.NextReader()
+		// 		if err != nil {
+		// 			fmt.Printf("Error reading message: %v\n", err)
+		// 			return
+		// 		}
+		// 		switch msgType {
+		// 		case websocket.BinaryMessage:
+		// 			msg := &job.Message{}
+		// 			if err := json.NewDecoder(r).Decode(msg); err != nil {
+		// 				fmt.Printf("Error decoding json message: %v\n", err)
+		// 				break
+		// 			}
+		// 			fmt.Printf("%v\n", msg.Message)
+		// 			if msg.Job == nil {
+		// 				break
+		// 			}
+		// 			fmt.Printf("Job: %v\n", msg.Job.ID.String())
+		//
+		// 			go bid(mID, authToken, msg)
+		// 		case websocket.TextMessage:
+		// 			fmt.Printf("Error -- unexpected text message received.\n")
+		// 			_, err = io.Copy(os.Stdout, r)
+		// 			response <- []byte("pong")
+		// 		default:
+		// 			fmt.Printf("Non-text or -binary websocket message received. Closing.\n")
+		// 			return
+		// 		}
+		// 	}
+		// }()
+		//
+		// for {
+		// 	select {
+		// 	case <-done:
+		// 		return
+		// 	case r := <-response:
+		// 		err := conn.WriteMessage(websocket.TextMessage, r)
+		// 		if err != nil {
+		// 			fmt.Printf("Error writing message: %v\n", err)
+		// 			return
+		// 		}
+		// 	case <-interrupt:
+		// 		fmt.Println("interrupt")
+		//
+		// 		err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		// 		if err != nil {
+		// 			fmt.Printf("Error writing close: %v\n", err)
+		// 			return
+		// 		}
+		// 		select {
+		// 		case <-done:
+		// 		case <-time.After(time.Second):
+		// 		}
+		// 		return
+		// 	}
+		// }
+	},
 }
 
 func bid(mID, authToken string, msg *job.Message) {
@@ -193,7 +260,7 @@ func bid(mID, authToken string, msg *job.Message) {
 	m := "POST"
 	s := "https"
 	h := resolveHost()
-	p := path.Join("miner", mID, "job", msg.Job.ID.String(), "bid")
+	p := path.Join("miner", "job", msg.Job.ID.String(), "bid")
 	u := url.URL{
 		Scheme: s,
 		Host:   h,
