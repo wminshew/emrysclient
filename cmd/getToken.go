@@ -1,21 +1,23 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 	"os/user"
 	"path"
 )
 
-func getToken() string {
+func getToken() (string, error) {
 	user, err := user.Current()
 	if err != nil {
-		log.Fatalf("Failed to get current user: %v\n", err)
+		fmt.Printf("Failed to get current user: %v\n", err)
+		return "", err
 	}
 	path := path.Join(user.HomeDir, ".config", "emrysminer", "jwt")
 	byteToken, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Fatalf("Failed to read token at %s: %v", path, err)
+		fmt.Printf("Failed to read token at %s: %v", path, err)
+		return "", err
 	}
-	return string(byteToken)
+	return string(byteToken), nil
 }

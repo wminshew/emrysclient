@@ -38,6 +38,12 @@
   version = "v3.5.1"
 
 [[projects]]
+  name = "github.com/cenkalti/backoff"
+  packages = ["."]
+  revision = "2ea60e5f094469f9e65adb9cd103795b73ae743e"
+  version = "v2.0.0"
+
+[[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
@@ -304,6 +310,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6ffcd2103e149b8cf18d0c86b68c837624f01be12bfce8bb048ca412404d97c1"
+  inputs-digest = "11d8b856017a93bc70c00abb7d476212df64124808d7e6a36f8928a875423135"
   solver-name = "gps-cdcl"
   solver-version = 1

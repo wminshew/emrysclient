@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
 	"os"
 )
 
@@ -22,23 +21,24 @@ var rootCmd = &cobra.Command{
 func init() {
 	// cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(registerCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(startCmd)
 	loginCmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
 	startCmd.Flags().String("config", ".emrysminer", "Path to config file (don't include extension)")
 	startCmd.Flags().Float64("bid-rate", 0, "Bid rate ($/hr) for mining jobs (required)")
 	startCmd.Flags().SortFlags = false
-	err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save"))
-	if err != nil {
-		log.Fatalf("Error binding pflag config")
+	if err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save")); err != nil {
+		fmt.Printf("Error binding pflag config")
+		return
 	}
-	err = viper.BindPFlag("config", startCmd.Flags().Lookup("config"))
-	if err != nil {
-		log.Fatalf("Error binding pflag config")
+	if err := viper.BindPFlag("config", startCmd.Flags().Lookup("config")); err != nil {
+		fmt.Printf("Error binding pflag config")
+		return
 	}
-	err = viper.BindPFlag("bid-rate", startCmd.Flags().Lookup("bid-rate"))
-	if err != nil {
-		log.Fatalf("Error binding pflag bid-rate")
+	if err := viper.BindPFlag("bid-rate", startCmd.Flags().Lookup("bid-rate")); err != nil {
+		fmt.Printf("Error binding pflag bid-rate")
+		return
 	}
 }
 

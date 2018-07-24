@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,7 +31,7 @@ var loginCmd = &cobra.Command{
 		"token expires in 24 hours.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkVersion(); err != nil {
-			log.Printf("Version error: %v\n", err)
+			fmt.Printf("Version error: %v\n", err)
 			return
 		}
 
@@ -40,24 +40,28 @@ var loginCmd = &cobra.Command{
 		c.Duration = strconv.Itoa(viper.GetInt("save"))
 
 		bodyBuf := &bytes.Buffer{}
-		err := json.NewEncoder(bodyBuf).Encode(c)
-		if err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
+			fmt.Printf("Failed to encode email & password: %v\n", err)
 			return
 		}
+		s := "https"
 		h := resolveHost()
+		p := path.Join("miner", "login")
 		u := url.URL{
-			// Scheme: "https",
-			Scheme: "http",
+			Scheme: s,
 			Host:   h,
-			Path:   "/miner/login",
+			Path:   p,
 		}
-		client := resolveClient()
-		resp, err := client.Post(u.String(), "text/plain", bodyBuf)
-		if err != nil {
-			log.Printf("Failed to POST: %v\n", err)
-			log.Printf("URL: %v\n", u)
-			log.Printf("Body: %v\n", bodyBuf)
+		client := http.Client{}
+		var resp *http.Response
+		operation := func() error {
+			var err error
+			resp, err = client.Post(u.String(), "text/plain", bodyBuf)
+			return err
+		}
+		expBackOff := backoff.NewExponentialBackOff()
+		if err := backoff.Retry(operation, expBackOff); err != nil {
+			fmt.Printf("Error POST %v: %v\n", u.String(), err)
 			return
 		}
 		defer check.Err(resp.Body.Close)
@@ -65,24 +69,26 @@ var loginCmd = &cobra.Command{
 		if appEnv == "dev" {
 			respDump, err := httputil.DumpResponse(resp, true)
 			if err != nil {
-				log.Println(err)
+				fmt.Println(err)
 			}
-			log.Println(string(respDump))
+			fmt.Println(string(respDump))
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Request error: %v\n", resp.Status)
+			fmt.Printf("Request error: %v\n", resp.Status)
 			return
 		}
 
 		loginResp := creds.LoginResp{}
-		err = json.NewDecoder(resp.Body).Decode(&loginResp)
-		if err != nil {
-			log.Printf("Failed to decode response: %v\n", err)
+		if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+			fmt.Printf("Failed to decode response: %v\n", err)
 			return
 		}
 
-		storeToken(loginResp.Token)
+		if err := storeToken(loginResp.Token); err != nil {
+			fmt.Printf("Failed to store login token: %v\n", err)
+			return
+		}
 	},
 }
 
@@ -95,28 +101,31 @@ func minerLogin(c *creds.Miner) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Printf("\nFailed to read password from console: %v\n", err)
+		fmt.Printf("\nFailed to read password from console: %v\n", err)
 		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
 	fmt.Println()
 }
 
-func storeToken(t string) {
+func storeToken(t string) error {
 	var perm os.FileMode
 	perm = 0755
 	user, err := user.Current()
 	if err != nil {
-		log.Fatalf("Failed to get current user: %v\n", err)
+		fmt.Printf("Failed to get current user: %v\n", err)
+		return err
 	}
 	dir := path.Join(user.HomeDir, ".config", "emrysminer")
 	fmt.Print(dir)
-	err = os.MkdirAll(dir, perm)
-	if err != nil {
-		log.Fatalf("Failed to make directory %s to save login token: %v\n", dir, err)
+	if err := os.MkdirAll(dir, perm); err != nil {
+		fmt.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
+		return err
 	}
 	path := path.Join(dir, "jwt")
 	if err := ioutil.WriteFile(path, []byte(t), perm); err != nil {
-		log.Fatalf("Failed to write login token to disk at %s: %v", path, err)
+		fmt.Printf("Failed to write login token to disk at %s: %v", path, err)
+		return err
 	}
+	return nil
 }

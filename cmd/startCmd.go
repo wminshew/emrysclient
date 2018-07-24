@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
 	"compress/zlib"
 	"context"
@@ -10,6 +9,7 @@ import (
 	"docker.io/go-docker/api/types/container"
 	"encoding/json"
 	"fmt"
+	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
@@ -20,7 +20,6 @@ import (
 	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,45 +38,52 @@ var startCmd = &cobra.Command{
 		"below your minimum, emrysminer will default to the mining " +
 		"command provided in ./mining-script.sh.",
 	Run: func(cmd *cobra.Command, args []string) {
-		authToken := getToken()
-		claims := &jwt.StandardClaims{}
-		_, _, err := new(jwt.Parser).ParseUnverified(authToken, claims)
+		authToken, err := getToken()
 		if err != nil {
-			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			fmt.Printf("Error getting authToken: %v\n", err)
 			return
 		}
-		if err = claims.Valid(); err != nil {
-			log.Printf("Error invalid authToken claims: %v\n", err)
-			log.Printf("Please login again.\n")
+		claims := &jwt.StandardClaims{}
+		if _, _, err := new(jwt.Parser).ParseUnverified(authToken, claims); err != nil {
+			fmt.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			return
+		}
+		if err := claims.Valid(); err != nil {
+			fmt.Printf("Error invalid authToken claims: %v\n", err)
+			fmt.Printf("Please login again.\n")
 			return
 		}
 		mID := claims.Subject
 		exp := claims.ExpiresAt
-		remaining := time.Until(time.Unix(exp, 0))
-		if remaining <= 24*time.Hour {
-			log.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
+		if remaining := time.Until(time.Unix(exp, 0)); remaining <= 24*time.Hour {
+			fmt.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
 		}
 
 		if err := checkVersion(); err != nil {
-			log.Printf("Version error: %v\n", err)
+			fmt.Printf("Version error: %v\n", err)
 			return
 		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
-		err = viper.ReadInConfig()
-		if err != nil {
-			log.Printf("Error reading config file: %v\n", err)
+		if err := viper.ReadInConfig(); err != nil {
+			fmt.Printf("Error reading config file: %v\n", err)
 			return
 		}
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
-			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
+			fmt.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 		})
 
-		conn, _, err := dialWebsocket(mID, authToken)
-		if err != nil {
-			log.Printf("Error dialing websocket: %v\n", err)
+		var conn *websocket.Conn
+		operation := func() error {
+			var err error
+			conn, _, err = dialWebsocket(mID, authToken)
+			return err
+		}
+		expBackOff := backoff.NewExponentialBackOff()
+		if err := backoff.Retry(operation, expBackOff); err != nil {
+			fmt.Printf("Error dialing websocket: %v\n", err)
 			return
 		}
 		defer check.Err(conn.Close)
@@ -91,32 +97,29 @@ var startCmd = &cobra.Command{
 			for {
 				msgType, r, err := conn.NextReader()
 				if err != nil {
-					log.Printf("Error reading message: %v\n", err)
+					fmt.Printf("Error reading message: %v\n", err)
 					return
 				}
 				switch msgType {
 				case websocket.BinaryMessage:
-					m := &job.Message{}
-					err = json.NewDecoder(r).Decode(m)
-					if err != nil {
-						log.Printf("Error decoding json message: %v\n", err)
+					msg := &job.Message{}
+					if err := json.NewDecoder(r).Decode(msg); err != nil {
+						fmt.Printf("Error decoding json message: %v\n", err)
 						break
 					}
-					// log.Printf("Message: %v\n", m.Message)
-					log.Printf("%v\n", m.Message)
-					if m.Job == nil {
+					fmt.Printf("%v\n", msg.Message)
+					if msg.Job == nil {
 						break
 					}
-					log.Printf("Job: %v\n", m.Job.ID.String())
+					fmt.Printf("Job: %v\n", msg.Job.ID.String())
 
-					go bid(mID, authToken, m)
+					go bid(mID, authToken, msg)
 				case websocket.TextMessage:
-					resp := "Error -- unexpected text message received.\n"
-					log.Printf(resp)
+					fmt.Printf("Error -- unexpected text message received.\n")
 					_, err = io.Copy(os.Stdout, r)
-					response <- []byte(resp)
+					response <- []byte("pong")
 				default:
-					log.Printf("Non-text or -binary websocket message received. Closing.\n")
+					fmt.Printf("Non-text or -binary websocket message received. Closing.\n")
 					return
 				}
 			}
@@ -129,15 +132,15 @@ var startCmd = &cobra.Command{
 			case r := <-response:
 				err := conn.WriteMessage(websocket.TextMessage, r)
 				if err != nil {
-					log.Printf("Error writing message: %v\n", err)
+					fmt.Printf("Error writing message: %v\n", err)
 					return
 				}
 			case <-interrupt:
-				log.Println("interrupt")
+				fmt.Println("interrupt")
 
 				err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
-					log.Printf("Error writing close: %v\n", err)
+					fmt.Printf("Error writing close: %v\n", err)
 					return
 				}
 				select {
@@ -151,178 +154,135 @@ var startCmd = &cobra.Command{
 }
 
 func dialWebsocket(mID, t string) (*websocket.Conn, *http.Response, error) {
+	s := "wss"
 	h := resolveHost()
 	p := path.Join("miner", mID, "connect")
 	u := url.URL{
-		Scheme: "ws",
-		// Scheme: "wss",
-		Host: h,
-		Path: p,
+		Scheme: s,
+		Host:   h,
+		Path:   p,
 	}
-	log.Printf("Connecting to emrys...\n")
-	// log.Printf("Connecting to %s...\n", u.String())
-	o := url.URL{
-		Scheme: "http",
-		// Scheme: "https",
-		Host: h,
-	}
+	fmt.Printf("Connecting to emrys...\n")
+	// o := url.URL{
+	// 	Scheme: "https",
+	// 	Host: h,
+	// }
 	d := websocket.DefaultDialer
-	d.TLSClientConfig = resolveTLSConfig()
 	reqH := http.Header{}
 	reqH.Set("Authorization", fmt.Sprintf("Bearer %v", t))
-	reqH.Set("Origin", o.String())
+	// reqH.Set("Origin", o.String())
 	return d.Dial(u.String(), reqH)
 }
 
-func postReq(path, authToken string, body io.Reader) (*http.Request, error) {
-	h := resolveHost()
-	u := url.URL{
-		Scheme: "http",
-		// Scheme: "https",
-		Host: h,
-		Path: path,
-	}
-	req, err := http.NewRequest("POST", u.String(), body)
-	if err != nil {
-		log.Printf("Failed to create new http request: %v\n", err)
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-
-	return req, nil
-}
-
-func getJobReq(path, authToken, jobToken string) (*http.Request, error) {
-	h := resolveHost()
-	u := url.URL{
-		Scheme: "http",
-		// Scheme: "https",
-		Host: h,
-		Path: path,
-	}
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		log.Printf("Failed to create new http request: %v\n", err)
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	req.Header.Set("Job-Authorization", jobToken)
-
-	return req, nil
-}
-
-func postJobReq(path, authToken, jobToken string, body io.Reader) (*http.Request, error) {
-	h := resolveHost()
-	u := url.URL{
-		Scheme: "http",
-		// Scheme: "https",
-		Host: h,
-		Path: path,
-	}
-	req, err := http.NewRequest("POST", u.String(), body)
-	if err != nil {
-		log.Printf("Failed to create new http request: %v\n", err)
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	req.Header.Set("Job-Authorization", jobToken)
-
-	return req, nil
-}
-
-func bid(mID, authToken string, m *job.Message) {
+func bid(mID, authToken string, msg *job.Message) {
 	if err := checkVersion(); err != nil {
-		log.Printf("Version error: %v\n", err)
+		fmt.Printf("Version error: %v\n", err)
 		return
 	}
 
-	client := resolveClient()
+	client := http.Client{}
 	b := &job.Bid{
 		MinRate: viper.GetFloat64("bid-rate"),
 	}
 
 	var body bytes.Buffer
-	jobPath := path.Join("miner", mID, "job", m.Job.ID.String())
-	p := path.Join(jobPath, "bid")
-	err := json.NewEncoder(&body).Encode(b)
-	if err != nil {
-		log.Printf("Error encoding json bid: %v\n", err)
+	if err := json.NewEncoder(&body).Encode(b); err != nil {
+		fmt.Printf("Error encoding json bid: %v\n", err)
 		return
 	}
-	req, err := postReq(p, authToken, &body)
+	m := "POST"
+	s := "https"
+	h := resolveHost()
+	p := path.Join("miner", mID, "job", msg.Job.ID.String(), "bid")
+	u := url.URL{
+		Scheme: s,
+		Host:   h,
+		Path:   p,
+	}
+	req, err := http.NewRequest(m, u.String(), &body)
 	if err != nil {
-		log.Printf("Error creating request POST %v: %v\n", p, err)
+		fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
 		return
 	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-	log.Printf("Sending bid with rate: %v...\n", b.MinRate)
-	// log.Printf("%v %v\n", req.Method, p)
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+	fmt.Printf("Sending bid with rate: %v...\n", b.MinRate)
+	var resp *http.Response
+	operation := func() error {
+		var err error
+		resp, err = client.Do(req)
+		return err
+	}
+	expBackOff := backoff.NewExponentialBackOff()
+	if err := backoff.Retry(operation, expBackOff); err != nil {
+		fmt.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response error header: %v\n", resp.Status)
+		fmt.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
+		fmt.Printf("Response error detail: %s\n", b)
 		check.Err(resp.Body.Close)
 		return
 	}
-
-	jobToken := resp.Header.Get("Set-Job-Authorization")
-	if jobToken == "" {
-		s := bufio.NewScanner(resp.Body)
-		for s.Scan() {
-			log.Println(s.Text())
-		}
-		check.Err(resp.Body.Close)
-		return
-	}
-
-	_, _ = io.Copy(ioutil.Discard, resp.Body)
 	check.Err(resp.Body.Close)
+	fmt.Printf("Your bid for job %v was selected!\n", msg.Job.ID.String())
 
-	log.Printf("Your bid for job %v was selected!\n", m.Job.ID.String())
-	p = path.Join(jobPath, "image")
-	req, err = getJobReq(p, authToken, jobToken)
+	m = "GET"
+	p = path.Join("image", msg.Job.ID.String())
+	u = url.URL{
+		Scheme: s,
+		Host:   h,
+		Path:   p,
+	}
+	req, err = http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		log.Printf("Error creating request GET %v: %v\n", p, err)
+		fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
 		return
 	}
-	log.Printf("Downloading image...\n")
-	// log.Printf("%v %v\n", req.Method, p)
-	resp, err = client.Do(req)
-	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+	// TODO: replace with docker pull
+	// TODO: make parallel with data sync
+	fmt.Printf("Downloading image...\n")
+	// var resp *http.Response
+	operation = func() error {
+		var err error
+		resp, err = client.Do(req)
+		return err
+	}
+	expBackOff = backoff.NewExponentialBackOff()
+	if err := backoff.Retry(operation, expBackOff); err != nil {
+		fmt.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response header error: %v\n", resp.Status)
+		fmt.Printf("Response header error: %v\n", resp.Status)
 		check.Err(resp.Body.Close)
 		return
 	}
 
 	zResp, err := zlib.NewReader(resp.Body)
 	if err != nil {
-		log.Printf("Error creating zlib img reader: %v\n", err)
+		fmt.Printf("Error creating zlib img reader: %v\n", err)
 		check.Err(resp.Body.Close)
 		return
 	}
 
 	ctx := context.Background()
+	// TODO: create docker client before connecting websocket
 	cli, err := docker.NewEnvClient()
 	if err != nil {
-		log.Printf("Error creating docker client: %v\n", err)
+		fmt.Printf("Error creating docker client: %v\n", err)
 		check.Err(resp.Body.Close)
 		check.Err(zResp.Close)
 		return
 	}
 	imgLoadResp, err := cli.ImageLoad(ctx, zResp, false)
 	if err != nil {
-		log.Printf("Error loading image: %v\n", err)
+		fmt.Printf("Error loading image: %v\n", err)
 		check.Err(resp.Body.Close)
 		check.Err(zResp.Close)
 		return
@@ -330,16 +290,16 @@ func bid(mID, authToken string, m *job.Message) {
 	defer check.Err(imgLoadResp.Body.Close)
 	// TODO:
 	// defer func() {
-	// 	imgDelResp, err := cli.ImageRemove(ctx, m.Job.ID.String(), types.ImageRemoveOptions{
+	// 	imgDelResp, err := cli.ImageRemove(ctx, msg.Job.ID.String(), types.ImageRemoveOptions{
 	// 		Force: true,
 	// 	})
 	// 	if err != nil {
-	// 		log.Printf("Error deleting image %v: %v\n", m.Job.ID.String(), err)
+	// 		fmt.Printf("Error deleting image %v: %v\n", msg.Job.ID.String(), err)
 	// 		return
 	// 	}
 	// 	for i := range imgDelResp {
-	// 		log.Printf("Deleted: %v", imgDelResp[i].Deleted)
-	// 		log.Printf("Untagged: %v", imgDelResp[i].Untagged)
+	// 		fmt.Printf("Deleted: %v", imgDelResp[i].Deleted)
+	// 		fmt.Printf("Untagged: %v", imgDelResp[i].Untagged)
 	// 	}
 	// }()
 	check.Err(zResp.Close)
@@ -347,38 +307,51 @@ func bid(mID, authToken string, m *job.Message) {
 
 	user, err := user.Current()
 	if err != nil {
-		log.Printf("Error getting current user: %v\n", err)
+		fmt.Printf("Error getting current user: %v\n", err)
 		return
 	}
-	jobDir := filepath.Join(user.HomeDir, ".emrys", m.Job.ID.String())
+	jobDir := filepath.Join(user.HomeDir, ".emrys", msg.Job.ID.String())
 	if err = os.MkdirAll(jobDir, 0755); err != nil {
-		log.Printf("Error making job dir %v: %v\n", jobDir, err)
+		fmt.Printf("Error making job dir %v: %v\n", jobDir, err)
 		return
 	}
 	defer check.Err(func() error { return os.RemoveAll(jobDir) })
 
-	p = path.Join(jobPath, "data")
-	req, err = getJobReq(p, authToken, jobToken)
+	m = "GET"
+	p = path.Join("data", msg.Job.ID.String())
+	u = url.URL{
+		Scheme: s,
+		Host:   h,
+		Path:   p,
+	}
+	req, err = http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		log.Printf("Error creating request GET %v: %v\n", p, err)
+		fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
 		return
 	}
-	log.Printf("Downloading data...\n")
-	// log.Printf("%v %v\n", req.Method, p)
-	resp, err = client.Do(req)
-	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+	fmt.Printf("Downloading data...\n")
+	// var resp *http.Response
+	operation = func() error {
+		var err error
+		resp, err = client.Do(req)
+		return err
+	}
+	expBackOff = backoff.NewExponentialBackOff()
+	if err := backoff.Retry(operation, expBackOff); err != nil {
+		fmt.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response header error: %v\n", resp.Status)
+		fmt.Printf("Response header error: %v\n", resp.Status)
 		check.Err(resp.Body.Close)
 		return
 	}
 
 	if err = archiver.TarGz.Read(resp.Body, jobDir); err != nil {
-		log.Printf("Error unpacking .tar.gz into job dir %v: %v\n", jobDir, err)
+		fmt.Printf("Error unpacking .tar.gz into job dir %v: %v\n", jobDir, err)
 		check.Err(resp.Body.Close)
 		return
 	}
@@ -390,12 +363,12 @@ func bid(mID, authToken string, m *job.Message) {
 	hostOutputDir := filepath.Join(jobDir, "output")
 	oldUMask := syscall.Umask(000)
 	if err = os.Chmod(hostDataDir, 0777); err != nil {
-		log.Printf("Error modifying data dir %v permissions: %v\n", hostDataDir, err)
+		fmt.Printf("Error modifying data dir %v permissions: %v\n", hostDataDir, err)
 		_ = syscall.Umask(oldUMask)
 		return
 	}
 	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
-		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
+		fmt.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
 		_ = syscall.Umask(oldUMask)
 		return
 	}
@@ -405,7 +378,7 @@ func bid(mID, authToken string, m *job.Message) {
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
 	c, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: m.Job.ID.String(),
+		Image: msg.Job.ID.String(),
 		Tty:   true,
 	}, &container.HostConfig{
 		AutoRemove: true,
@@ -423,41 +396,49 @@ func bid(mID, authToken string, m *job.Message) {
 		},
 	}, nil, "")
 	if err != nil {
-		log.Printf("Error creating container: %v\n", err)
+		fmt.Printf("Error creating container: %v\n", err)
 		return
 	}
 
+	fmt.Printf("Running container...\n")
 	if err := cli.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
-		log.Printf("Error starting container: %v\n", err)
+		fmt.Printf("Error starting container: %v\n", err)
 		return
 	}
 
+	// TODO: store this output in some kind of buffer / file, so I can re-upload if connection is interrupted
 	out, err := cli.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
 	})
 	if err != nil {
-		log.Printf("Error logging container: %v\n", err)
+		fmt.Printf("Error logging container: %v\n", err)
 		return
 	}
 
-	p = path.Join(jobPath, "output", "log")
-	req, err = postJobReq(p, authToken, jobToken, out)
+	m = "POST"
+	p = path.Join("job", msg.Job.ID.String(), "output", "log")
+	u = url.URL{
+		Scheme: s,
+		Host:   h,
+		Path:   p,
+	}
+	req, err = http.NewRequest(m, u.String(), out)
 	if err != nil {
-		log.Printf("Error creating request POST %v: %v\n", p, err)
+		fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
 		return
 	}
-	log.Printf("Running container...\n")
-	// log.Printf("%v %v\n", req.Method, p)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+		fmt.Printf("Error %v %v: %v\n", req.Method, p, err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response header error: %v\n", resp.Status)
+		fmt.Printf("Response header error: %v\n", resp.Status)
 		check.Err(resp.Body.Close)
 		return
 	}
@@ -470,7 +451,7 @@ func bid(mID, authToken string, m *job.Message) {
 		files, err := ioutil.ReadDir(hostOutputDir)
 		outputFiles := make([]string, 0, len(files))
 		if err != nil {
-			log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+			fmt.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
 			return
 		}
 		for _, file := range files {
@@ -478,30 +459,37 @@ func bid(mID, authToken string, m *job.Message) {
 			outputFiles = append(outputFiles, outputFile)
 		}
 		if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-			log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
+			fmt.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
 			return
 		}
 	}()
-	p = path.Join(jobPath, "output", "dir")
-	req, err = postJobReq(p, authToken, jobToken, pr)
+	m = "POST"
+	p = path.Join("job", msg.Job.ID.String(), "output", "dir")
+	u = url.URL{
+		Scheme: s,
+		Host:   h,
+		Path:   p,
+	}
+	req, err = http.NewRequest(m, u.String(), pr)
 	if err != nil {
-		log.Printf("Error creating request POST %v: %v\n", p, err)
+		fmt.Printf("Failed to create http request %v %v: %v\n", m, p, err)
 		return
 	}
-	log.Printf("Uploading output...\n")
-	// log.Printf("%v %v\n", req.Method, p)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+	fmt.Printf("Uploading output...\n")
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+		fmt.Printf("Error %v %v: %v\n", req.Method, p, err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response header error: %v\n", resp.Status)
+		fmt.Printf("Response header error: %v\n", resp.Status)
 		check.Err(resp.Body.Close)
 		return
 	}
 
 	check.Err(resp.Body.Close)
-	log.Printf("Job completed!\n")
+	fmt.Printf("Job completed!\n")
 }
