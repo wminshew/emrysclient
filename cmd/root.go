@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log"
 	"os"
 )
 
@@ -34,32 +35,32 @@ func init() {
 	runCmd.Flags().SortFlags = false
 	err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save"))
 	if err != nil {
-		fmt.Printf("Error binding pflag config")
+		log.Printf("Error binding pflag config")
 		panic(err)
 	}
 	err = viper.BindPFlag("config", runCmd.Flags().Lookup("config"))
 	if err != nil {
-		fmt.Printf("Error binding pflag config")
+		log.Printf("Error binding pflag config")
 		panic(err)
 	}
 	err = viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements"))
 	if err != nil {
-		fmt.Printf("Error binding pflag requirements")
+		log.Printf("Error binding pflag requirements")
 		panic(err)
 	}
 	err = viper.BindPFlag("main", runCmd.Flags().Lookup("main"))
 	if err != nil {
-		fmt.Printf("Error binding pflag main")
+		log.Printf("Error binding pflag main")
 		panic(err)
 	}
 	err = viper.BindPFlag("data", runCmd.Flags().Lookup("data"))
 	if err != nil {
-		fmt.Printf("Error binding pflag data")
+		log.Printf("Error binding pflag data")
 		panic(err)
 	}
 	err = viper.BindPFlag("output", runCmd.Flags().Lookup("output"))
 	if err != nil {
-		fmt.Printf("Error binding pflag output")
+		log.Printf("Error binding pflag output")
 		panic(err)
 	}
 }
@@ -67,7 +68,7 @@ func init() {
 // Execute the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(1)
 	}
 }

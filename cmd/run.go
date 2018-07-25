@@ -11,6 +11,7 @@ import (
 	"github.com/wminshew/emrys/pkg/check"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,28 +41,33 @@ var runCmd = &cobra.Command{
 		claims := &jwt.StandardClaims{}
 		_, _, err = new(jwt.Parser).ParseUnverified(authToken, claims)
 		if err != nil {
-			fmt.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
 			return
 		}
 		if err = claims.Valid(); err != nil {
-			fmt.Printf("Error invalid authToken claims: %v\n", err)
-			fmt.Printf("Please login again.\n")
+			log.Printf("Error invalid authToken claims: %v\n", err)
+			log.Printf("Please login again.\n")
 			return
 		}
 		uID := claims.Subject
 		exp := claims.ExpiresAt
 		remaining := time.Until(time.Unix(exp, 0))
 		if remaining <= 24*time.Hour {
-			fmt.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
+			log.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
 		}
 
 		client := &http.Client{}
-		operation := func() error {
-			return checkVersion(client)
+		s := "https"
+		h := resolveHost()
+		u := url.URL{
+			Scheme: s,
+			Host:   h,
 		}
-		expBackOff := backoff.NewExponentialBackOff()
-		if err := backoff.Retry(operation, expBackOff); err != nil {
-			fmt.Printf("Version error: %v\n", err)
+		operation := func() error {
+			return checkVersion(client, u)
+		}
+		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+			log.Printf("Version error: %v\n", err)
 			return
 		}
 
@@ -69,7 +75,7 @@ var runCmd = &cobra.Command{
 		viper.AddConfigPath(".")
 		err = viper.ReadInConfig()
 		if err != nil {
-			fmt.Printf("Error reading config file: %v\n", err)
+			log.Printf("Error reading config file: %v\n", err)
 			return
 		}
 
@@ -80,24 +86,18 @@ var runCmd = &cobra.Command{
 			output:       viper.GetString("output"),
 		}
 		if err = checkJobReq(j); err != nil {
-			fmt.Printf("Error with user-defined job requirements: %v\n", err)
+			log.Printf("Error with user-defined job requirements: %v\n", err)
 			return
 		}
 
 		m := "POST"
-		s := "https"
-		h := resolveHost()
 		p := path.Join("user", uID, "job")
-		u := url.URL{
-			Scheme: s,
-			Host:   h,
-			Path:   p,
-		}
-		fmt.Printf("Sending job requirements...\n")
+		u.Path = p
+		log.Printf("Sending job requirements...\n")
 
 		req, err := http.NewRequest(m, u.String(), nil)
 		if err != nil {
-			fmt.Printf("error creating request %v %v: %v\n", m, p, err)
+			log.Printf("error creating request %v %v: %v\n", m, p, err)
 			return
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
@@ -108,99 +108,103 @@ var runCmd = &cobra.Command{
 			resp, err = client.Do(req)
 			return err
 		}
-		expBackOff = backoff.NewExponentialBackOff()
-		if err := backoff.Retry(operation, expBackOff); err != nil {
-			fmt.Printf("Error %v %v: %v\n", req.Method, p, err)
+		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Response error header: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
-		fmt.Printf("Job requirements sent!\n")
+		log.Printf("Job requirements sent!\n")
 
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		go buildImage(u, jID, authToken, j.main, j.requirements)
-		go runAuction(u, jID, authToken)
-		go syncData(u, jID, authToken, []string{j.data})
+		// go runAuction(client, u, jID, authToken)
+		// runAuction(client, u, jID, authToken)
+		// go buildImage(client, u, jID, authToken, j.main, j.requirements)
+		buildImage(client, u, jID, authToken, j.main, j.requirements)
+		// go syncData(client, u, jID, authToken, []string{j.data})
+		// go syncData(client, u, jID, authToken, []string{j.data})
 
-		fmt.Printf("Streaming output log... (may take a few minutes to begin)\n")
+		time.Sleep(60 * time.Second)
+
+		log.Printf("Streaming output log... (may take a few minutes to begin)\n")
 		m = "GET"
 		p = path.Join("job", jID, "output", "log")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {
-			fmt.Printf("error creating request %v %v: %v\n", m, p, err)
+			log.Printf("error creating request %v %v: %v\n", m, p, err)
 			return
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		resp, err = client.Do(req)
 		if err != nil {
-			fmt.Printf("Error %v %v: %v\n", req.Method, p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Response error header: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
 
 		_, err = io.Copy(os.Stdout, resp.Body)
 		if err != nil {
-			fmt.Printf("Error copying response body: %v\n", err)
+			log.Printf("Error copying response body: %v\n", err)
 			check.Err(resp.Body.Close)
 			return
 		}
 		check.Err(resp.Body.Close)
 
-		fmt.Printf("Downloading output directory... (may take a few minutes to complete)\n")
+		log.Printf("Downloading output directory... (may take a few minutes to complete)\n")
 		m = "GET"
 		p = path.Join("job", jID, "output", "dir")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {
-			fmt.Printf("error creating request %v %v: %v\n", m, p, err)
+			log.Printf("error creating request %v %v: %v\n", m, p, err)
 			return
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		resp, err = client.Do(req)
 		if err != nil {
-			fmt.Printf("Error %v %v: %v\n", req.Method, p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Response error header: %v\n", resp.Status)
+			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s\n", b)
 			check.Err(resp.Body.Close)
 			return
 		}
 
 		outputDir := filepath.Join(j.output, jID)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
-			fmt.Printf("Error making output dir %v: %v\n", outputDir, err)
+			log.Printf("Error making output dir %v: %v\n", outputDir, err)
 			check.Err(resp.Body.Close)
 			return
 		}
 		if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
-			fmt.Printf("Error unpacking .tar.gz into output dir %v: %v\n", outputDir, err)
+			log.Printf("Error unpacking .tar.gz into output dir %v: %v\n", outputDir, err)
 			check.Err(resp.Body.Close)
 			return
 		}
 		check.Err(resp.Body.Close)
-		fmt.Printf("Job complete!\n")
+		log.Printf("Job complete!\n")
 	},
 }
 
@@ -226,7 +230,7 @@ func checkJobReq(j *jobReq) error {
 		}
 	}
 	if filepath.Dir(j.main) != filepath.Dir(j.output) {
-		fmt.Printf("Warning! Main (%v) will still only be able to save locally to "+
+		log.Printf("Warning! Main (%v) will still only be able to save locally to "+
 			"./output when executing, even though output (%v) has been set to a different "+
 			"directory. Local output to ./output will be saved to your output (%v) at the end "+
 			"of execution. If this is your intended workflow, please ignore this warning.\n",

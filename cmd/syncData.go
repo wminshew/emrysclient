@@ -7,19 +7,17 @@ import (
 	"github.com/wminshew/emrys/pkg/check"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
 )
 
-func syncData(u url.URL, jID, authToken string, data []string) {
-	fmt.Printf("Syncing data...\n")
-
+func syncData(client *http.Client, u url.URL, jID, authToken string, data []string) {
+	log.Printf("Syncing data...\n")
 	m := "POST"
 	p := path.Join("data", jID)
 	u.Path = p
-
-	client := &http.Client{}
 	var req *http.Request
 	var resp *http.Response
 	operation := func() error {
@@ -27,35 +25,33 @@ func syncData(u url.URL, jID, authToken string, data []string) {
 		r, w := io.Pipe()
 		go func() {
 			if err := archiver.TarGz.Write(w, data); err != nil {
-				fmt.Printf("Error tar-gzipping docker context files: %v\n", err)
+				log.Printf("Error tar-gzipping docker context files: %v\n", err)
 				return
 			}
 		}()
 		if req, err = http.NewRequest(m, u.String(), r); err != nil {
-			fmt.Printf("Error creating request %v %v: %v\n", m, p, err)
+			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		if resp, err = client.Do(req); err != nil {
-			fmt.Printf("Error executing request %v %v: %v\n", m, p, err)
+			log.Printf("Error executing request %v %v: %v\n", m, p, err)
 			return err
 		}
 		return nil
 	}
-	expBackOff := backoff.NewExponentialBackOff()
-	if err := backoff.Retry(operation, expBackOff); err != nil {
-		fmt.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 		return
 	}
+	defer check.Err(resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Response error header: %v\n", resp.Status)
+		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		fmt.Printf("Response error detail: %s\n", b)
-		check.Err(resp.Body.Close)
+		log.Printf("Response error detail: %s\n", b)
 		return
 	}
-	check.Err(resp.Body.Close)
-	fmt.Printf("Data synced!\n")
+	log.Printf("Data synced!\n")
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -28,45 +29,37 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func checkVersion(client *http.Client) error {
-	s := "https"
-	h := resolveHost()
+func checkVersion(client *http.Client, u url.URL) error {
 	p := path.Join("user", "version")
-	u := url.URL{
-		Scheme: s,
-		Host:   h,
-		Path:   p,
-	}
+	u.Path = p
 	var resp *http.Response
 	operation := func() error {
 		var err error
 		resp, err = client.Get(u.String())
 		return err
 	}
-	expBackOff := backoff.NewExponentialBackOff()
-	if err := backoff.Retry(operation, expBackOff); err != nil {
-		fmt.Printf("Error GET %v: %v\n", u.String(), err)
+	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+		log.Printf("Error GET %v: %v\n", u.String(), err)
 		return err
 	}
 	defer check.Err(resp.Body.Close)
 
 	verResp := creds.VersionResp{}
-	err := json.NewDecoder(resp.Body).Decode(&verResp)
-	if err != nil {
-		fmt.Printf("Failed to decode version response\n")
+	if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
+		log.Printf("Failed to decode version response\n")
 		return err
 	}
 
 	latestUserVer, err := semver.Make(verResp.Version)
 	if err != nil {
-		fmt.Printf("Failed to convert version response to semver\n")
+		log.Printf("Failed to convert version response to semver\n")
 		return err
 	}
 	if userVer.Major < latestUserVer.Major {
 		return fmt.Errorf("your user version %v is incompatible with the latest and must be updated to continue (%v)", userVer, latestUserVer)
 	}
 	if userVer.LT(latestUserVer) {
-		fmt.Printf("Warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
+		log.Printf("Warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
 	}
 
 	return nil
