@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -57,6 +58,7 @@ var runCmd = &cobra.Command{
 		}
 
 		client := &http.Client{}
+		ctx := context.Background()
 		s := "https"
 		h := resolveHost()
 		u := url.URL{
@@ -125,12 +127,12 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		// go runAuction(client, u, jID, authToken)
-		// runAuction(client, u, jID, authToken)
-		// go buildImage(client, u, jID, authToken, j.main, j.requirements)
-		buildImage(client, u, jID, authToken, j.main, j.requirements)
-		// go syncData(client, u, jID, authToken, []string{j.data})
-		// go syncData(client, u, jID, authToken, []string{j.data})
+		// go runAuction(ctx, client, u, jID, authToken)
+		// runAuction(ctx, client, u, jID, authToken)
+		// go buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
+		buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
+		// go syncData(ctx, client, u, jID, authToken, []string{j.data})
+		// go syncData(ctx, client, u, jID, authToken, []string{j.data})
 
 		time.Sleep(60 * time.Second)
 

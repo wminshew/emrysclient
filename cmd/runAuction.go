@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/wminshew/emrys/pkg/check"
@@ -11,7 +12,7 @@ import (
 	"path"
 )
 
-func runAuction(client *http.Client, u url.URL, jID, authToken string) {
+func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) {
 	log.Printf("Running auction...\n")
 	m := "POST"
 	p := path.Join("auction", jID)
@@ -21,6 +22,7 @@ func runAuction(client *http.Client, u url.URL, jID, authToken string) {
 		log.Printf("Error creating request %v %v: %v\n", m, p, err)
 		return
 	}
+	req = req.WithContext(ctx)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 	var resp *http.Response

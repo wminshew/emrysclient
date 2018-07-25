@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/mholt/archiver"
@@ -13,7 +14,7 @@ import (
 	"path"
 )
 
-func syncData(client *http.Client, u url.URL, jID, authToken string, data []string) {
+func syncData(ctx context.Context, client *http.Client, u url.URL, jID, authToken string, data []string) {
 	log.Printf("Syncing data...\n")
 	m := "POST"
 	p := path.Join("data", jID)
@@ -33,6 +34,7 @@ func syncData(client *http.Client, u url.URL, jID, authToken string, data []stri
 			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
+		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		if resp, err = client.Do(req); err != nil {

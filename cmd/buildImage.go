@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/mholt/archiver"
@@ -14,7 +15,7 @@ import (
 	"path/filepath"
 )
 
-func buildImage(client *http.Client, u url.URL, jID, authToken, main, reqs string) {
+func buildImage(ctx context.Context, client *http.Client, u url.URL, jID, authToken, main, reqs string) {
 	log.Printf("Building image...\n")
 	m := "POST"
 	p := path.Join("image", jID)
@@ -34,6 +35,7 @@ func buildImage(client *http.Client, u url.URL, jID, authToken, main, reqs strin
 			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
+		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 		req.Header.Set("X-Main", filepath.Base(main))
 		req.Header.Set("X-Reqs", filepath.Base(reqs))
