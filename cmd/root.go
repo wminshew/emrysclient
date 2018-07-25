@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log"
 	"os"
 )
 
@@ -29,15 +30,15 @@ func init() {
 	startCmd.Flags().Float64("bid-rate", 0, "Bid rate ($/hr) for mining jobs (required)")
 	startCmd.Flags().SortFlags = false
 	if err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save")); err != nil {
-		fmt.Printf("Error binding pflag config")
+		log.Printf("Error binding pflag config")
 		return
 	}
 	if err := viper.BindPFlag("config", startCmd.Flags().Lookup("config")); err != nil {
-		fmt.Printf("Error binding pflag config")
+		log.Printf("Error binding pflag config")
 		return
 	}
 	if err := viper.BindPFlag("bid-rate", startCmd.Flags().Lookup("bid-rate")); err != nil {
-		fmt.Printf("Error binding pflag bid-rate")
+		log.Printf("Error binding pflag bid-rate")
 		return
 	}
 }
@@ -45,7 +46,7 @@ func init() {
 // Execute the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(1)
 	}
 }
