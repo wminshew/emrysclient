@@ -128,12 +128,6 @@
   version = "v1.0"
 
 [[projects]]
-  name = "github.com/jcuga/golongpoll"
-  packages = ["."]
-  revision = "645f5b7692d8f02ab5537866ae04a00478e91e97"
-  version = "v1.1.0"
-
-[[projects]]
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "c2353362d570a7bfa228149c62842019201cfb71"
@@ -150,12 +144,6 @@
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/nu7hatch/gouuid"
-  packages = ["."]
-  revision = "179d4d0c4d8d407a32af483c2354df1d2c91e6c3"
 
 [[projects]]
   branch = "master"
@@ -316,6 +304,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2879e7c97622cb9dba6f714ee002f9f9451d77450e3d6cdf6b92f91e07a8738f"
+  inputs-digest = "75460fb3bd5bb753e791ece116412a47594abb0365567a7ae3430451256bc0d0"
   solver-name = "gps-cdcl"
   solver-version = 1

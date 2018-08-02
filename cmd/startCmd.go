@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"compress/zlib"
 	"context"
 	"docker.io/go-docker"
 	"docker.io/go-docker/api/types"
@@ -248,78 +247,32 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	busy = true
 	defer func() { busy = false }()
 
-	m = "GET"
-	p = path.Join("image", msg.Job.ID.String())
-	u.Path = p
-	req, err = http.NewRequest(m, u.String(), nil)
-	if err != nil {
-		log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
-		return
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-
-	// TODO: replace with docker pull
 	// TODO: make parallel with data sync
 	log.Printf("Downloading image...\n")
-	// var resp *http.Response
-	operation = func() error {
-		var err error
-		resp, err = client.Do(req)
-		return err
-	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
-		return
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response error header: %v\n", resp.Status)
-		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
-		check.Err(resp.Body.Close)
-		return
-	}
-
-	zResp, err := zlib.NewReader(resp.Body)
-	if err != nil {
-		log.Printf("Error creating zlib img reader: %v\n", err)
-		check.Err(resp.Body.Close)
-		return
-	}
-
 	ctx := context.Background()
-	// TODO: create docker client before connecting websocket
 	cli, err := docker.NewEnvClient()
 	if err != nil {
 		log.Printf("Error creating docker client: %v\n", err)
-		check.Err(resp.Body.Close)
-		check.Err(zResp.Close)
 		return
 	}
-	imgLoadResp, err := cli.ImageLoad(ctx, zResp, false)
+	defer check.Err(cli.Close)
+	registry := "registry.emrys.io"
+	refStr := fmt.Sprintf("%s/%s", registry, msg.Job.ID.String())
+	// refStr := fmt.Sprintf("registry.emrys.io/%s/%s:latest", mID, msg.Job.ID.String())
+	imgPullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
+		RegistryAuth: "none",
+	})
 	if err != nil {
-		log.Printf("Error loading image: %v\n", err)
-		check.Err(resp.Body.Close)
-		check.Err(zResp.Close)
+		log.Printf("Error pulling image: %v\n", err)
 		return
 	}
-	defer check.Err(imgLoadResp.Body.Close)
-	// TODO:
-	// defer func() {
-	// 	imgDelResp, err := cli.ImageRemove(ctx, msg.Job.ID.String(), types.ImageRemoveOptions{
-	// 		Force: true,
-	// 	})
-	// 	if err != nil {
-	// 		log.Printf("Error deleting image %v: %v\n", msg.Job.ID.String(), err)
-	// 		return
-	// 	}
-	// 	for i := range imgDelResp {
-	// 		log.Printf("Deleted: %v", imgDelResp[i].Deleted)
-	// 		log.Printf("Untagged: %v", imgDelResp[i].Untagged)
-	// 	}
-	// }()
-	check.Err(zResp.Close)
-	check.Err(resp.Body.Close)
+	defer check.Err(imgPullResp.Close)
+
+	log.Printf("Pulling image...\n")
+	if err := job.ReadJSON(imgPullResp); err != nil {
+		log.Printf("Error pulling image: %v\n", err)
+		return
+	}
 
 	user, err := user.Current()
 	if err != nil {
@@ -344,7 +297,6 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 	log.Printf("Downloading data...\n")
-	// var resp *http.Response
 	operation = func() error {
 		var err error
 		resp, err = client.Do(req)
