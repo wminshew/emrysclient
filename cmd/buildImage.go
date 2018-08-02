@@ -16,7 +16,6 @@ import (
 )
 
 func buildImage(ctx context.Context, client *http.Client, u url.URL, jID, authToken, main, reqs string) {
-	log.Printf("Building image...\n")
 	m := "POST"
 	p := path.Join("image", jID)
 	u.Path = p
@@ -30,7 +29,12 @@ func buildImage(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 				log.Printf("Error tar-gzipping docker context files: %v\n", err)
 				return
 			}
+			if err := w.Close(); err != nil {
+				log.Printf("Error closing pipe writer: %v\n", err)
+				return
+			}
 		}()
+		log.Printf("Packing image request...\n")
 		if req, err = http.NewRequest(m, u.String(), r); err != nil {
 			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
@@ -40,6 +44,7 @@ func buildImage(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 		req.Header.Set("X-Main", filepath.Base(main))
 		req.Header.Set("X-Reqs", filepath.Base(reqs))
 
+		log.Printf("Building image...\n")
 		if resp, err = client.Do(req); err != nil {
 			log.Printf("Error executing request %v %v: %v\n", m, p, err)
 			return err
