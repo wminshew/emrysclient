@@ -127,13 +127,11 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		// go runAuction(ctx, client, u, jID, authToken)
-		// runAuction(ctx, client, u, jID, authToken)
-		// go buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
-		buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
-		// go syncData(ctx, client, u, jID, authToken, []string{j.data})
-		// go syncData(ctx, client, u, jID, authToken, []string{j.data})
+		go buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
+		go runAuction(ctx, client, u, jID, authToken)
+		go syncData(ctx, client, u, jID, authToken, []string{j.data})
 
+		// TODO: add sync with wait/done or error channels or something
 		time.Sleep(60 * time.Second)
 
 		log.Printf("Streaming output log... (may take a few minutes to begin)\n")
