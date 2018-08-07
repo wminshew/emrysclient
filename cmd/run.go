@@ -22,6 +22,7 @@ import (
 )
 
 type jobReq struct {
+	project      string
 	requirements string
 	main         string
 	data         string
@@ -75,13 +76,13 @@ var runCmd = &cobra.Command{
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
-		err = viper.ReadInConfig()
-		if err != nil {
+		if err := viper.ReadInConfig(); err != nil {
 			log.Printf("Error reading config file: %v\n", err)
 			return
 		}
 
 		j := &jobReq{
+			project:      viper.GetString("project"),
 			requirements: viper.GetString("requirements"),
 			main:         viper.GetString("main"),
 			data:         viper.GetString("data"),
@@ -93,7 +94,7 @@ var runCmd = &cobra.Command{
 		}
 
 		m := "POST"
-		p := path.Join("user", uID, "job")
+		p := path.Join("user", uID, "project", j.project, "job")
 		u.Path = p
 		log.Printf("Sending job requirements...\n")
 
@@ -127,9 +128,9 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		go buildImage(ctx, client, u, jID, authToken, j.main, j.requirements)
+		go buildImage(ctx, client, u, j.project, jID, authToken, j.main, j.requirements)
 		go runAuction(ctx, client, u, jID, authToken)
-		go syncData(ctx, client, u, jID, authToken, []string{j.data})
+		// go syncData(ctx, client, u, j.project, jID, authToken, []string{j.data})
 
 		// TODO: add sync with wait/done or error channels or something
 		time.Sleep(60 * time.Second)

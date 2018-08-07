@@ -1,3 +1,4 @@
+project: "numpy-test"
 requirements: "test/numpy/requirements.txt"
 main: "test/numpy/main.py"
 output: "test/numpy/output"

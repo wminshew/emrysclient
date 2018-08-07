@@ -14,10 +14,10 @@ import (
 	"path"
 )
 
-func syncData(ctx context.Context, client *http.Client, u url.URL, jID, authToken string, data []string) {
+func syncData(ctx context.Context, client *http.Client, u url.URL, project, jID, authToken string, data []string) {
 	log.Printf("Syncing data...\n")
 	m := "POST"
-	p := path.Join("data", jID)
+	p := path.Join("data", project, jID)
 	u.Path = p
 	var req *http.Request
 	var resp *http.Response
