@@ -81,6 +81,7 @@ var loginCmd = &cobra.Command{
 			log.Printf("Failed to store login token: %v\n", err)
 			return
 		}
+		log.Printf("Success! Your login token will expire in %s days\n", c.Duration)
 	},
 }
 

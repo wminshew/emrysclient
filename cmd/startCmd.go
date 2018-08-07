@@ -198,6 +198,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		log.Printf("Version error: %v\n", err)
 		return
 	}
+	jID := msg.Job.ID.String()
 
 	var body bytes.Buffer
 	b := &job.Bid{
@@ -208,7 +209,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		return
 	}
 	m := "POST"
-	p := path.Join("miner", "job", msg.Job.ID.String(), "bid")
+	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), &body)
 	if err != nil {
@@ -243,9 +244,11 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		return
 	}
 	check.Err(resp.Body.Close)
-	log.Printf("You won job %v!\n", msg.Job.ID.String())
+	log.Printf("You won job %v!\n", jID)
 	busy = true
 	defer func() { busy = false }()
+
+	time.Sleep(60 * time.Second)
 
 	// TODO: make parallel with data sync
 	log.Printf("Downloading image...\n")
@@ -257,20 +260,19 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	}
 	defer check.Err(cli.Close)
 	registry := "registry.emrys.io"
-	refStr := fmt.Sprintf("%s/%s", registry, msg.Job.ID.String())
-	// refStr := fmt.Sprintf("registry.emrys.io/%s/%s:latest", mID, msg.Job.ID.String())
-	imgPullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
+	repo := mID
+	refStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
+	pullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
 		RegistryAuth: "none",
 	})
 	if err != nil {
-		log.Printf("Error pulling image: %v\n", err)
+		log.Printf("Error downloading image: %v\n", err)
 		return
 	}
-	defer check.Err(imgPullResp.Close)
+	defer check.Err(pullResp.Close)
 
-	log.Printf("Pulling image...\n")
-	if err := job.ReadJSON(imgPullResp); err != nil {
-		log.Printf("Error pulling image: %v\n", err)
+	if err := job.ReadJSON(pullResp); err != nil {
+		log.Printf("Error downloading image: %v\n", err)
 		return
 	}
 
@@ -279,7 +281,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		log.Printf("Error getting current user: %v\n", err)
 		return
 	}
-	jobDir := filepath.Join(user.HomeDir, ".emrys", msg.Job.ID.String())
+	jobDir := filepath.Join(user.HomeDir, ".emrys", jID)
 	if err = os.MkdirAll(jobDir, 0755); err != nil {
 		log.Printf("Error making job dir %v: %v\n", jobDir, err)
 		return
@@ -287,7 +289,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	defer check.Err(func() error { return os.RemoveAll(jobDir) })
 
 	m = "GET"
-	p = path.Join("data", msg.Job.ID.String())
+	p = path.Join("data", jID)
 	u.Path = p
 	req, err = http.NewRequest(m, u.String(), nil)
 	if err != nil {
@@ -343,7 +345,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
 	c, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: msg.Job.ID.String(),
+		Image: jID,
 		Tty:   true,
 	}, &container.HostConfig{
 		AutoRemove: true,
@@ -383,7 +385,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	}
 
 	m = "POST"
-	p = path.Join("job", msg.Job.ID.String(), "output", "log")
+	p = path.Join("job", jID, "output", "log")
 	u.Path = p
 	req, err = http.NewRequest(m, u.String(), out)
 	if err != nil {
@@ -427,7 +429,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		}
 	}()
 	m = "POST"
-	p = path.Join("job", msg.Job.ID.String(), "output", "dir")
+	p = path.Join("job", jID, "output", "dir")
 	u.Path = p
 	req, err = http.NewRequest(m, u.String(), pr)
 	if err != nil {
