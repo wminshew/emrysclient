@@ -112,11 +112,12 @@ var runCmd = &cobra.Command{
 			return err
 		}
 		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("Response error detail: %s\n", b)
@@ -148,11 +149,12 @@ var runCmd = &cobra.Command{
 
 		resp, err = client.Do(req)
 		if err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("Response error detail: %s\n", b)
@@ -181,11 +183,12 @@ var runCmd = &cobra.Command{
 
 		resp, err = client.Do(req)
 		if err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 			return
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("Response error detail: %s\n", b)

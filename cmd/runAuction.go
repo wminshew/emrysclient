@@ -38,6 +38,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	defer check.Err(resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
 		log.Printf("Response error detail: %s\n", b)
