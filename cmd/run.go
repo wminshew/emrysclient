@@ -218,8 +218,8 @@ func checkJobReq(j *jobReq) error {
 		return errors.New("must specify a project in config or with flag")
 	}
 	projectRegexp := validate.ProjectRegexp()
-	if projectRegexp.MatchString(j.project) {
-		return fmt.Errorf("project must satisfy regex constraints: %s", projectRegexp)
+	if !projectRegexp.MatchString(j.project) {
+		return fmt.Errorf("project (%s) must satisfy regex constraints: %s", j.project, projectRegexp)
 	}
 	if j.main == "" {
 		return errors.New("must specify a main execution file in config or with flag")
