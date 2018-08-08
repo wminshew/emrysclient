@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
+	"github.com/wminshew/emrys/pkg/validate"
 	"io"
 	"io/ioutil"
 	"log"
@@ -213,6 +214,13 @@ var runCmd = &cobra.Command{
 }
 
 func checkJobReq(j *jobReq) error {
+	if j.project == "" {
+		return errors.New("must specify a project in config or with flag")
+	}
+	projectRe := validate.ProjectRe()
+	if projectRe.MatchString(j.project) {
+		return fmt.Errorf("project must satisfy regex constraints: %s", projectRe.String())
+	}
 	if j.main == "" {
 		return errors.New("must specify a main execution file in config or with flag")
 	}
