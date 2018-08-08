@@ -128,9 +128,9 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		go buildImage(ctx, client, u, j.project, jID, authToken, j.main, j.requirements)
+		go buildImage(ctx, client, u, uID, j.project, jID, authToken, j.main, j.requirements)
 		go runAuction(ctx, client, u, jID, authToken)
-		// go syncData(ctx, client, u, j.project, jID, authToken, []string{j.data})
+		// go syncData(ctx, client, u, uID, j.project, jID, authToken, []string{j.data})
 
 		// TODO: add sync with wait/done or error channels or something
 		time.Sleep(60 * time.Second)

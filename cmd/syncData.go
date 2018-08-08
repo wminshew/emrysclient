@@ -14,7 +14,7 @@ import (
 	"path"
 )
 
-func syncData(ctx context.Context, client *http.Client, u url.URL, project, jID, authToken string, data []string) {
+func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken string, data []string) {
 	log.Printf("Syncing data...\n")
 	m := "POST"
 	p := path.Join("data", project, jID)

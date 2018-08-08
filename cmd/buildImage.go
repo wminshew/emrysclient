@@ -15,9 +15,9 @@ import (
 	"path/filepath"
 )
 
-func buildImage(ctx context.Context, client *http.Client, u url.URL, project, jID, authToken, main, reqs string) {
+func buildImage(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken, main, reqs string) {
 	m := "POST"
-	p := path.Join("image", project, jID)
+	p := path.Join("image", uID, project, jID)
 	u.Path = p
 	var req *http.Request
 	var resp *http.Response
