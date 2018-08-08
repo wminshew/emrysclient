@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/emrys/pkg/jsonmessage"
 	"io"
 	"io/ioutil"
 	"log"
@@ -260,7 +261,8 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	}
 	defer check.Err(cli.Close)
 	registry := "registry.emrys.io"
-	repo := mID
+	// repo := mID
+	repo := "miner"
 	refStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
 	pullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
 		RegistryAuth: "none",
@@ -271,7 +273,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	}
 	defer check.Err(pullResp.Close)
 
-	if err := job.ReadJSON(pullResp); err != nil {
+	if err := jsonmessage.DisplayJSONMessagesStream(pullResp, os.Stdout, os.Stdout.Fd(), nil); err != nil {
 		log.Printf("Error downloading image: %v\n", err)
 		return
 	}
