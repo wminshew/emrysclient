@@ -110,6 +110,12 @@
   version = "v0.1.1"
 
 [[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/spf13/afero"
   packages = [
     ".",
@@ -164,9 +170,11 @@
   name = "github.com/wminshew/emrys"
   packages = [
     "pkg/check",
-    "pkg/creds"
+    "pkg/creds",
+    "pkg/job",
+    "pkg/validate"
   ]
-  revision = "0fb579cc068ce026e522340b45c751a94e82d781"
+  revision = "6d6d07fcc0f775b9ca3f07bfbf83cd7d077e6e14"
 
 [[projects]]
   branch = "master"
@@ -211,6 +219,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bac627c3933e45a4c0b2800a57e6f9bd3c78920acf4b81f2e58b04c84dac5b43"
+  inputs-digest = "117431a24f8a2de13d3849cab53ce31d4cb8ad7a969f06cc812c74966f228ba9"
   solver-name = "gps-cdcl"
   solver-version = 1

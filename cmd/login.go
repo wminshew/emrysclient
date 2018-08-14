@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"strconv"
 	"strings"
@@ -99,25 +98,4 @@ func userLogin(c *creds.User) {
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
 	fmt.Println()
-}
-
-func storeToken(t string) error {
-	var perm os.FileMode
-	perm = 0755
-	u, err := user.Current()
-	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
-		return err
-	}
-	dir := path.Join(u.HomeDir, ".config", "emrys")
-	if err := os.MkdirAll(dir, perm); err != nil {
-		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
-		return err
-	}
-	p := path.Join(dir, "jwt")
-	if err := ioutil.WriteFile(p, []byte(t), perm); err != nil {
-		log.Printf("Failed to write login token to disk at %s: %v", p, err)
-		return err
-	}
-	return nil
 }

@@ -2,35 +2,105 @@ package cmd
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
-	"github.com/mholt/archiver"
+	// "github.com/mholt/archiver"
 	"github.com/wminshew/emrys/pkg/check"
+	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
+	// "time"
 )
 
-func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken string, data []string) {
+func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
 	log.Printf("Syncing data...\n")
 	m := "POST"
-	p := path.Join("data", project, jID)
+	h := "data.emrys.io"
+	p := path.Join("user", uID, "project", project, "job", jID)
+	u.Host = h
 	u.Path = p
+
 	var req *http.Request
 	var resp *http.Response
 	operation := func() error {
-		var err error
 		r, w := io.Pipe()
+		storeR, storeW := io.Pipe()
+		tee := io.TeeReader(r, storeW)
 		go func() {
-			if err := archiver.TarGz.Write(w, data); err != nil {
-				log.Printf("Error tar-gzipping docker context files: %v\n", err)
+			defer check.Err(w.Close)
+			if dataDir == "" {
+				log.Printf("No data directory provided.\n")
+				return
+			}
+			oldDataJSON := make(map[string]job.FileMetadata)
+			if err := getProjectDataMeta(project, &oldDataJSON); err != nil {
+				log.Printf("Error getting data directory metadata: %v\n", err)
+				return
+			}
+
+			newDataJSON := make(map[string]job.FileMetadata)
+			if err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() {
+					return nil
+				}
+
+				rP, err := filepath.Rel(dataDir, path)
+				if err != nil {
+					return err
+				}
+				mT := info.ModTime().UnixNano()
+				f, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				defer check.Err(f.Close)
+				if oldFileMD, ok := oldDataJSON[rP]; ok {
+					if oldFileMD.ModTime == mT {
+						newDataJSON[rP] = oldFileMD
+						return nil
+					}
+				}
+				h := md5.New()
+				if _, err := io.Copy(h, f); err != nil {
+					return err
+				}
+				hStr := base64.StdEncoding.EncodeToString(h.Sum(nil))
+				fileMD := job.FileMetadata{
+					ModTime: mT,
+					Hash:    hStr,
+				}
+				newDataJSON[rP] = fileMD
+				return nil
+			}); err != nil {
+				log.Printf("Error walking data directory %s: %v\n", dataDir, err)
+				return
+			}
+
+			if err := json.NewEncoder(w).Encode(newDataJSON); err != nil {
+				log.Printf("Error encoding data directory as JSON: %v\n", err)
 				return
 			}
 		}()
-		if req, err = http.NewRequest(m, u.String(), r); err != nil {
+		go func() {
+			if err := storeProjectDataMeta(project, storeR); err != nil {
+				log.Printf("Error storing data directory metadata: %v\n", err)
+				return
+			}
+		}()
+		var err error
+		if req, err = http.NewRequest(m, u.String(), tee); err != nil {
 			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
@@ -56,5 +126,6 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 		log.Printf("Response error detail: %s\n", b)
 		return
 	}
+
 	log.Printf("Data synced!\n")
 }
