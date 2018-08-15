@@ -41,6 +41,9 @@ func init() {
 		if err := viper.BindPFlag("config", runCmd.Flags().Lookup("config")); err != nil {
 			return err
 		}
+		if err := viper.BindPFlag("project", runCmd.Flags().Lookup("project")); err != nil {
+			return err
+		}
 		if err := viper.BindPFlag("requirements", runCmd.Flags().Lookup("requirements")); err != nil {
 			return err
 		}

@@ -174,7 +174,7 @@
     "pkg/job",
     "pkg/validate"
   ]
-  revision = "6d6d07fcc0f775b9ca3f07bfbf83cd7d077e6e14"
+  revision = "16a2558af8a5da8e131151ec7ae28f34edc0379b"
 
 [[projects]]
   branch = "master"
