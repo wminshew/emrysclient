@@ -41,13 +41,13 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				log.Printf("No data directory provided.\n")
 				return
 			}
-			oldDataJSON := make(map[string]job.FileMetadata)
-			if err := getProjectDataMeta(project, &oldDataJSON); err != nil {
+			oldMetadata := make(map[string]job.FileMetadata)
+			if err := getProjectDataMetadata(project, &oldMetadata); err != nil {
 				log.Printf("Error getting data directory metadata: %v\n", err)
 				return
 			}
 
-			newDataJSON := make(map[string]job.FileMetadata)
+			newMetadata := make(map[string]job.FileMetadata)
 			if err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
@@ -66,9 +66,9 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 					return err
 				}
 				defer check.Err(f.Close)
-				if oldFileMD, ok := oldDataJSON[rP]; ok {
+				if oldFileMD, ok := oldMetadata[rP]; ok {
 					if oldFileMD.ModTime == mT {
-						newDataJSON[rP] = oldFileMD
+						newMetadata[rP] = oldFileMD
 						return nil
 					}
 				}
@@ -81,20 +81,20 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 					ModTime: mT,
 					Hash:    hStr,
 				}
-				newDataJSON[rP] = fileMD
+				newMetadata[rP] = fileMD
 				return nil
 			}); err != nil {
 				log.Printf("Error walking data directory %s: %v\n", dataDir, err)
 				return
 			}
 
-			if err := json.NewEncoder(w).Encode(newDataJSON); err != nil {
+			if err := json.NewEncoder(w).Encode(newMetadata); err != nil {
 				log.Printf("Error encoding data directory as JSON: %v\n", err)
 				return
 			}
 		}()
 		go func() {
-			if err := storeProjectDataMeta(project, storeR); err != nil {
+			if err := storeProjectDataMetadata(project, storeR); err != nil {
 				log.Printf("Error storing data directory metadata: %v\n", err)
 				return
 			}

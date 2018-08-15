@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-func storeProjectDataMeta(project string, r io.Reader) error {
+func storeProjectDataMetadata(project string, r io.Reader) error {
 	var perm os.FileMode
 	perm = 0755
 	u, err := user.Current()

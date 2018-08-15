@@ -11,7 +11,7 @@ import (
 	"path"
 )
 
-func getProjectDataMeta(project string, dataJSON *map[string]job.FileMetadata) error {
+func getProjectDataMetadata(project string, dataJSON *map[string]job.FileMetadata) error {
 	u, err := user.Current()
 	if err != nil {
 		log.Printf("Failed to get current user: %v\n", err)
