@@ -66,9 +66,9 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 					return err
 				}
 				defer check.Err(f.Close)
-				if oldFileMD, ok := oldMetadata[rP]; ok {
-					if oldFileMD.ModTime == mT {
-						newMetadata[rP] = oldFileMD
+				if oldFileMd, ok := oldMetadata[rP]; ok {
+					if oldFileMd.ModTime == mT {
+						newMetadata[rP] = oldFileMd
 						return nil
 					}
 				}
@@ -77,11 +77,11 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 					return err
 				}
 				hStr := base64.StdEncoding.EncodeToString(h.Sum(nil))
-				fileMD := job.FileMetadata{
+				fileMd := job.FileMetadata{
 					ModTime: mT,
 					Hash:    hStr,
 				}
-				newMetadata[rP] = fileMD
+				newMetadata[rP] = fileMd
 				return nil
 			}); err != nil {
 				log.Printf("Error walking data directory %s: %v\n", dataDir, err)
