@@ -135,60 +135,105 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 	check.Err(resp.Body.Close)
 
 	log.Printf("%d file(s) to upload\n", len(uploadList))
-	// TODO: use some kind of worker queue with channels to avoid overloading server / user
-	m = "PUT"
-	for _, relPath := range uploadList {
-		operation := func() error {
-			var err error
-			log.Printf(" Uploading: %v\n", relPath)
 
-			uploadFilepath := path.Join(dataDir, relPath)
-			f, err := os.Open(uploadFilepath)
-			if err != nil {
-				log.Printf("Error opening file %v: %v\n", p, err)
-				return err
-			}
-			r, w := io.Pipe()
-			zw := zlib.NewWriter(w)
-			go func() {
-				defer check.Err(w.Close)
-				defer check.Err(zw.Close)
-				defer check.Err(f.Close)
-				if _, err := io.Copy(zw, f); err != nil {
-					log.Printf("Error copying file to zlib writer: %v\n", err)
-					return
+	if len(uploadList) > 0 {
+		numUploaders := 5
+		done := make(chan struct{}, 1)
+		errCh := make(chan error, numUploaders)
+		chanUploadPath := make(chan string, numUploaders)
+		results := make(chan string, numUploaders)
+		for i := 0; i < numUploaders; i++ {
+			go uploadWorker(ctx, client, u, authToken, dataDir, done, errCh, chanUploadPath, results)
+		}
+
+		for _, relPath := range uploadList {
+			chanUploadPath <- relPath
+		}
+
+		n := 0
+	loop:
+		for {
+			select {
+			case err := <-errCh:
+				close(done)
+				log.Printf("Error uploading data set: %v\n", err)
+				return
+			case result := <-results:
+				log.Printf(result)
+				n++
+				if n == len(uploadList) {
+					break loop
 				}
-			}()
-
-			u.Path = path.Join(p, relPath)
-			if req, err = http.NewRequest(m, u.String(), r); err != nil {
-				log.Printf("Error creating request %v %v: %v\n", m, p, err)
-				return err
 			}
-			req = req.WithContext(ctx)
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-
-			if resp, err = client.Do(req); err != nil {
-				log.Printf("Error executing request %v %v: %v\n", m, p, err)
-				return err
-			}
-			return nil
 		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
-			return
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
-			log.Printf("Response error header: %v\n", resp.Status)
-			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
-			return
-		}
-
-		fmt.Printf("Complete: %s\n", relPath)
 	}
 
 	log.Printf("Data synced!\n")
+}
+
+// TODO: add switch
+func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken, dataDir string, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
+	basePath := u.Path
+	for {
+		select {
+		case <-done:
+			return
+		case relPath := <-upload:
+			var req *http.Request
+			var resp *http.Response
+			operation := func() error {
+				var err error
+				log.Printf(" Uploading: %v\n", relPath)
+
+				uploadFilepath := path.Join(dataDir, relPath)
+				f, err := os.Open(uploadFilepath)
+				if err != nil {
+					log.Printf("Error opening file %v: %v\n", uploadFilepath, err)
+					return err
+				}
+				r, w := io.Pipe()
+				zw := zlib.NewWriter(w)
+				go func() {
+					defer check.Err(w.Close)
+					defer check.Err(zw.Close)
+					defer check.Err(f.Close)
+					if _, err := io.Copy(zw, f); err != nil {
+						log.Printf("Error copying file to zlib writer: %v\n", err)
+						return
+					}
+				}()
+
+				m := "PUT"
+				u.Path = path.Join(basePath, relPath)
+				if req, err = http.NewRequest(m, u.String(), r); err != nil {
+					log.Printf("Error creating request %v %v: %v\n", m, u.Path, err)
+					return err
+				}
+				req = req.WithContext(ctx)
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+				if resp, err = client.Do(req); err != nil {
+					log.Printf("Error executing request %v %v: %v\n", m, u.Path, err)
+					return err
+				}
+				return nil
+			}
+			if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+				log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+				errCh <- err
+				return
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
+				log.Printf("Response error header: %v\n", resp.Status)
+				b, _ := ioutil.ReadAll(resp.Body)
+				log.Printf("Response error detail: %s\n", b)
+				errCh <- fmt.Errorf("Upload error %s", b)
+				return
+			}
+
+			results <- fmt.Sprintf("Complete: %s\n", relPath)
+		}
+	}
 }
