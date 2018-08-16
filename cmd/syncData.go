@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
-	// "github.com/mholt/archiver"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io"
@@ -20,7 +19,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	// "time"
 )
 
 func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
