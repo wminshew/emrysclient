@@ -140,12 +140,12 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 	for _, relPath := range uploadList {
 		operation := func() error {
 			var err error
-			log.Printf(" Uploading file: %v...", relPath)
+			log.Printf(" Uploading: %v\n", relPath)
 
 			uploadFilepath := path.Join(dataDir, relPath)
 			f, err := os.Open(uploadFilepath)
 			if err != nil {
-				log.Printf("\nError opening file %v: %v\n", p, err)
+				log.Printf("Error opening file %v: %v\n", p, err)
 				return err
 			}
 			r, w := io.Pipe()
@@ -155,21 +155,21 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				defer check.Err(zw.Close)
 				defer check.Err(f.Close)
 				if _, err := io.Copy(zw, f); err != nil {
-					log.Printf("\nError copying file to zlib writer: %v\n", err)
+					log.Printf("Error copying file to zlib writer: %v\n", err)
 					return
 				}
 			}()
 
 			u.Path = path.Join(p, relPath)
 			if req, err = http.NewRequest(m, u.String(), r); err != nil {
-				log.Printf("\nError creating request %v %v: %v\n", m, p, err)
+				log.Printf("Error creating request %v %v: %v\n", m, p, err)
 				return err
 			}
 			req = req.WithContext(ctx)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 			if resp, err = client.Do(req); err != nil {
-				log.Printf("\nError executing request %v %v: %v\n", m, p, err)
+				log.Printf("Error executing request %v %v: %v\n", m, p, err)
 				return err
 			}
 			return nil
@@ -180,14 +180,14 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("\nFailed %s %s\n", req.Method, req.URL.Path)
+			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("Response error detail: %s\n", b)
 			return
 		}
 
-		fmt.Printf(" complete!\n")
+		fmt.Printf("Complete: %s\n", relPath)
 	}
 
 	log.Printf("Data synced!\n")
