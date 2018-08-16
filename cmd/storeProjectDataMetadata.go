@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/wminshew/emrys/pkg/check"
 	"io"
 	"log"
 	"os"
@@ -28,6 +29,7 @@ func storeProjectDataMetadata(project string, r io.Reader) error {
 		log.Printf("Failed to create file %s to save project %s metadata: %v\n", p, project, err)
 		return err
 	}
+	defer check.Err(f.Close)
 	if _, err := io.Copy(f, r); err != nil {
 		log.Printf("Failed to write project %s metadata to disk at %s: %v", project, p, err)
 		return err

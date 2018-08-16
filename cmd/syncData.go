@@ -66,19 +66,20 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				if err != nil {
 					return err
 				}
+				defer check.Err(f.Close)
 				if oldFileMd, ok := oldMetadata[rP]; ok {
 					if oldFileMd.ModTime == mT {
 						newMetadata[rP] = oldFileMd
-						check.Err(f.Close)
+						// check.Err(f.Close)
 						return nil
 					}
 				}
 				h := md5.New()
 				if _, err := io.Copy(h, f); err != nil {
-					check.Err(f.Close)
+					// check.Err(f.Close)
 					return err
 				}
-				check.Err(f.Close)
+				// check.Err(f.Close)
 				hStr := base64.StdEncoding.EncodeToString(h.Sum(nil))
 				fileMd := job.FileMetadata{
 					ModTime: mT,
