@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -31,21 +32,13 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 
 	var req *http.Request
 	var resp *http.Response
+	bodyBuf := &bytes.Buffer{}
 	operation := func() error {
-		r, w := io.Pipe()
-		storeR, storeW := io.Pipe()
-		tee := io.TeeReader(r, storeW)
-		go func() {
-			defer check.Err(storeW.Close)
-			defer check.Err(w.Close)
-			if dataDir == "" {
-				log.Printf("No data directory provided.\n")
-				return
-			}
+		if dataDir != "" {
 			oldMetadata := make(map[string]job.FileMetadata)
 			if err := getProjectDataMetadata(project, &oldMetadata); err != nil {
 				log.Printf("Error getting data directory metadata: %v\n", err)
-				return
+				return err
 			}
 
 			newMetadata := make(map[string]job.FileMetadata)
@@ -89,22 +82,26 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				return nil
 			}); err != nil {
 				log.Printf("Error walking data directory %s: %v\n", dataDir, err)
-				return
+				return err
 			}
 
-			if err := json.NewEncoder(w).Encode(newMetadata); err != nil {
+			if err := json.NewEncoder(bodyBuf).Encode(newMetadata); err != nil {
 				log.Printf("Error encoding data directory as JSON: %v\n", err)
-				return
+				return err
 			}
-		}()
-		go func() {
-			if err := storeProjectDataMetadata(project, storeR); err != nil {
-				log.Printf("Error storing data directory metadata: %v\n", err)
-				return
-			}
-		}()
+		} else {
+			log.Printf("No data directory provided.\n")
+		}
+
+		reqBodyBuf := &bytes.Buffer{}
+		tee := io.TeeReader(bodyBuf, reqBodyBuf)
+		if err := storeProjectDataMetadata(project, tee); err != nil {
+			log.Printf("Error storing data directory metadata: %v\n", err)
+			return err
+		}
+
 		var err error
-		if req, err = http.NewRequest(m, u.String(), tee); err != nil {
+		if req, err = http.NewRequest(m, u.String(), reqBodyBuf); err != nil {
 			log.Printf("Error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
