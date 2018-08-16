@@ -61,7 +61,7 @@ func buildImage(ctx context.Context, client *http.Client, u url.URL, uID, projec
 		log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
+		log.Printf("Response error detail: %s", b)
 		return
 	}
 	log.Printf("Image built!\n")

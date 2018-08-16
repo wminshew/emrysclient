@@ -121,7 +121,7 @@ var runCmd = &cobra.Command{
 			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s", b)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -158,7 +158,7 @@ var runCmd = &cobra.Command{
 			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s", b)
 			check.Err(resp.Body.Close)
 			return
 		}
@@ -192,7 +192,7 @@ var runCmd = &cobra.Command{
 			log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s", b)
 			check.Err(resp.Body.Close)
 			return
 		}

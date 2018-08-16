@@ -67,7 +67,7 @@ var loginCmd = &cobra.Command{
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("Response error header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
+			log.Printf("Response error detail: %s", b)
 			return
 		}
 

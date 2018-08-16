@@ -121,7 +121,7 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 		log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
+		log.Printf("Response error detail: %s", b)
 		check.Err(resp.Body.Close)
 		return
 	}
@@ -228,7 +228,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
 				log.Printf("Response error header: %v\n", resp.Status)
 				b, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Response error detail: %s\n", b)
+				log.Printf("Response error detail: %s", b)
 				errCh <- fmt.Errorf("Upload error %s", b)
 				return
 			}
