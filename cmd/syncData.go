@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"compress/zlib"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -63,16 +64,13 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				if oldFileMd, ok := oldMetadata[rP]; ok {
 					if oldFileMd.ModTime == mT {
 						newMetadata[rP] = oldFileMd
-						// check.Err(f.Close)
 						return nil
 					}
 				}
 				h := md5.New()
 				if _, err := io.Copy(h, f); err != nil {
-					// check.Err(f.Close)
 					return err
 				}
-				// check.Err(f.Close)
 				hStr := base64.StdEncoding.EncodeToString(h.Sum(nil))
 				fileMd := job.FileMetadata{
 					ModTime: mT,
@@ -152,19 +150,20 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 				log.Printf("Error opening file %v: %v\n", p, err)
 				return err
 			}
-			// TODO: add zlib w/ pipe
-			// r, w := io.Pipe()
-			// zw := zlib.NewWriter(w)
-			// go func() {
-			//	_, err := io.Copy(zw, f); err != nil {
-			//	log.Printf("Error copying file to zlib writer: %v\n", err)
-			//	return
-			// }
-			// }()
+			r, w := io.Pipe()
+			zw := zlib.NewWriter(w)
+			go func() {
+				defer check.Err(w.Close)
+				defer check.Err(zw.Close)
+				defer check.Err(f.Close)
+				if _, err := io.Copy(zw, f); err != nil {
+					log.Printf("Error copying file to zlib writer: %v\n", err)
+					return
+				}
+			}()
 
 			u.Path = path.Join(p, relPath)
-			// if req, err = http.NewRequest(m, u.String(), r); err != nil {
-			if req, err = http.NewRequest(m, u.String(), f); err != nil {
+			if req, err = http.NewRequest(m, u.String(), r); err != nil {
 				log.Printf("Error creating request %v %v: %v\n", m, p, err)
 				return err
 			}
