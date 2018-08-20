@@ -13,9 +13,11 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"sync"
 )
 
-func buildImage(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken, main, reqs string) {
+func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken, main, reqs string) {
+	defer wg.Done()
 	m := "POST"
 	p := path.Join("image", uID, project, jID)
 	u.Path = p
@@ -53,6 +55,7 @@ func buildImage(ctx context.Context, client *http.Client, u url.URL, uID, projec
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		errCh <- err
 		return
 	}
 	defer check.Err(resp.Body.Close)
@@ -62,6 +65,7 @@ func buildImage(ctx context.Context, client *http.Client, u url.URL, uID, projec
 		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
 		log.Printf("Response error detail: %s", b)
+		errCh <- fmt.Errorf("%s", b)
 		return
 	}
 	log.Printf("Image built!\n")

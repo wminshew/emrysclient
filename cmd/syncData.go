@@ -19,9 +19,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 )
 
-func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
+func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
+	defer wg.Done()
 	log.Printf("Syncing data...\n")
 	m := "POST"
 	h := "data.emrys.io"
@@ -112,6 +114,7 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		errCh <- err
 		return
 	}
 
@@ -121,6 +124,7 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 		b, _ := ioutil.ReadAll(resp.Body)
 		log.Printf("Response error detail: %s", b)
 		check.Err(resp.Body.Close)
+		errCh <- fmt.Errorf("%s", b)
 		return
 	}
 
@@ -128,6 +132,7 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 	if err := json.NewDecoder(resp.Body).Decode(&uploadList); err != nil && err != io.EOF {
 		log.Printf("Failed to decode response body into string slice: %v\n", err)
 		check.Err(resp.Body.Close)
+		errCh <- err
 		return
 	}
 	check.Err(resp.Body.Close)
@@ -136,16 +141,16 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 
 	if len(uploadList) > 0 {
 		numUploaders := 5
-		done := make(chan struct{}, 1)
+		done := make(chan struct{})
 		errCh := make(chan error, numUploaders)
-		chanUploadPath := make(chan string, numUploaders)
+		chUploadPaths := make(chan string, numUploaders)
 		results := make(chan string, numUploaders)
 		for i := 0; i < numUploaders; i++ {
-			go uploadWorker(ctx, client, u, authToken, dataDir, done, errCh, chanUploadPath, results)
+			go uploadWorker(ctx, client, u, authToken, dataDir, done, errCh, chUploadPaths, results)
 		}
 
 		for _, relPath := range uploadList {
-			chanUploadPath <- relPath
+			chUploadPaths <- relPath
 		}
 
 		n := 0
@@ -155,6 +160,7 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 			case err := <-errCh:
 				close(done)
 				log.Printf("Error uploading data set: %v\n", err)
+				errCh <- err
 				return
 			case result := <-results:
 				log.Printf(result)
@@ -169,7 +175,6 @@ func syncData(ctx context.Context, client *http.Client, u url.URL, uID, project,
 	log.Printf("Data synced!\n")
 }
 
-// TODO: add switch
 func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken, dataDir string, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
 	basePath := u.Path
 	for {

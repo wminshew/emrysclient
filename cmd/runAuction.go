@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 )
 
-func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) {
+func runAuction(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, jID, authToken string) {
+	defer wg.Done()
 	log.Printf("Running auction...\n")
 	m := "POST"
 	p := path.Join("auction", jID)
@@ -20,6 +22,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	req, err := http.NewRequest(m, u.String(), nil)
 	if err != nil {
 		log.Printf("Error creating request %v %v: %v\n", m, p, err)
+		errCh <- err
 		return
 	}
 	req = req.WithContext(ctx)
@@ -33,6 +36,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		errCh <- err
 		return
 	}
 	defer check.Err(resp.Body.Close)
@@ -42,6 +46,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 		log.Printf("Response error header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
 		log.Printf("Response error detail: %s", b)
+		errCh <- fmt.Errorf("%s", b)
 		return
 	}
 	log.Printf("Miner selected!\n")

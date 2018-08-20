@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -130,12 +131,22 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		// go buildImage(ctx, client, u, uID, j.project, jID, authToken, j.main, j.requirements)
-		// go runAuction(ctx, client, u, jID, authToken)
-		go syncData(ctx, client, u, uID, j.project, jID, authToken, j.data)
-
-		// TODO: add sync with wait/done or error channels or something
-		time.Sleep(60 * time.Second)
+		errCh := make(chan error, 3)
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go buildImage(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.main, j.requirements)
+		go runAuction(ctx, &wg, errCh, client, u, jID, authToken)
+		go syncData(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.data)
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-errCh:
+			return
+		}
 
 		log.Printf("Streaming output log... (may take a few minutes to begin)\n")
 		m = "GET"
