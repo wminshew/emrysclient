@@ -24,7 +24,7 @@ import (
 
 func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
 	defer wg.Done()
-	log.Printf("Syncing data...\n")
+	log.Printf("Data: syncing...\n")
 	m := "POST"
 	h := "data.emrys.io"
 	p := path.Join("user", uID, "project", project, "job", jID)
@@ -38,7 +38,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		if dataDir != "" {
 			oldMetadata := make(map[string]job.FileMetadata)
 			if err := getProjectDataMetadata(project, &oldMetadata); err != nil {
-				log.Printf("Error getting data directory metadata: %v\n", err)
+				log.Printf("Data: error getting directory metadata: %v\n", err)
 				return err
 			}
 
@@ -79,50 +79,50 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 				newMetadata[rP] = fileMd
 				return nil
 			}); err != nil {
-				log.Printf("Error walking data directory %s: %v\n", dataDir, err)
+				log.Printf("Data: error walking directory %s: %v\n", dataDir, err)
 				return err
 			}
 
 			if err := json.NewEncoder(bodyBuf).Encode(newMetadata); err != nil {
-				log.Printf("Error encoding data directory as JSON: %v\n", err)
+				log.Printf("Data: error encoding directory as JSON: %v\n", err)
 				return err
 			}
 		} else {
-			log.Printf("No data directory provided.\n")
+			log.Printf("Data: no directory provided.\n")
 		}
 
 		reqBodyBuf := &bytes.Buffer{}
 		tee := io.TeeReader(bodyBuf, reqBodyBuf)
 		if err := storeProjectDataMetadata(project, tee); err != nil {
-			log.Printf("Error storing data directory metadata: %v\n", err)
+			log.Printf("Data: error storing directory metadata: %v\n", err)
 			return err
 		}
 
 		var err error
 		if req, err = http.NewRequest(m, u.String(), reqBodyBuf); err != nil {
-			log.Printf("Error creating request %v %v: %v\n", m, p, err)
+			log.Printf("Data: error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
 		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		if resp, err = client.Do(req); err != nil {
-			log.Printf("Error executing request %v %v: %v\n", m, p, err)
+			log.Printf("Data: error executing request %v %v: %v\n", m, p, err)
 			return err
 		}
 		return nil
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		log.Printf("Data: error %v %v: %v\n", req.Method, req.URL.Path, err)
 		errCh <- err
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
-		log.Printf("Response error header: %v\n", resp.Status)
+		log.Printf("Data: error %s %s\n", req.Method, req.URL.Path)
+		log.Printf("Data: response header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s", b)
+		log.Printf("Data: response detail: %s", b)
 		check.Err(resp.Body.Close)
 		errCh <- fmt.Errorf("%s", b)
 		return
@@ -130,14 +130,14 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 
 	uploadList := []string{}
 	if err := json.NewDecoder(resp.Body).Decode(&uploadList); err != nil && err != io.EOF {
-		log.Printf("Failed to decode response body into string slice: %v\n", err)
+		log.Printf("Data: failed to decode response body into string slice: %v\n", err)
 		check.Err(resp.Body.Close)
 		errCh <- err
 		return
 	}
 	check.Err(resp.Body.Close)
 
-	log.Printf("%d file(s) to upload\n", len(uploadList))
+	log.Printf("Data: %d file(s) to upload\n", len(uploadList))
 
 	if len(uploadList) > 0 {
 		numUploaders := 5
@@ -159,7 +159,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 			select {
 			case err := <-errCh:
 				close(done)
-				log.Printf("Error uploading data set: %v\n", err)
+				log.Printf("Data: error uploading data set: %v\n", err)
 				errCh <- err
 				return
 			case result := <-results:
@@ -172,7 +172,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		}
 	}
 
-	log.Printf("Data synced!\n")
+	log.Printf("Data: synced!\n")
 }
 
 func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken, dataDir string, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
@@ -186,12 +186,12 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 			var resp *http.Response
 			operation := func() error {
 				var err error
-				log.Printf(" Uploading: %v\n", relPath)
+				log.Printf("Data: uploading: %v\n", relPath)
 
 				uploadFilepath := path.Join(dataDir, relPath)
 				f, err := os.Open(uploadFilepath)
 				if err != nil {
-					log.Printf("Error opening file %v: %v\n", uploadFilepath, err)
+					log.Printf("Data: error opening file %v: %v\n", uploadFilepath, err)
 					return err
 				}
 				r, w := io.Pipe()
@@ -201,7 +201,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 					defer check.Err(zw.Close)
 					defer check.Err(f.Close)
 					if _, err := io.Copy(zw, f); err != nil {
-						log.Printf("Error copying file to zlib writer: %v\n", err)
+						log.Printf("Data: error copying file to zlib writer: %v\n", err)
 						return
 					}
 				}()
@@ -209,34 +209,34 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				m := "PUT"
 				u.Path = path.Join(basePath, relPath)
 				if req, err = http.NewRequest(m, u.String(), r); err != nil {
-					log.Printf("Error creating request %v %v: %v\n", m, u.Path, err)
+					log.Printf("Data: error creating request %v %v: %v\n", m, u.Path, err)
 					return err
 				}
 				req = req.WithContext(ctx)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 				if resp, err = client.Do(req); err != nil {
-					log.Printf("Error executing request %v %v: %v\n", m, u.Path, err)
+					log.Printf("Data: error executing request %v %v: %v\n", m, u.Path, err)
 					return err
 				}
 				return nil
 			}
 			if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-				log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+				log.Printf("Data: error %v %v: %v\n", req.Method, req.URL.Path, err)
 				errCh <- err
 				return
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
-				log.Printf("Response error header: %v\n", resp.Status)
+				log.Printf("Data: error %s %s\n", req.Method, req.URL.Path)
+				log.Printf("Data: response header: %v\n", resp.Status)
 				b, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Response error detail: %s", b)
-				errCh <- fmt.Errorf("Upload error %s", b)
+				log.Printf("Data: response detail: %s", b)
+				errCh <- fmt.Errorf("Data: upload error %s", b)
 				return
 			}
 
-			results <- fmt.Sprintf("Complete: %s\n", relPath)
+			results <- fmt.Sprintf("Data: uploaded %s\n", relPath)
 		}
 	}
 }

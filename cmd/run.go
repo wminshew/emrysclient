@@ -152,9 +152,9 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		log.Printf("Streaming output log... (may take a few minutes to begin)\n")
+		log.Printf("Streaming output log... (may take a minute to begin)\n")
 		m = "GET"
-		p = path.Join("job", jID, "output", "log")
+		p = path.Join("job", jID, "log")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {
@@ -186,9 +186,9 @@ var runCmd = &cobra.Command{
 		}
 		check.Err(resp.Body.Close)
 
-		log.Printf("Downloading output directory... (may take a few minutes to complete)\n")
+		log.Printf("Downloading output directory... (may take a minute to complete)\n")
 		m = "GET"
-		p = path.Join("job", jID, "output", "dir")
+		p = path.Join("job", jID, "dir")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {

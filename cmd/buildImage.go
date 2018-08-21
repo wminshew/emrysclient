@@ -28,17 +28,17 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		r, w := io.Pipe()
 		go func() {
 			if err := archiver.TarGz.Write(w, []string{main, reqs}); err != nil {
-				log.Printf("Error tar-gzipping docker context files: %v\n", err)
+				log.Printf("Image: error tar-gzipping docker context files: %v\n", err)
 				return
 			}
 			if err := w.Close(); err != nil {
-				log.Printf("Error closing pipe writer: %v\n", err)
+				log.Printf("Image: error closing pipe writer: %v\n", err)
 				return
 			}
 		}()
-		log.Printf("Packing image request...\n")
+		log.Printf("Image: packing request...\n")
 		if req, err = http.NewRequest(m, u.String(), r); err != nil {
-			log.Printf("Error creating request %v %v: %v\n", m, p, err)
+			log.Printf("Image: error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
 		req = req.WithContext(ctx)
@@ -46,27 +46,27 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		req.Header.Set("X-Main", filepath.Base(main))
 		req.Header.Set("X-Reqs", filepath.Base(reqs))
 
-		log.Printf("Building image...\n")
+		log.Printf("Image: building...\n")
 		if resp, err = client.Do(req); err != nil {
-			log.Printf("Error executing request %v %v: %v\n", m, p, err)
+			log.Printf("Image: error executing request %v %v: %v\n", m, p, err)
 			return err
 		}
 		return nil
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		log.Printf("Image: error %v %v: %v\n", req.Method, req.URL.Path, err)
 		errCh <- err
 		return
 	}
 	defer check.Err(resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Failed %s %s\n", req.Method, req.URL.Path)
-		log.Printf("Response error header: %v\n", resp.Status)
+		log.Printf("Image: error %s %s\n", req.Method, req.URL.Path)
+		log.Printf("Image: response header: %v\n", resp.Status)
 		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s", b)
+		log.Printf("Image: response detail: %s", b)
 		errCh <- fmt.Errorf("%s", b)
 		return
 	}
-	log.Printf("Image built!\n")
+	log.Printf("Image: built!\n")
 }
