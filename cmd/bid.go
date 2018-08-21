@@ -105,6 +105,12 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go downloadImage(ctx, &wg, errCh, cli, jID)
+	defer func() {
+		_, err := cli.ImageRemove(ctx, jID, types.ImageRemoveOptions{})
+		if err != nil {
+			log.Printf("Error removing job image %v: %v\n", jID, err)
+		}
+	}()
 	go downloadData(ctx, &wg, errCh, client, u, jID, authToken, jobDir)
 	done := make(chan struct{})
 	go func() {
@@ -170,7 +176,6 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		return
 	}
 
-	// TODO: store this output in some kind of buffer / file, so I can re-upload if connection is interrupted
 	out, err := cli.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
@@ -180,6 +185,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		log.Printf("Error logging container: %v\n", err)
 		return
 	}
+	// TODO: use buffer / memory / file to save logs and make upload repeatable
 
 	m = "POST"
 	p = path.Join("job", jID, "output", "log")
@@ -207,50 +213,58 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 
 	check.Err(resp.Body.Close)
 
-	pr, pw := io.Pipe()
-	go func() {
-		defer check.Err(pw.Close)
-		files, err := ioutil.ReadDir(hostOutputDir)
-		outputFiles := make([]string, 0, len(files))
+	operation = func() error {
+		var err error
+		pr, pw := io.Pipe()
+		go func() {
+			defer check.Err(pw.Close)
+			files, err := ioutil.ReadDir(hostOutputDir)
+			outputFiles := make([]string, 0, len(files))
+			if err != nil {
+				log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+				return
+			}
+			for _, file := range files {
+				outputFile := filepath.Join(hostOutputDir, file.Name())
+				outputFiles = append(outputFiles, outputFile)
+			}
+			if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
+				log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
+				return
+			}
+		}()
+
+		m = "POST"
+		p = path.Join("job", jID, "output", "dir")
+		u.Path = p
+		req, err = http.NewRequest(m, u.String(), pr)
 		if err != nil {
-			log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
-			return
+			log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
+			return err
 		}
-		for _, file := range files {
-			outputFile := filepath.Join(hostOutputDir, file.Name())
-			outputFiles = append(outputFiles, outputFile)
-		}
-		if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-			log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
-			return
-		}
-	}()
-	m = "POST"
-	p = path.Join("job", jID, "output", "dir")
-	u.Path = p
-	req, err = http.NewRequest(m, u.String(), pr)
-	if err != nil {
-		log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
-		return
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-	log.Printf("Uploading output...\n")
-	resp, err = client.Do(req)
-	if err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, p, err)
+		log.Printf("Uploading output...\n")
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
+			return fmt.Errorf("%s", b)
+		}
+		return nil
+	}
+	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
 		return
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response error header: %v\n", resp.Status)
-		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
-		check.Err(resp.Body.Close)
-		return
-	}
-
-	check.Err(resp.Body.Close)
 	log.Printf("Job completed!\n")
 }
 
