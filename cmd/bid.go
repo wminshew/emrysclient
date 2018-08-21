@@ -28,6 +28,7 @@ import (
 )
 
 func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
+	u.RawQuery = ""
 	if err := checkVersion(client, u); err != nil {
 		log.Printf("Version error: %v\n", err)
 		return
@@ -104,14 +105,19 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	errCh := make(chan error, 2)
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go downloadImage(ctx, &wg, errCh, cli, jID)
+
+	registry := "registry.emrys.io"
+	repo := "miner"
+	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
+	go downloadImage(ctx, &wg, errCh, cli, imgRefStr)
 	defer func() {
-		_, err := cli.ImageRemove(ctx, jID, types.ImageRemoveOptions{})
-		if err != nil {
+		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{}); err != nil {
 			log.Printf("Error removing job image %v: %v\n", jID, err)
 		}
 	}()
+
 	go downloadData(ctx, &wg, errCh, client, u, jID, authToken, jobDir)
+
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -128,7 +134,16 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		log.Printf("Error reading job dir %s: %v\n", jobDir, err)
 		return
 	}
-	hostDataDir := filepath.Join(jobDir, fileInfos[0].Name())
+	var hostDataDir string
+	if len(fileInfos) > 0 {
+		hostDataDir = filepath.Join(jobDir, fileInfos[0].Name())
+	} else {
+		hostDataDir = filepath.Join(jobDir, "data")
+		if _, err := os.Create(hostDataDir); err != nil {
+			log.Printf("Error creating empty data dir %s: %v\n", hostDataDir, err)
+			return
+		}
+	}
 
 	hostOutputDir := filepath.Join(jobDir, "output")
 	oldUMask := syscall.Umask(000)
@@ -148,7 +163,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
 	c, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: jID,
+		Image: imgRefStr,
 		Tty:   true,
 	}, &container.HostConfig{
 		AutoRemove: true,
@@ -188,7 +203,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	// TODO: use buffer / memory / file to save logs and make upload repeatable
 
 	m = "POST"
-	p = path.Join("job", jID, "output", "log")
+	p = path.Join("job", jID, "log")
 	u.Path = p
 	req, err = http.NewRequest(m, u.String(), out)
 	if err != nil {
@@ -235,7 +250,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		}()
 
 		m = "POST"
-		p = path.Join("job", jID, "output", "dir")
+		p = path.Join("job", jID, "dir")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), pr)
 		if err != nil {
@@ -268,12 +283,9 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	log.Printf("Job completed!\n")
 }
 
-func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli *docker.Client, jID string) {
+func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli *docker.Client, refStr string) {
 	defer wg.Done()
 	log.Printf("Downloading image...\n")
-	registry := "registry.emrys.io"
-	repo := "miner"
-	refStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
 	pullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
 		RegistryAuth: "none",
 	})
@@ -309,8 +321,19 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	var resp *http.Response
 	operation := func() error {
 		var err error
-		resp, err = client.Do(req)
-		return err
+		if resp, err = client.Do(req); err != nil {
+			return err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Response error header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response error detail: %s\n", b)
+			check.Err(resp.Body.Close)
+			return fmt.Errorf("%v", b)
+		}
+
+		return nil
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
 		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
@@ -318,14 +341,6 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		return
 	}
 	defer check.Err(resp.Body.Close)
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Response error header: %v\n", resp.Status)
-		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Response error detail: %s\n", b)
-		errCh <- fmt.Errorf("%v", b)
-		return
-	}
 
 	if err = archiver.TarGz.Read(resp.Body, jobDir); err != nil {
 		log.Printf("Error unpacking .tar.gz into job dir %v: %v\n", jobDir, err)
