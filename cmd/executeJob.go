@@ -162,10 +162,6 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	var req *http.Request
 	var resp *http.Response
 	for n, err = buf.Read(body); err == nil; n, err = buf.Read(body) {
-		if n == 0 {
-			time.Sleep(1 * time.Second)
-			continue
-		}
 		operation := func() error {
 			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
