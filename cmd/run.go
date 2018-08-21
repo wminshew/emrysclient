@@ -131,11 +131,10 @@ var runCmd = &cobra.Command{
 		jID := resp.Header.Get("X-Job-ID")
 		check.Err(resp.Body.Close)
 
-		errCh := make(chan error, 3)
+		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
-		wg.Add(3)
+		wg.Add(2)
 		go buildImage(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.main, j.requirements)
-		go runAuction(ctx, &wg, errCh, client, u, jID, authToken)
 		go syncData(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.data)
 		done := make(chan struct{})
 		go func() {
@@ -145,6 +144,11 @@ var runCmd = &cobra.Command{
 		select {
 		case <-done:
 		case <-errCh:
+			return
+		}
+
+		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
+			log.Printf("Error running auction: %v\n", err)
 			return
 		}
 
