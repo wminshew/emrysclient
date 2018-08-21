@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -86,6 +87,11 @@ var startCmd = &cobra.Command{
 		}
 		if err := checkVersion(client, u); err != nil {
 			log.Printf("Version error: %v\n", err)
+			return
+		}
+		ctx := context.Background()
+		if err := seedDockerdCache(ctx); err != nil {
+			log.Printf("Error downloading job image: %v\n", err)
 			return
 		}
 

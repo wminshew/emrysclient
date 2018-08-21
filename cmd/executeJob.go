@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 )
 
 func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
@@ -58,6 +57,9 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	defer func() {
 		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{}); err != nil {
 			log.Printf("Error removing job image %v: %v\n", jID, err)
+		}
+		if _, err := cli.BuildCachePrune(ctx); err != nil {
+			log.Printf("Error pruning build cache: %v\n", err)
 		}
 	}()
 
