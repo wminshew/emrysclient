@@ -91,15 +91,18 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 			log.Printf("Data: no directory provided.\n")
 		}
 
-		reqBodyBuf := &bytes.Buffer{}
-		tee := io.TeeReader(bodyBuf, reqBodyBuf)
-		if err := storeProjectDataMetadata(project, tee); err != nil {
+		// reqBodyBuf := &bytes.Buffer{}
+		// tee := io.TeeReader(bodyBuf, reqBodyBuf)
+		b := bodyBuf.Bytes()
+		if err := storeProjectDataMetadata(project, bytes.NewReader(b)); err != nil {
+			// if err := storeProjectDataMetadata(project, tee); err != nil {
 			log.Printf("Data: error storing directory metadata: %v\n", err)
 			return err
 		}
 
 		var err error
-		if req, err = http.NewRequest(m, u.String(), reqBodyBuf); err != nil {
+		if req, err = http.NewRequest(m, u.String(), bytes.NewReader(b)); err != nil {
+			// if req, err = http.NewRequest(m, u.String(), reqBodyBuf); err != nil {
 			log.Printf("Data: error creating request %v %v: %v\n", m, p, err)
 			return err
 		}
