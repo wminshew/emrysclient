@@ -154,7 +154,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		}
 	}()
 
-	body := make([]byte, 8192)
+	body := make([]byte, 4096)
 	m := "POST"
 	p := path.Join("job", jID, "log")
 	u.Path = p
