@@ -134,6 +134,7 @@ var startCmd = &cobra.Command{
 				}
 
 				if resp.StatusCode != http.StatusOK {
+					log.Printf("Error %v %v\n", req.Method, req.URL.Path)
 					log.Printf("Response error header: %v\n", resp.Status)
 					b, _ := ioutil.ReadAll(resp.Body)
 					log.Printf("Response error detail: %s\n", b)
