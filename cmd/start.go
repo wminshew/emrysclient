@@ -111,7 +111,8 @@ var startCmd = &cobra.Command{
 		u.Path = p
 		q := u.Query()
 		q.Set("timeout", "600")
-		sinceTime := time.Now().Unix() * 1000
+		buffer := int64(3) // auctions last 3 seconds
+		sinceTime := (time.Now().Unix() - buffer) * 1000
 		q.Set("since_time", fmt.Sprintf("%d", sinceTime))
 		u.RawQuery = q.Encode()
 

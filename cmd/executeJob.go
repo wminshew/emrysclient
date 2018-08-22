@@ -147,14 +147,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		log.Printf("Error logging container: %v\n", err)
 		return
 	}
-
-	var buf bytes.Buffer
-	go func() {
-		if _, err := io.Copy(&buf, out); err != nil {
-			log.Printf("Error copying log to buffer: %v\n", err)
-			return
-		}
-	}()
+	defer check.Err(out.Close)
 
 	body := make([]byte, 4096)
 	m := "POST"
@@ -163,7 +156,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	var n int
 	var req *http.Request
 	var resp *http.Response
-	for n, err = buf.Read(body); err == nil; n, err = buf.Read(body) {
+	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
 		operation := func() error {
 			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
@@ -199,6 +192,36 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	}
 
 	operation := func() error {
+		// POST with empty body signifies log upload complete
+		req, err = http.NewRequest(m, u.String(), nil)
+		if err != nil {
+			log.Printf("error creating http request %v %v: %v\n", m, p, err)
+			return err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error %v %v: %v\n", req.Method, p, err)
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("http request error %v %v\n", m, p)
+			log.Printf("Response header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Response detail: %s", b)
+			return fmt.Errorf("%s", b)
+		}
+		return nil
+	}
+	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		return
+	}
+
+	operation = func() error {
 		var err error
 		pr, pw := io.Pipe()
 		go func() {
@@ -214,13 +237,13 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 				outputFiles = append(outputFiles, outputFile)
 			}
 			if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-				log.Printf("Error packing output dir %v: %v\n", hostOutputDir, err)
+				log.Printf("Error packing output data %v: %v\n", hostOutputDir, err)
 				return
 			}
 		}()
 
 		m = "POST"
-		p = path.Join("job", jID, "dir")
+		p = path.Join("job", jID, "data")
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), pr)
 		if err != nil {
