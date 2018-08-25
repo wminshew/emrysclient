@@ -147,10 +147,12 @@ var runCmd = &cobra.Command{
 		}
 
 		log.Printf("Executing job %s\n", jID)
-		if err = streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
+		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
 			log.Printf("Error streaming output log: %v\n", err)
 		}
-		if err = downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
+		buffer := 1 * time.Second
+		time.Sleep(buffer)
+		if err := downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
 			log.Printf("Error downloading output data: %v\n", err)
 		}
 

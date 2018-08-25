@@ -51,21 +51,20 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 			log.Printf("Image: error executing request %v %v: %v\n", m, p, err)
 			return err
 		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Image: error %s %s\n", req.Method, req.URL.Path)
+			log.Printf("Image: response header: %v\n", resp.Status)
+			b, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("Image: response detail: %s", b)
+			return fmt.Errorf("%s", b)
+		}
 		return nil
 	}
 	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
 		log.Printf("Image: error %v %v: %v\n", req.Method, req.URL.Path, err)
 		errCh <- err
-		return
-	}
-	defer check.Err(resp.Body.Close)
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Image: error %s %s\n", req.Method, req.URL.Path)
-		log.Printf("Image: response header: %v\n", resp.Status)
-		b, _ := ioutil.ReadAll(resp.Body)
-		log.Printf("Image: response detail: %s", b)
-		errCh <- fmt.Errorf("%s", b)
 		return
 	}
 	log.Printf("Image: built!\n")
