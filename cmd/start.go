@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"time"
 )
@@ -120,42 +121,41 @@ var startCmd = &cobra.Command{
 		var req *http.Request
 		var resp *http.Response
 		var operation backoff.Operation
+		pr := pollResponse{}
 		for {
 			if !busy {
 				log.Printf("Pinging emrys for jobs...\n")
 				operation = func() error {
 					if req, err = http.NewRequest(m, u.String(), nil); err != nil {
-						log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
-						return err
+						return fmt.Errorf("creating request %v %v: %v", m, u, err)
 					}
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 					resp, err = client.Do(req)
-					return err
-				}
-				if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-					log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
-					log.Printf("Unable to connect to emrys. Retrying in 5 minutes...\n")
-					time.Sleep(5 * time.Minute)
-					continue
-				}
+					if err != nil {
+						return fmt.Errorf("%v %v: %v", m, u, err)
+					}
+					defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("Error %v %v\n", req.Method, req.URL.Path)
-					log.Printf("Response error header: %v\n", resp.Status)
-					b, _ := ioutil.ReadAll(resp.Body)
-					log.Printf("Response error detail: %s\n", b)
-					check.Err(resp.Body.Close)
-					continue
-				}
+					if resp.StatusCode != http.StatusOK {
+						b, _ := ioutil.ReadAll(resp.Body)
+						return fmt.Errorf("server response: %s", b)
+					}
 
-				pr := pollResponse{}
-				if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-					log.Printf("Error decoding json pollResponse: %v\n", err)
-					check.Err(resp.Body.Close)
-					continue
+					if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+						return fmt.Errorf("json decoding response: %v", err)
+					}
+					return nil
 				}
-				check.Err(resp.Body.Close)
+				if err := backoff.RetryNotify(operation,
+					backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
+					func(err error, t time.Duration) {
+						log.Printf("Pinging error: %v\n", err)
+						log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+					}); err != nil {
+					log.Printf("Unable to connect to emrys.\n")
+					os.Exit(1)
+				}
 
 				if len(pr.Events) > 0 {
 					log.Println(len(pr.Events), "job(s) up for auction")

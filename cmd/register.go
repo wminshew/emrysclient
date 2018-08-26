@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
@@ -11,7 +13,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"time"
 )
 
 var registerCmd = &cobra.Command{
@@ -46,19 +50,26 @@ var registerCmd = &cobra.Command{
 		operation := func() error {
 			var err error
 			resp, err = client.Post(u.String(), "text/plain", bodyBuf)
-			return err
-		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error POST %v: %v\n", u.String(), err)
-			return
-		}
-		defer check.Err(resp.Body.Close)
+			if err != nil {
+				return fmt.Errorf("%s %v: %v", "POST", u, err)
+			}
+			defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Response error header: %v\n", resp.Status)
-			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response error detail: %s\n", b)
-			return
+			if resp.StatusCode != http.StatusOK {
+				b, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("server response: %s", b)
+			}
+
+			return nil
+		}
+		ctx := context.Background()
+		if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Register error: %v\n", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Register error: %v\n", err)
+			os.Exit(1)
 		}
 
 		log.Printf("We emailed a confirmation link to %s. Please follow the link "+

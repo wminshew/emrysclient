@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
@@ -149,6 +150,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	}
 	defer check.Err(out.Close)
 
+	maxUploadRetries := uint64(10)
 	body := make([]byte, 4096)
 	m := "POST"
 	p := path.Join("job", jID, "log")
@@ -160,29 +162,29 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		operation := func() error {
 			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
-				log.Printf("error creating http request %v %v: %v\n", m, p, err)
-				return err
+				return fmt.Errorf("creating request %v %v: %v", m, u, err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 			resp, err = client.Do(req)
 			if err != nil {
-				log.Printf("Error %v %v: %v\n", req.Method, p, err)
-				return err
+				return fmt.Errorf("%v %v: %v", m, u, err)
 			}
 			defer check.Err(resp.Body.Close)
 
 			if resp.StatusCode != http.StatusOK {
-				log.Printf("http request error %v %v\n", m, p)
-				log.Printf("Response header: %v\n", resp.Status)
 				b, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Response detail: %s", b)
-				return fmt.Errorf("%s", b)
+				return fmt.Errorf("server response: %s", b)
 			}
 			return nil
 		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Error uploading output: %v\n", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Error uploading output: %v\n", err)
 			return
 		}
 	}
@@ -195,29 +197,29 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		// POST with empty body signifies log upload complete
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {
-			log.Printf("error creating http request %v %v: %v\n", m, p, err)
-			return err
+			return fmt.Errorf("creating request %v %v: %v", m, u, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		resp, err = client.Do(req)
 		if err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, p, err)
-			return err
+			return fmt.Errorf("%v %v: %v", m, u, err)
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("http request error %v %v\n", m, p)
-			log.Printf("Response header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response detail: %s", b)
-			return fmt.Errorf("%s", b)
+			return fmt.Errorf("server response: %s", b)
 		}
 		return nil
 	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Error uploading output: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Error uploading output: %v\n", err)
 		return
 	}
 
@@ -229,7 +231,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 			files, err := ioutil.ReadDir(hostOutputDir)
 			outputFiles := make([]string, 0, len(files))
 			if err != nil {
-				log.Printf("Error reading files in hostOutputDir %v: %v\n", hostOutputDir, err)
+				log.Printf("Error uploading output: reading files in output directory %v: %v\n", hostOutputDir, err)
 				return
 			}
 			for _, file := range files {
@@ -237,7 +239,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 				outputFiles = append(outputFiles, outputFile)
 			}
 			if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-				log.Printf("Error packing output data %v: %v\n", hostOutputDir, err)
+				log.Printf("Error uploading output: packing output directory %v: %v\n", hostOutputDir, err)
 				return
 			}
 		}()
@@ -247,30 +249,30 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		u.Path = p
 		req, err = http.NewRequest(m, u.String(), pr)
 		if err != nil {
-			log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
-			return err
+			return fmt.Errorf("creating request %v %v: %v", m, u, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		log.Printf("Uploading output...\n")
 		resp, err = client.Do(req)
 		if err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, p, err)
-			return err
+			return fmt.Errorf("%v %v: %v", m, u, err)
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("http request error %v %v\n", m, p)
-			log.Printf("Response header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response detail: %s", b)
-			return fmt.Errorf("%s", b)
+			return fmt.Errorf("server response: %s", b)
 		}
 		return nil
 	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Error uploading output: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Error uploading output: %v\n", err)
 		return
 	}
 

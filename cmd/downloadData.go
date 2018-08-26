@@ -6,13 +6,13 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/mholt/archiver"
 	"github.com/wminshew/emrys/pkg/check"
-	// "io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"path"
 	"sync"
+	"time"
 )
 
 func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, jID, authToken, jobDir string) {
@@ -34,28 +34,29 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	operation := func() error {
 		var err error
 		if resp, err = client.Do(req); err != nil {
-			return err
+			return fmt.Errorf("%s %s: %v", req.Method, req.URL, err)
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Data: error %v %v\n", m, p)
-			log.Printf("Data: response header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Data: response detail: %s", b)
-			return fmt.Errorf("%v", b)
+			return fmt.Errorf("%v detail: %s", resp.StatusCode, b)
 		}
 
 		if resp.ContentLength != 0 {
 			if err = archiver.TarGz.Read(resp.Body, jobDir); err != nil {
-				log.Printf("Data: error unpacking .tar.gz into job dir %v: %v\n", jobDir, err)
-				return err
+				return fmt.Errorf("unpacking response targz into temporary job directory %v: %v", jobDir, err)
 			}
 		}
 
 		return nil
 	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Data: error: %v\n", err)
+			log.Printf("Data: trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
 		log.Printf("Data: error %v %v: %v\n", req.Method, req.URL.Path, err)
 		errCh <- err
 		return

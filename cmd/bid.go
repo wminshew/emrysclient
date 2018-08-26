@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 )
 
 func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
@@ -31,6 +33,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		log.Printf("Error encoding json bid: %v\n", err)
 		return
 	}
+
 	m := "POST"
 	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
@@ -42,32 +45,42 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 	log.Printf("Sending bid with rate: %v...\n", b.MinRate)
+	ctx := context.Background()
 	var resp *http.Response
+	winner := false
 	operation := func() error {
 		var err error
 		resp, err = client.Do(req)
-		return err
+		if err != nil {
+			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+		}
+		defer check.Err(resp.Body.Close)
+
+		if busy {
+			log.Println("Bid rejected -- you're busy with another job!")
+		} else if resp.StatusCode == http.StatusOK {
+			winner = true
+		} else if resp.StatusCode == http.StatusPaymentRequired {
+			log.Println("Your bid was too low, maybe next time!")
+		} else {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server response: %s", b)
+		}
+
+		return nil
 	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Bid error: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Bid error: %v\n", err)
 		return
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		if busy {
-			log.Println("Bid rejected -- you're busy with another job!")
-		} else if !busy && resp.StatusCode == http.StatusPaymentRequired {
-			log.Println("Your bid was too low, maybe next time!")
-		} else {
-			log.Printf("http request error %v %v\n", m, p)
-			log.Printf("Response header: %v\n", resp.Status)
-			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response detail: %s", b)
-			check.Err(resp.Body.Close)
-		}
-		return
+	if winner {
+		log.Printf("You won job %v!\n", jID)
+		executeJob(client, u, mID, authToken, jID)
 	}
-	check.Err(resp.Body.Close)
-	log.Printf("You won job %v!\n", jID)
-	executeJob(client, u, mID, authToken, jID)
 }
