@@ -56,7 +56,9 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
 	go downloadImage(ctx, &wg, errCh, cli, imgRefStr)
 	defer func() {
-		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{}); err != nil {
+		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
+			Force: true,
+		}); err != nil {
 			log.Printf("Error removing job image %v: %v\n", jID, err)
 		}
 		if _, err := cli.BuildCachePrune(ctx); err != nil {
@@ -224,7 +226,6 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	}
 
 	operation = func() error {
-		var err error
 		pr, pw := io.Pipe()
 		go func() {
 			defer check.Err(pw.Close)
@@ -247,14 +248,14 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		m = "POST"
 		p = path.Join("job", jID, "data")
 		u.Path = p
-		req, err = http.NewRequest(m, u.String(), pr)
+		req, err := http.NewRequest(m, u.String(), pr)
 		if err != nil {
 			return fmt.Errorf("creating request %v %v: %v", m, u, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		log.Printf("Uploading output...\n")
-		resp, err = client.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return fmt.Errorf("%v %v: %v", m, u, err)
 		}

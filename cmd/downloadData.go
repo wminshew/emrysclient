@@ -23,7 +23,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		log.Printf("Data: failed to create http request %v %v: %v\n", m, p, err)
+		log.Printf("Data: error: creating request: %v\n", err)
 		errCh <- err
 		return
 	}

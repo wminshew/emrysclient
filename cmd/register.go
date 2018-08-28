@@ -46,10 +46,8 @@ var registerCmd = &cobra.Command{
 
 		p := path.Join("miner")
 		u.Path = p
-		var resp *http.Response
 		operation := func() error {
-			var err error
-			resp, err = client.Post(u.String(), "text/plain", bodyBuf)
+			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
 				return fmt.Errorf("%s %v: %v", "POST", u, err)
 			}

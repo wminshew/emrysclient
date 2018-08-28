@@ -30,7 +30,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		MinRate: viper.GetFloat64("bid-rate"),
 	}
 	if err := json.NewEncoder(&body).Encode(b); err != nil {
-		log.Printf("Error encoding json bid: %v\n", err)
+		log.Printf("Bid error: encoding json: %v\n", err)
 		return
 	}
 
@@ -39,7 +39,7 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), &body)
 	if err != nil {
-		log.Printf("Failed to create http request %v %v: %v\n", m, p, err)
+		log.Printf("Bid error: creating request: %v\n", err)
 		return
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))

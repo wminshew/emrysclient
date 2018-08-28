@@ -34,11 +34,9 @@ var versionCmd = &cobra.Command{
 func checkVersion(client *http.Client, u url.URL) error {
 	p := path.Join("miner", "version")
 	u.Path = p
-	var resp *http.Response
 	verResp := creds.VersionResp{}
 	operation := func() error {
-		var err error
-		resp, err = client.Get(u.String())
+		resp, err := client.Get(u.String())
 		if err != nil {
 			return fmt.Errorf("%s %v: %v", "GET", u, err)
 		}
