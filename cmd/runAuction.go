@@ -10,39 +10,51 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 )
 
-func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) error {
+func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) (bool, error) {
 	log.Printf("Running auction...\n")
 	m := "POST"
 	p := path.Join("auction", jID)
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		log.Printf("Error creating request %v %v: %v\n", m, p, err)
-		return err
+		return false, fmt.Errorf("creating request: %v", err)
 	}
 	req = req.WithContext(ctx)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-	var resp *http.Response
+	winner := false
 	operation := func() error {
-		var err error
-		resp, err = client.Do(req)
-		return err
-	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
-		return err
-	}
-	defer check.Err(resp.Body.Close)
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+		}
+		defer check.Err(resp.Body.Close)
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Error %s %s\n", req.Method, req.URL.Path)
-		log.Printf("Response header: %v\n", resp.Status)
-		b, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("%s", b)
+		if resp.StatusCode == http.StatusOK {
+			winner = true
+		} else if resp.StatusCode == http.StatusPaymentRequired {
+			log.Println("No bids received, please try again")
+		} else {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server response: %s", b)
+		}
+
+		return nil
 	}
-	log.Printf("Miner selected!\n")
-	return nil
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Auction error: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		return false, fmt.Errorf("%v", err)
+	}
+
+	if winner {
+		log.Printf("Miner selected!\n")
+	}
+	return winner, nil
 }

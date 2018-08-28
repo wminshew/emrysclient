@@ -56,10 +56,7 @@ var runCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
-		operation := func() error {
-			return checkVersion(client, u)
-		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
+		if err := checkVersion(client, u); err != nil {
 			log.Printf("Version error: %v\n", err)
 			return
 		}
@@ -95,29 +92,33 @@ var runCmd = &cobra.Command{
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-		var resp *http.Response
-		operation = func() error {
-			var err error
-			resp, err = client.Do(req)
-			return err
+		var jID string
+		operation := func() error {
+			resp, err := client.Do(req)
+			if err != nil {
+
+			}
+			defer check.Err(resp.Body.Close)
+
+			if resp.StatusCode != http.StatusOK {
+				b, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("server response: %v", b)
+			}
+			jID = resp.Header.Get("X-Job-ID")
+
+			return nil
 		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error %v %v: %v\n", req.Method, req.URL.Path, err)
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Error sending job requirements: %v", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Error sending job requirements: %v", err)
 			return
 		}
 
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Error %s %s\n", req.Method, req.URL.Path)
-			log.Printf("Response header: %v\n", resp.Status)
-			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response detail: %s", b)
-			check.Err(resp.Body.Close)
-			return
-		}
 		log.Printf("Job requirements sent!\n")
-
-		jID := resp.Header.Get("X-Job-ID")
-		check.Err(resp.Body.Close)
 
 		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
@@ -135,8 +136,11 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
-			log.Printf("Error running auction: %v\n", err)
+		success, err := runAuction(ctx, client, u, jID, authToken)
+		if err != nil {
+			log.Printf("Auction error: %v\n", err)
+			return
+		} else if !success {
 			return
 		}
 
@@ -148,12 +152,12 @@ var runCmd = &cobra.Command{
 
 		log.Printf("Executing job %s\n", jID)
 		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
-			log.Printf("Error streaming output log: %v\n", err)
+			log.Printf("Output log: error: %v\n", err)
 		}
 		buffer := 1 * time.Second
 		time.Sleep(buffer)
 		if err := downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
-			log.Printf("Error downloading output data: %v\n", err)
+			log.Printf("Output data: error: %v\n", err)
 		}
 
 		log.Printf("Job complete!\n")

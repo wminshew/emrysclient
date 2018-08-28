@@ -54,45 +54,41 @@ func streamOutputLog(ctx context.Context, client *http.Client, u url.URL, jID, a
 	sinceTime := (time.Now().Unix() - buffer) * 1000
 	q.Set("since_time", fmt.Sprintf("%d", sinceTime))
 	u.RawQuery = q.Encode()
-	var req *http.Request
-	var resp *http.Response
-	var operation backoff.Operation
 pollLoop:
 	for {
-		operation = func() error {
-			if req, err = http.NewRequest(m, u.String(), nil); err != nil {
-				log.Printf("Output log: error creating request %v %v: %v\n", m, p, err)
-				return err
+		pr := pollResponse{}
+		operation := func() error {
+			req, err := http.NewRequest(m, u.String(), nil)
+			if err != nil {
+				return fmt.Errorf("creating request: %v", err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-			if resp, err = client.Do(req); err != nil {
-				log.Printf("Output log: error %v %v: %v\n", req.Method, req.URL.Path, err)
-				return err
+			resp, err := client.Do(req)
+			if err != nil {
+				return fmt.Errorf("%v %v: %v", req.Method, req.URL.Path, err)
 			}
+			defer check.Err(resp.Body.Close)
 
 			if resp.StatusCode != http.StatusOK {
-				log.Printf("Output log: error %s %s\n", req.Method, req.URL.Path)
-				log.Printf("Output log: response header: %v\n", resp.Status)
 				b, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Output log: response detail: %s", b)
-				check.Err(resp.Body.Close)
-				return fmt.Errorf("Output log: response error: %s", b)
+				return fmt.Errorf("server response: %s", b)
 			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+				return fmt.Errorf("decoding json response: %v", err)
+			}
+
 			return nil
 		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Output log: error %v %v: %v\n", req.Method, req.URL.Path, err)
-			return err
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Output log: error: %v", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			return fmt.Errorf("%v", err)
 		}
-
-		pr := pollResponse{}
-		if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-			log.Printf("Error decoding json pollResponse: %v\n", err)
-			check.Err(resp.Body.Close)
-			return err
-		}
-		check.Err(resp.Body.Close)
 
 		if len(pr.Events) > 0 {
 			for _, event := range pr.Events {

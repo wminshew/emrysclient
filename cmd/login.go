@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -20,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var loginCmd = &cobra.Command{
@@ -52,34 +54,37 @@ var loginCmd = &cobra.Command{
 		}
 		p := path.Join("user", "login")
 		u.Path = p
-		var resp *http.Response
-		operation := func() error {
-			var err error
-			resp, err = client.Post(u.String(), "text/plain", bodyBuf)
-			return err
-		}
-		if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-			log.Printf("Error POST %v: %v\n", u.String(), err)
-			return
-		}
-		defer check.Err(resp.Body.Close)
-
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Error POST %s\n", u.String())
-			log.Printf("Response header: %v\n", resp.Status)
-			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Response detail: %s", b)
-			return
-		}
-
 		loginResp := creds.LoginResp{}
-		if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
-			log.Printf("Failed to decode response: %v\n", err)
-			return
+		operation := func() error {
+			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
+			if err != nil {
+				return fmt.Errorf("%s %v: %v", "POST", u, err)
+			}
+			defer check.Err(resp.Body.Close)
+
+			if resp.StatusCode != http.StatusOK {
+				b, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("server response: %s", b)
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+				return fmt.Errorf("failed to decode response: %v", err)
+			}
+			return nil
+		}
+		ctx := context.Background()
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Login error: %v\n", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Login error: %v\n", err)
+			os.Exit(1)
 		}
 		if err := storeToken(loginResp.Token); err != nil {
 			log.Printf("Failed to store login token: %v\n", err)
-			return
+			os.Exit(1)
 		}
 		log.Printf("Success! Your login token will expire in %s days\n", c.Duration)
 	},

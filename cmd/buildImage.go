@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken, main, reqs string) {
@@ -21,25 +22,22 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 	m := "POST"
 	p := path.Join("image", uID, project, jID)
 	u.Path = p
-	var req *http.Request
-	var resp *http.Response
 	operation := func() error {
-		var err error
+		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
 		go func() {
 			if err := archiver.TarGz.Write(w, []string{main, reqs}); err != nil {
-				log.Printf("Image: error tar-gzipping docker context files: %v\n", err)
+				log.Printf("Image: error: tar-gzipping docker context files: %v\n", err)
 				return
 			}
 			if err := w.Close(); err != nil {
-				log.Printf("Image: error closing pipe writer: %v\n", err)
+				log.Printf("Image: error: closing pipe writer: %v\n", err)
 				return
 			}
 		}()
-		log.Printf("Image: packing request...\n")
-		if req, err = http.NewRequest(m, u.String(), r); err != nil {
-			log.Printf("Image: error creating request %v %v: %v\n", m, p, err)
-			return err
+		req, err := http.NewRequest(m, u.String(), r)
+		if err != nil {
+			return fmt.Errorf("creating %s %v: %v", req.Method, u, err)
 		}
 		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
@@ -47,23 +45,24 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		req.Header.Set("X-Reqs", filepath.Base(reqs))
 
 		log.Printf("Image: building...\n")
-		if resp, err = client.Do(req); err != nil {
-			log.Printf("Image: error executing request %v %v: %v\n", m, p, err)
-			return err
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("%s %v: %v", req.Method, u, err)
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Image: error %s %s\n", req.Method, req.URL.Path)
-			log.Printf("Image: response header: %v\n", resp.Status)
 			b, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("Image: response detail: %s", b)
-			return fmt.Errorf("%s", b)
+			return fmt.Errorf("server response: %s", b)
 		}
 		return nil
 	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Image: error %v %v: %v\n", req.Method, req.URL.Path, err)
+	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Image: error: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Image: error: %v\n", err)
 		errCh <- err
 		return
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/blang/semver"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 )
 
 var userVer = semver.Version{
@@ -32,28 +34,32 @@ var versionCmd = &cobra.Command{
 func checkVersion(client *http.Client, u url.URL) error {
 	p := path.Join("user", "version")
 	u.Path = p
-	var resp *http.Response
-	operation := func() error {
-		var err error
-		resp, err = client.Get(u.String())
-		return err
-	}
-	if err := backoff.Retry(operation, backoff.NewExponentialBackOff()); err != nil {
-		log.Printf("Error GET %v: %v\n", u.String(), err)
-		return err
-	}
-	defer check.Err(resp.Body.Close)
-
 	verResp := creds.VersionResp{}
-	if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
-		log.Printf("Failed to decode version response\n")
+	operation := func() error {
+		resp, err := client.Get(u.String())
+		if err != nil {
+			return fmt.Errorf("%s %v: %v", "GET", u, err)
+		}
+		defer check.Err(resp.Body.Close)
+
+		if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
+			return fmt.Errorf("failed to decode response: %v", err)
+		}
+		return nil
+	}
+	ctx := context.Background()
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Version error: %v\n", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
 		return err
 	}
 
 	latestUserVer, err := semver.Make(verResp.Version)
 	if err != nil {
-		log.Printf("Failed to convert version response to semver\n")
-		return err
+		return fmt.Errorf("failed to convert response to semver: %v", err)
 	}
 	if userVer.Major < latestUserVer.Major {
 		return fmt.Errorf("your user version %v is incompatible with the latest and must be updated to continue (%v)", userVer, latestUserVer)
