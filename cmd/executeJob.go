@@ -24,11 +24,14 @@ import (
 	"time"
 )
 
-func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
+func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
 	busy = true
 	defer func() { busy = false }()
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Miner canceled job search: %v\n", err)
+		return
+	}
 
-	ctx := context.Background()
 	cli, err := docker.NewEnvClient()
 	if err != nil {
 		log.Printf("Error creating docker client: %v\n", err)
@@ -76,6 +79,10 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	select {
 	case <-done:
 	case <-errCh:
+		return
+	}
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Miner canceled job search: %v\n", err)
 		return
 	}
 
@@ -134,6 +141,10 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		log.Printf("Error creating container: %v\n", err)
 		return
 	}
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Miner canceled job search: %v\n", err)
+		return
+	}
 
 	log.Printf("Running container...\n")
 	if err := cli.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
@@ -161,12 +172,17 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 	var req *http.Request
 	var resp *http.Response
 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
+		if err := checkContextCanceled(ctx); err != nil {
+			log.Printf("Miner canceled job search: %v\n", err)
+			return
+		}
 		operation := func() error {
 			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
 				return fmt.Errorf("creating request %v %v: %v", m, u, err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+			req = req.WithContext(ctx)
 
 			resp, err = client.Do(req)
 			if err != nil {
@@ -225,6 +241,12 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 		return
 	}
 
+	// TODO: do I really want miner uploading output when he/she cancels?
+	// if err := checkContextCanceled(ctx); err != nil {
+	// 	log.Printf("Miner canceled job search: %v\n", err)
+	// 	return
+	// }
+	ctx = context.Background()
 	operation = func() error {
 		pr, pw := io.Pipe()
 		go func() {
@@ -253,6 +275,7 @@ func executeJob(client *http.Client, u url.URL, mID, authToken, jID string) {
 			return fmt.Errorf("creating request %v %v: %v", m, u, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req = req.WithContext(ctx)
 
 		log.Printf("Uploading output...\n")
 		resp, err := client.Do(req)

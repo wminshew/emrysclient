@@ -28,6 +28,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		return
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req = req.WithContext(ctx)
 
 	log.Printf("Data: downloading...\n")
 	var resp *http.Response

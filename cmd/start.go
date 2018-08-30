@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"time"
 )
@@ -35,7 +36,11 @@ type pollEvent struct {
 	Data json.RawMessage `json:"data"`
 }
 
-var busy = false
+var (
+	busy      = false
+	terminate = false
+	bidsOut   = 0
+)
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -45,6 +50,34 @@ var startCmd = &cobra.Command{
 		"below your minimum, emrysminer will default to the mining " +
 		"command provided in ./mining-script.sh.",
 	Run: func(cmd *cobra.Command, args []string) {
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			defer func() {
+				log.Printf("Canceling...\n")
+				cancel()
+			}()
+			<-stop
+			if busy {
+				log.Printf("Cancellation request received: please press ctrl-c again to quit.\n")
+				log.Printf("Warning! You are currently working on a job and will be penalized for quitting. Otherwise, this program will terminate upon completion.\n")
+				terminate = true
+				<-stop
+			} else if bidsOut > 0 {
+				busy = true // stop miner from submitting new bids
+				log.Printf("Cancellation request received: please press ctrl-c again to quit.\n")
+				log.Printf("Warning! You have %d outstanding bids to wind down before quitting. If you force quit now and one of your bids wins, you will be penalized for quitting. Otherwise, in a few seconds, this program will terminate.\n", bidsOut)
+				for bidsOut > 0 {
+					select {
+					case <-stop:
+						return
+					case <-time.After(1 * time.Second):
+					}
+				}
+			}
+		}()
+
 		authToken, err := getToken()
 		if err != nil {
 			log.Printf("Error getting authToken: %v\n", err)
@@ -90,7 +123,6 @@ var startCmd = &cobra.Command{
 			log.Printf("Version error: %v\n", err)
 			return
 		}
-		ctx := context.Background()
 		if err := seedDockerdCache(ctx); err != nil {
 			log.Printf("Error downloading job image: %v\n", err)
 			return
@@ -123,6 +155,16 @@ var startCmd = &cobra.Command{
 		var operation backoff.Operation
 		pr := pollResponse{}
 		for {
+			if terminate {
+				log.Printf("Mining terminated.\n")
+				return
+			}
+
+			if err := checkContextCanceled(ctx); err != nil {
+				log.Printf("Miner canceled job search: %v\n", err)
+				return
+			}
+
 			if !busy {
 				log.Printf("Pinging emrys for jobs...\n")
 				operation = func() error {
@@ -130,6 +172,7 @@ var startCmd = &cobra.Command{
 						return fmt.Errorf("creating request %v %v: %v", m, u, err)
 					}
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+					req = req.WithContext(ctx)
 
 					resp, err = client.Do(req)
 					if err != nil {
@@ -158,6 +201,7 @@ var startCmd = &cobra.Command{
 				}
 
 				if len(pr.Events) > 0 {
+					bidsOut += len(pr.Events)
 					log.Println(len(pr.Events), "job(s) up for auction")
 					for _, event := range pr.Events {
 						sinceTime = event.Timestamp
@@ -170,7 +214,7 @@ var startCmd = &cobra.Command{
 						if msg.Job == nil {
 							continue
 						}
-						go bid(client, u, mID, authToken, msg)
+						go bid(ctx, client, u, mID, authToken, msg)
 					}
 				} else {
 					if pr.Timestamp > sinceTime {
@@ -187,4 +231,13 @@ var startCmd = &cobra.Command{
 			}
 		}
 	},
+}
+
+func checkContextCanceled(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
 }

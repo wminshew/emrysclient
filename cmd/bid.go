@@ -17,10 +17,15 @@ import (
 	"time"
 )
 
-func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
+func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
+	defer func() { bidsOut-- }()
 	u.RawQuery = ""
 	if err := checkVersion(client, u); err != nil {
 		log.Printf("Version error: %v\n", err)
+		return
+	}
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Miner canceled job search: %v\n", err)
 		return
 	}
 	jID := msg.Job.ID.String()
@@ -43,9 +48,9 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 		return
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req = req.WithContext(ctx)
 
 	log.Printf("Sending bid with rate: %v...\n", b.MinRate)
-	ctx := context.Background()
 	var resp *http.Response
 	winner := false
 	operation := func() error {
@@ -81,6 +86,6 @@ func bid(client *http.Client, u url.URL, mID, authToken string, msg *job.Message
 
 	if winner {
 		log.Printf("You won job %v!\n", jID)
-		executeJob(client, u, mID, authToken, jID)
+		executeJob(ctx, client, u, mID, authToken, jID)
 	}
 }
