@@ -31,7 +31,7 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func checkVersion(client *http.Client, u url.URL) error {
+func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 	p := path.Join("user", "version")
 	u.Path = p
 	verResp := creds.VersionResp{}
@@ -43,29 +43,28 @@ func checkVersion(client *http.Client, u url.URL) error {
 		defer check.Err(resp.Body.Close)
 
 		if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
+			return fmt.Errorf("decoding response: %v", err)
 		}
 		return nil
 	}
-	ctx := context.Background()
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Version error: %v\n", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Version: error: %v\n", err)
+			log.Printf("Version: trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err
 	}
 
 	latestUserVer, err := semver.Make(verResp.Version)
 	if err != nil {
-		return fmt.Errorf("failed to convert response to semver: %v", err)
+		return fmt.Errorf("converting response to semver: %v", err)
 	}
 	if userVer.Major < latestUserVer.Major {
-		return fmt.Errorf("your user version %v is incompatible with the latest and must be updated to continue (%v)", userVer, latestUserVer)
+		return fmt.Errorf("user version %v incompatible with latest (%s) and must be updated", userVer, latestUserVer)
 	}
 	if userVer.LT(latestUserVer) {
-		log.Printf("Warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
+		log.Printf("Version: warning: your user version %v should be updated to the latest (%v)\n", userVer, latestUserVer)
 	}
 
 	return nil

@@ -33,12 +33,13 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"
-		h := resolveHost()
+		h := "emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
+		ctx := context.Background()
+		if err := checkVersion(ctx, client, u); err != nil {
 			log.Printf("Version error: %v\n", err)
 			return
 		}
@@ -72,7 +73,6 @@ var loginCmd = &cobra.Command{
 			}
 			return nil
 		}
-		ctx := context.Background()
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {

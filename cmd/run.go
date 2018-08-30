@@ -2,18 +2,14 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wminshew/emrys/pkg/check"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"path"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"time"
@@ -26,18 +22,28 @@ var runCmd = &cobra.Command{
 		"with the central server, then locates the cheapest " +
 		"spare GPU cycles on the internet to execute your job",
 	Run: func(cmd *cobra.Command, args []string) {
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-stop
+			log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
+			log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
+			cancel()
+		}()
+
 		authToken, err := getToken()
 		if err != nil {
+			log.Printf("Error: retrieving authToken: %v\n", err)
 			return
 		}
 		claims := &jwt.StandardClaims{}
-		_, _, err = new(jwt.Parser).ParseUnverified(authToken, claims)
-		if err != nil {
-			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
+		if _, _, err := new(jwt.Parser).ParseUnverified(authToken, claims); err != nil {
+			log.Printf("Error: parsing authToken: %v\n", err)
 			return
 		}
-		if err = claims.Valid(); err != nil {
-			log.Printf("Error invalid authToken claims: %v\n", err)
+		if err := claims.Valid(); err != nil {
+			log.Printf("Error: invalid authToken: %v\n", err)
 			log.Printf("Please login again.\n")
 			return
 		}
@@ -45,26 +51,25 @@ var runCmd = &cobra.Command{
 		exp := claims.ExpiresAt
 		remaining := time.Until(time.Unix(exp, 0))
 		if remaining <= 24*time.Hour {
-			log.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
+			log.Printf("Warning: token expires in apprx. ~%.f hours\n", remaining.Hours())
 		}
 
 		client := &http.Client{}
-		ctx := context.Background()
 		s := "https"
-		h := resolveHost()
+		h := "emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+		if err := checkVersion(ctx, client, u); err != nil {
+			log.Printf("Version: error: %v\n", err)
 			return
 		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		if err := viper.ReadInConfig(); err != nil {
-			log.Printf("Error reading config file: %v\n", err)
+			log.Printf("Error: reading config file: %v\n", err)
 			return
 		}
 
@@ -75,51 +80,28 @@ var runCmd = &cobra.Command{
 			data:         viper.GetString("data"),
 			output:       viper.GetString("output"),
 		}
-		if err = j.validate(); err != nil {
-			log.Printf("Error with user-defined job requirements: %v\n", err)
+		if err := j.validate(); err != nil {
+			log.Printf("Error: invalid job requirements: %v\n", err)
 			return
 		}
-
-		m := "POST"
-		p := path.Join("user", uID, "project", j.project, "job")
-		u.Path = p
-		log.Printf("Sending job requirements...\n")
-
-		req, err := http.NewRequest(m, u.String(), nil)
-		if err != nil {
-			log.Printf("error creating request %v %v: %v\n", m, p, err)
-			return
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-
 		var jID string
-		operation := func() error {
-			resp, err := client.Do(req)
-			if err != nil {
-
-			}
-			defer check.Err(resp.Body.Close)
-
-			if resp.StatusCode != http.StatusOK {
-				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server response: %v", b)
-			}
-			jID = resp.Header.Get("X-Job-ID")
-
-			return nil
-		}
-		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
-			func(err error, t time.Duration) {
-				log.Printf("Error sending job requirements: %v", err)
-				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
-			}); err != nil {
-			log.Printf("Error sending job requirements: %v", err)
+		if jID, err = j.send(ctx, client, u, uID, authToken); err != nil {
+			log.Printf("Error: sending job requirements: %v\n", err)
 			return
 		}
+		completed := false
+		defer func() {
+			if !completed {
+				if err := j.cancel(client, u, uID, jID, authToken); err != nil {
+					log.Printf("Error: canceling job: %v\n", err)
+					return
+				}
+			}
+		}()
 
-		log.Printf("Job requirements sent!\n")
-
+		if err := checkContextCanceled(ctx); err != nil {
+			return
+		}
 		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
@@ -131,19 +113,21 @@ var runCmd = &cobra.Command{
 			close(done)
 		}()
 		select {
+		case <-ctx.Done():
+			return
 		case <-done:
 		case <-errCh:
 			return
 		}
 
-		success, err := runAuction(ctx, client, u, jID, authToken)
-		if err != nil {
-			log.Printf("Auction error: %v\n", err)
-			return
-		} else if !success {
+		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
+			log.Printf("Auction: error: %v\n", err)
 			return
 		}
 
+		if err := checkContextCanceled(ctx); err != nil {
+			return
+		}
 		outputDir := filepath.Join(j.output, jID)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
 			log.Printf("Output data: error making output dir %v: %v\n", outputDir, err)
@@ -153,13 +137,25 @@ var runCmd = &cobra.Command{
 		log.Printf("Executing job %s\n", jID)
 		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
 			log.Printf("Output log: error: %v\n", err)
+			return
 		}
 		buffer := 1 * time.Second
 		time.Sleep(buffer)
 		if err := downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
 			log.Printf("Output data: error: %v\n", err)
+			return
 		}
 
-		log.Printf("Job complete!\n")
+		completed = true
+		log.Printf("Complete!\n")
 	},
+}
+
+func checkContextCanceled(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
 }

@@ -26,13 +26,14 @@ var registerCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"
-		h := resolveHost()
+		h := "emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+		ctx := context.Background()
+		if err := checkVersion(ctx, client, u); err != nil {
+			log.Printf("Version: error: %v\n", err)
 			return
 		}
 
@@ -41,7 +42,7 @@ var registerCmd = &cobra.Command{
 
 		bodyBuf := &bytes.Buffer{}
 		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+			log.Printf("Error: encoding email & password: %v\n", err)
 			return
 		}
 		p := path.Join("user")
@@ -60,13 +61,12 @@ var registerCmd = &cobra.Command{
 
 			return nil
 		}
-		ctx := context.Background()
 		if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Register error: %v\n", err)
+				log.Printf("Register: error: %v\n", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Register error: %v\n", err)
+			log.Printf("Register: error: %v\n", err)
 			os.Exit(1)
 		}
 

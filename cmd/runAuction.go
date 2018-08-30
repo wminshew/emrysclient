@@ -13,19 +13,18 @@ import (
 	"time"
 )
 
-func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) (bool, error) {
+func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) error {
 	log.Printf("Running auction...\n")
 	m := "POST"
 	p := path.Join("auction", jID)
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		return false, fmt.Errorf("creating request: %v", err)
+		return fmt.Errorf("creating request: %v", err)
 	}
 	req = req.WithContext(ctx)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-	winner := false
 	operation := func() error {
 		resp, err := client.Do(req)
 		if err != nil {
@@ -33,11 +32,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode == http.StatusOK {
-			winner = true
-		} else if resp.StatusCode == http.StatusPaymentRequired {
-			log.Println("No bids received, please try again")
-		} else {
+		if resp.StatusCode != http.StatusOK {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
 		}
@@ -50,11 +45,9 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 			log.Printf("Auction error: %v\n", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		return false, fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 
-	if winner {
-		log.Printf("Miner selected!\n")
-	}
-	return winner, nil
+	log.Printf("Miner selected!\n")
+	return nil
 }

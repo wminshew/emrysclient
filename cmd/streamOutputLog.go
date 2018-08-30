@@ -56,6 +56,10 @@ func streamOutputLog(ctx context.Context, client *http.Client, u url.URL, jID, a
 	u.RawQuery = q.Encode()
 pollLoop:
 	for {
+		if err := checkContextCanceled(ctx); err != nil {
+			return fmt.Errorf("job canceled")
+		}
+
 		pr := pollResponse{}
 		operation := func() error {
 			req, err := http.NewRequest(m, u.String(), nil)
@@ -63,6 +67,7 @@ pollLoop:
 				return fmt.Errorf("creating request: %v", err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+			req = req.WithContext(ctx)
 
 			resp, err := client.Do(req)
 			if err != nil {

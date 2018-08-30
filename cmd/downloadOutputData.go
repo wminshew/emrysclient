@@ -33,6 +33,7 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 			return fmt.Errorf("creating request: %v", err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req = req.WithContext(ctx)
 
 		resp, err := client.Do(req)
 		if err != nil {

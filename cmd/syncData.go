@@ -33,7 +33,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		if dataDir != "" {
 			oldMetadata := make(map[string]job.FileMetadata)
 			if err := getProjectDataMetadata(project, &oldMetadata); err != nil {
-				return fmt.Errorf("getting directory metadata: %v", err)
+				return fmt.Errorf("retrieving data directory metadata: %v", err)
 			}
 
 			newMetadata := make(map[string]job.FileMetadata)
@@ -85,7 +85,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 
 		b = bodyBuf.Bytes()
 		if err := storeProjectDataMetadata(project, bytes.NewReader(b)); err != nil {
-			return fmt.Errorf("storing directory metadata: %v", err)
+			return fmt.Errorf("storing data directory metadata: %v", err)
 		}
 		return nil
 	}(); err != nil {
@@ -106,8 +106,8 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		if err != nil {
 			return fmt.Errorf("creating request %v %v: %v", m, p, err)
 		}
-		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req = req.WithContext(ctx)
 
 		resp, err := client.Do(req)
 		if err != nil {
@@ -181,6 +181,8 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 		select {
 		case <-done:
 			return
+		case <-ctx.Done():
+			return
 		case relPath := <-upload:
 			operation := func() error {
 				log.Printf("Data: uploading: %v\n", relPath)
@@ -207,8 +209,8 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				if err != nil {
 					return fmt.Errorf("creating request: %v", err)
 				}
-				req = req.WithContext(ctx)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+				req = req.WithContext(ctx)
 
 				resp, err := client.Do(req)
 				if err != nil {
