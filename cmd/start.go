@@ -29,7 +29,7 @@ type pollResponse struct {
 
 // source: https://github.com/jcuga/golongpoll/blob/master/go-client/glpclient/client.go
 type pollEvent struct {
-	// Timestamp is milliseconds since epoch to match javascrits Date.getTime()
+	// Timestamp is milliseconds since epoch to match javascripts Date.getTime()
 	Timestamp int64  `json:"timestamp"`
 	Category  string `json:"category"`
 	// Data can be anything that is able to passed to json.Marshal()
@@ -40,6 +40,7 @@ var (
 	busy      = false
 	terminate = false
 	bidsOut   = 0
+	cm        *cryptoMiner
 )
 
 var startCmd = &cobra.Command{
@@ -47,36 +48,13 @@ var startCmd = &cobra.Command{
 	Short: "Begin mining on emrys",
 	Long: "Start executing deep learning jobs for money. " +
 		"When no jobs are available, or if the asking rates are " +
-		"below your minimum, emrysminer will default to the mining " +
-		"command provided in ./mining-script.sh.",
+		"below your minimum, emrysminer will execute ./mining-command",
 	Run: func(cmd *cobra.Command, args []string) {
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			defer func() {
-				log.Printf("Canceling...\n")
-				cancel()
-			}()
-			<-stop
-			if busy {
-				log.Printf("Cancellation request received: please press ctrl-c again to quit.\n")
-				log.Printf("Warning! You are currently working on a job and will be penalized for quitting. Otherwise, this program will terminate upon completion.\n")
-				terminate = true
-				<-stop
-			} else if bidsOut > 0 {
-				busy = true // stop miner from submitting new bids
-				log.Printf("Cancellation request received: please press ctrl-c again to quit.\n")
-				log.Printf("Warning! You have %d outstanding bids to wind down before quitting. If you force quit now and one of your bids wins, you will be penalized for quitting. Otherwise, in a few seconds, this program will terminate.\n", bidsOut)
-				for bidsOut > 0 {
-					select {
-					case <-stop:
-						return
-					case <-time.After(1 * time.Second):
-					}
-				}
-			}
-		}()
+		go monitorInterrupts(stop, cancel)
+		go monitorGPU(ctx)
 
 		authToken, err := getToken()
 		if err != nil {
@@ -123,10 +101,6 @@ var startCmd = &cobra.Command{
 			log.Printf("Version error: %v\n", err)
 			return
 		}
-		if err := seedDockerdCache(ctx); err != nil {
-			log.Printf("Error downloading job image: %v\n", err)
-			return
-		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
@@ -138,6 +112,17 @@ var startCmd = &cobra.Command{
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 		})
+
+		cm = &cryptoMiner{
+			command: viper.GetString("mining-command"),
+		}
+		cm.init(ctx)
+		defer cm.stop()
+
+		if err := seedDockerdCache(ctx); err != nil {
+			log.Printf("Error downloading job image: %v\n", err)
+			return
+		}
 
 		m := "GET"
 		p := path.Join("miner", "connect")
@@ -169,14 +154,14 @@ var startCmd = &cobra.Command{
 				log.Printf("Pinging emrys for jobs...\n")
 				operation = func() error {
 					if req, err = http.NewRequest(m, u.String(), nil); err != nil {
-						return fmt.Errorf("creating request %v %v: %v", m, u, err)
+						return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 					}
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 					req = req.WithContext(ctx)
 
 					resp, err = client.Do(req)
 					if err != nil {
-						return fmt.Errorf("%v %v: %v", m, u, err)
+						return fmt.Errorf("%v %v: %v", m, u.Path, err)
 					}
 					defer check.Err(resp.Body.Close)
 
@@ -196,12 +181,11 @@ var startCmd = &cobra.Command{
 						log.Printf("Pinging error: %v\n", err)
 						log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 					}); err != nil {
-					log.Printf("Unable to connect to emrys.\n")
+					log.Printf("Unable to connect to emrys: %v\n", err)
 					os.Exit(1)
 				}
 
 				if len(pr.Events) > 0 {
-					bidsOut += len(pr.Events)
 					log.Println(len(pr.Events), "job(s) up for auction")
 					for _, event := range pr.Events {
 						sinceTime = event.Timestamp
@@ -214,6 +198,7 @@ var startCmd = &cobra.Command{
 						if msg.Job == nil {
 							continue
 						}
+						bidsOut++
 						go bid(ctx, client, u, mID, authToken, msg)
 					}
 				} else {

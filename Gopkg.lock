@@ -141,6 +141,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/mindprince/gonvml"
+  packages = ["."]
+  revision = "b364b296c7320f5d3dc084aa536a3dba33b68f90"
+
+[[projects]]
+  branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
@@ -252,9 +258,10 @@
   packages = [
     "pkg/check",
     "pkg/creds",
-    "pkg/job"
+    "pkg/job",
+    "pkg/jsonmessage"
   ]
-  revision = "0754bfbf1c334c23e089994d6b7aceeabe1576cd"
+  revision = "5230941e941ccac2f0f5e7cf54c70fa216a62f23"
 
 [[projects]]
   branch = "master"
@@ -304,6 +311,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "75460fb3bd5bb753e791ece116412a47594abb0365567a7ae3430451256bc0d0"
+  inputs-digest = "fed1b88777071210b47554fc4631b35d30d577fb303a512d42af18416b99a1f8"
   solver-name = "gps-cdcl"
   solver-version = 1

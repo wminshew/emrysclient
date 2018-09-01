@@ -46,5 +46,5 @@
   version = "3.5.1"
 
 [[constraint]]
-  name = "github.com/jcuga/golongpoll"
-  version = "1.1.0"
+  branch = "master"
+  name = "github.com/mindprince/gonvml"

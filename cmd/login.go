@@ -61,7 +61,7 @@ var loginCmd = &cobra.Command{
 		operation := func() error {
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
-				return fmt.Errorf("%s %v: %v", "POST", u, err)
+				return fmt.Errorf("%s %v: %v", "POST", u.Path, err)
 			}
 			defer check.Err(resp.Body.Close)
 

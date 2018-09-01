@@ -27,6 +27,8 @@ import (
 func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
 	busy = true
 	defer func() { busy = false }()
+	cm.stop()
+	defer cm.start()
 	if err := checkContextCanceled(ctx); err != nil {
 		log.Printf("Miner canceled job search: %v\n", err)
 		return
@@ -179,14 +181,14 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		operation := func() error {
 			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
-				return fmt.Errorf("creating request %v %v: %v", m, u, err)
+				return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 			req = req.WithContext(ctx)
 
 			resp, err = client.Do(req)
 			if err != nil {
-				return fmt.Errorf("%v %v: %v", m, u, err)
+				return fmt.Errorf("%v %v: %v", m, u.Path, err)
 			}
 			defer check.Err(resp.Body.Close)
 
@@ -215,13 +217,13 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		// POST with empty body signifies log upload complete
 		req, err = http.NewRequest(m, u.String(), nil)
 		if err != nil {
-			return fmt.Errorf("creating request %v %v: %v", m, u, err)
+			return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%v %v: %v", m, u, err)
+			return fmt.Errorf("%v %v: %v", m, u.Path, err)
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -272,7 +274,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		u.Path = p
 		req, err := http.NewRequest(m, u.String(), pr)
 		if err != nil {
-			return fmt.Errorf("creating request %v %v: %v", m, u, err)
+			return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 		req = req.WithContext(ctx)
@@ -280,7 +282,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		log.Printf("Uploading output...\n")
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%v %v: %v", m, u, err)
+			return fmt.Errorf("%v %v: %v", m, u.Path, err)
 		}
 		defer check.Err(resp.Body.Close)
 

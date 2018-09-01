@@ -38,7 +38,7 @@ func checkVersion(client *http.Client, u url.URL) error {
 	operation := func() error {
 		resp, err := client.Get(u.String())
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", "GET", u, err)
+			return fmt.Errorf("%s %v: %v", "GET", u.Path, err)
 		}
 		defer check.Err(resp.Body.Close)
 

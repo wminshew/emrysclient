@@ -57,7 +57,7 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 		var err error
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+			return fmt.Errorf("%s %v: %v", req.Method, req.URL.Path, err)
 		}
 		defer check.Err(resp.Body.Close)
 
