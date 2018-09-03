@@ -134,7 +134,6 @@ var startCmd = &cobra.Command{
 		q.Set("since_time", fmt.Sprintf("%d", sinceTime))
 		u.RawQuery = q.Encode()
 
-		// could use: https://github.com/jcuga/golongpoll/tree/master/go-client/glpclient
 		var req *http.Request
 		var resp *http.Response
 		var operation backoff.Operation

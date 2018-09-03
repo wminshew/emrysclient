@@ -141,12 +141,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/mindprince/gonvml"
-  packages = ["."]
-  revision = "b364b296c7320f5d3dc084aa536a3dba33b68f90"
-
-[[projects]]
-  branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
@@ -265,6 +259,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/wminshew/gonvml"
+  packages = ["."]
+  revision = "4f273c6879ec0f14b7b03814327f5b5bbf25991f"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "b0697eccbea9adec5b7ba8008f4c33d98d733388"
@@ -311,6 +311,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fed1b88777071210b47554fc4631b35d30d577fb303a512d42af18416b99a1f8"
+  inputs-digest = "7c2faec49558c31ce5a331a2ccdaeeb9d5cc5242ee18ba95adf4dcd5a69b55da"
   solver-name = "gps-cdcl"
   solver-version = 1
