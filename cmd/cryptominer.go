@@ -26,7 +26,7 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
-			log.Printf("Begin mining-command...\n")
+			log.Printf("Begin mining...\n")
 			if err := cmd.Start(); err != nil {
 				log.Printf("Error starting cryptomining process: %v\n", err)
 				return
@@ -35,7 +35,7 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			case <-ctx.Done():
 			case <-cm.stopCh:
 			}
-			log.Printf("Stop mining-command...\n")
+			log.Printf("Pause mining...\n")
 			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP); err != nil {
 				log.Printf("Error interrupting cryptomining process: %v\n", err)
 				return

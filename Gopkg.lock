@@ -261,7 +261,7 @@
   branch = "master"
   name = "github.com/wminshew/gonvml"
   packages = ["."]
-  revision = "4f273c6879ec0f14b7b03814327f5b5bbf25991f"
+  revision = "52781f51131fb57e415d1145a7566cac2ff1eb4b"
 
 [[projects]]
   branch = "master"

@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/gonvml"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -15,6 +17,7 @@ type GPUSnapshot struct {
 	UUID              string
 	Name              string
 	Brand             uint
+	PersistenceMode   uint
 	ComputeMode       uint
 	PerformanceState  uint
 	AvgGPUUtilization uint
@@ -27,6 +30,8 @@ type GPUSnapshot struct {
 	GrMaxClock        uint
 	SMMaxClock        uint
 	MemMaxClock       uint
+	PcieTxThroughput  uint
+	PcieRxThroughput  uint
 	PcieGeneration    uint
 	PcieWidth         uint
 	PcieMaxGeneration uint
@@ -35,7 +40,11 @@ type GPUSnapshot struct {
 	FanSpeed          uint
 }
 
-var gpuPeriod = 10 * time.Second
+const (
+	gpuPeriod                   = 10 * time.Second
+	nvmlFeatureEnabled          = 1
+	nvmlComputeExclusiveProcess = 3
+)
 
 func monitorGPU(ctx context.Context) {
 	if err := gonvml.Initialize(); err != nil {
@@ -51,15 +60,52 @@ func monitorGPU(ctx context.Context) {
 	}
 	log.Printf("Nvidia driver: %v", driverVersion)
 
-	numDevices, err := gonvml.DeviceCount()
-	if err != nil {
-		log.Printf("Error counting nvidia devices: %v\n", err)
-		return
+	devices := []uint{}
+	devicesStr := viper.GetStringSlice("devices")
+	if len(devicesStr) == 0 {
+		// no flag provided, grab all detected devices
+		numDevices, err := gonvml.DeviceCount()
+		if err != nil {
+			log.Printf("Error counting nvidia devices: %v\n", err)
+			panic(err)
+		}
+		for i := 0; i < int(numDevices); i++ {
+			devices = append(devices, uint(i))
+		}
+	} else {
+		// flag provided, convert to uints
+		for _, s := range devicesStr {
+			u, err := strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				log.Printf("Invalid devices entry %s: %v\n", s, err)
+				panic(err)
+			}
+			devices = append(devices, uint(u))
+		}
 	}
 
+	// initialize
+	for _, i := range devices {
+		dev, err := gonvml.DeviceHandleByIndex(uint(i))
+		if err != nil {
+			log.Printf("DeviceHandleByIndex(%d) error: %v", i, err)
+			panic(err)
+		}
+
+		if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
+			log.Printf("SetPersistenceMode() error: %v", err)
+			panic(err)
+		}
+
+		if err := dev.SetComputeMode(nvmlComputeExclusiveProcess); err != nil {
+			log.Printf("SetComputeMode() error: %v", err)
+			panic(err)
+		}
+	}
+
+	// monitor
 	for {
-		for i := 0; i < int(numDevices); i++ {
-			log.Printf("Collecting GPU snapshot for device %d...\n", i)
+		for _, i := range devices {
 			g := GPUSnapshot{}
 			g.TimeStamp = time.Now().Unix()
 
@@ -96,6 +142,13 @@ func monitorGPU(ctx context.Context) {
 				continue
 			}
 			g.Brand = brand
+
+			persistenceMode, err := dev.PersistenceMode()
+			if err != nil {
+				log.Printf("PersistenceMode() error: %v", err)
+				continue
+			}
+			g.PersistenceMode = persistenceMode
 
 			computeMode, err := dev.ComputeMode()
 			if err != nil {
@@ -166,29 +219,41 @@ func monitorGPU(ctx context.Context) {
 			}
 			g.MemMaxClock = memMaxClock
 
-			// pcieGen, err := dev.PcieGeneration()
-			// if err != nil {
-			// 	log.Printf("PcieGeneration() error: %v", err)
-			// }
-			// g.PcieGeneration = pcieGen
+			pcieTxThroughput, err := dev.PcieTxThroughput()
+			if err != nil {
+				log.Printf("PcieTxThroughput() error: %v", err)
+			}
+			g.PcieTxThroughput = pcieTxThroughput
 
-			// pcieWidth, err := dev.PcieWidth()
-			// if err != nil {
-			// 	log.Printf("PcieGeneration() error: %v", err)
-			// }
-			// g.PcieWidth = pcieWidth
+			pcieRxThroughput, err := dev.PcieRxThroughput()
+			if err != nil {
+				log.Printf("PcieRxThroughput() error: %v", err)
+			}
+			g.PcieRxThroughput = pcieRxThroughput
 
-			// pcieMaxGeneration, err := dev.PcieMaxGeneration()
-			// if err != nil {
-			// 	log.Printf("PcieGeneration() error: %v", err)
-			// }
-			// g.PcieMaxGeneration = pcieMaxGeneration
-			//
-			// pcieMaxWidth, err := dev.PcieMaxWidth()
-			// if err != nil {
-			// 	log.Printf("PcieGeneration() error: %v", err)
-			// }
-			// g.PcieMaxWidth = pcieMaxWidth
+			pcieGen, err := dev.PcieGeneration()
+			if err != nil {
+				log.Printf("PcieGeneration() error: %v", err)
+			}
+			g.PcieGeneration = pcieGen
+
+			pcieWidth, err := dev.PcieWidth()
+			if err != nil {
+				log.Printf("PcieGeneration() error: %v", err)
+			}
+			g.PcieWidth = pcieWidth
+
+			pcieMaxGeneration, err := dev.PcieMaxGeneration()
+			if err != nil {
+				log.Printf("PcieGeneration() error: %v", err)
+			}
+			g.PcieMaxGeneration = pcieMaxGeneration
+
+			pcieMaxWidth, err := dev.PcieMaxWidth()
+			if err != nil {
+				log.Printf("PcieGeneration() error: %v", err)
+			}
+			g.PcieMaxWidth = pcieMaxWidth
 
 			temperature, err := dev.Temperature()
 			if err != nil {
