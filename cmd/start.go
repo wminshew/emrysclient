@@ -58,7 +58,7 @@ var startCmd = &cobra.Command{
 
 		authToken, err := getToken()
 		if err != nil {
-			log.Printf("Error getting authToken: %v\n", err)
+			log.Printf("Error getting authToken: %v", err)
 			return
 		}
 		claims := &jwt.StandardClaims{}
@@ -67,7 +67,7 @@ var startCmd = &cobra.Command{
 			return
 		}
 		if err := claims.Valid(); err != nil {
-			log.Printf("Error invalid authToken claims: %v\n", err)
+			log.Printf("Error invalid authToken claims: %v", err)
 			log.Printf("Please login again.\n")
 			return
 		}
@@ -98,14 +98,14 @@ var startCmd = &cobra.Command{
 			Host:   h,
 		}
 		if err := checkVersion(client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+			log.Printf("Version error: %v", err)
 			return
 		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		if err := viper.ReadInConfig(); err != nil {
-			log.Printf("Error reading config file: %v\n", err)
+			log.Printf("Error reading config file: %v", err)
 			return
 		}
 		viper.WatchConfig()
@@ -120,7 +120,7 @@ var startCmd = &cobra.Command{
 		defer cm.stop()
 
 		if err := seedDockerdCache(ctx); err != nil {
-			log.Printf("Error downloading job image: %v\n", err)
+			log.Printf("Error downloading job image: %v", err)
 			return
 		}
 
@@ -145,7 +145,7 @@ var startCmd = &cobra.Command{
 			}
 
 			if err := checkContextCanceled(ctx); err != nil {
-				log.Printf("Miner canceled job search: %v\n", err)
+				log.Printf("Miner canceled job search: %v", err)
 				return
 			}
 
@@ -177,10 +177,10 @@ var startCmd = &cobra.Command{
 				if err := backoff.RetryNotify(operation,
 					backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
 					func(err error, t time.Duration) {
-						log.Printf("Pinging error: %v\n", err)
+						log.Printf("Pinging error: %v", err)
 						log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 					}); err != nil {
-					log.Printf("Unable to connect to emrys: %v\n", err)
+					log.Printf("Unable to connect to emrys: %v", err)
 					os.Exit(1)
 				}
 
@@ -190,7 +190,7 @@ var startCmd = &cobra.Command{
 						sinceTime = event.Timestamp
 						msg := &job.Message{}
 						if err := json.Unmarshal(event.Data, msg); err != nil {
-							log.Printf("Error unmarshaling json message: %v\n", err)
+							log.Printf("Error unmarshaling json message: %v", err)
 							log.Println("json message: ", string(event.Data))
 							continue
 						}

@@ -28,7 +28,7 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			cmd.Stderr = os.Stderr
 			log.Printf("Begin mining...\n")
 			if err := cmd.Start(); err != nil {
-				log.Printf("Error starting cryptomining process: %v\n", err)
+				log.Printf("Error starting cryptomining process: %v", err)
 				return
 			}
 			select {
@@ -37,11 +37,11 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			}
 			log.Printf("Pause mining...\n")
 			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP); err != nil {
-				log.Printf("Error interrupting cryptomining process: %v\n", err)
+				log.Printf("Error interrupting cryptomining process: %v", err)
 				return
 			}
 			if err := cmd.Process.Release(); err != nil {
-				log.Printf("Error releasing cryptomining process: %v\n", err)
+				log.Printf("Error releasing cryptomining process: %v", err)
 				return
 			}
 			select {

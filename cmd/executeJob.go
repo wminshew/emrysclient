@@ -30,22 +30,30 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 	cm.stop()
 	defer cm.start()
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v\n", err)
+		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
 
 	cli, err := docker.NewEnvClient()
 	if err != nil {
-		log.Printf("Error creating docker client: %v\n", err)
+		log.Printf("Error creating docker client: %v", err)
 		return
 	}
 	defer check.Err(cli.Close)
-	user, err := user.Current()
+
+	currUser, err := user.Current()
 	if err != nil {
-		log.Printf("Error getting current user: %v\n", err)
+		log.Printf("Error getting current user: %v", err)
 		return
 	}
-	jobDir := filepath.Join(user.HomeDir, ".emrys", jID)
+	if os.Geteuid() == 0 {
+		currUser, err = user.Lookup(os.Getenv("SUDO_USER"))
+		if err != nil {
+			log.Printf("Error getting current sudo user: %v", err)
+			return
+		}
+	}
+	jobDir := filepath.Join(currUser.HomeDir, ".emrys", jID)
 	if err = os.MkdirAll(jobDir, 0755); err != nil {
 		log.Printf("Error making job dir %v: %v\n", jobDir, err)
 		return
@@ -67,7 +75,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 			log.Printf("Error removing job image %v: %v\n", jID, err)
 		}
 		if _, err := cli.BuildCachePrune(ctx); err != nil {
-			log.Printf("Error pruning build cache: %v\n", err)
+			log.Printf("Error pruning build cache: %v", err)
 		}
 	}()
 
@@ -84,7 +92,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		return
 	}
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v\n", err)
+		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
 
@@ -140,17 +148,17 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		},
 	}, nil, "")
 	if err != nil {
-		log.Printf("Error creating container: %v\n", err)
+		log.Printf("Error creating container: %v", err)
 		return
 	}
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v\n", err)
+		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
 
 	log.Printf("Running container...\n")
 	if err := cli.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
-		log.Printf("Error starting container: %v\n", err)
+		log.Printf("Error starting container: %v", err)
 		return
 	}
 
@@ -160,7 +168,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		ShowStderr: true,
 	})
 	if err != nil {
-		log.Printf("Error logging container: %v\n", err)
+		log.Printf("Error logging container: %v", err)
 		return
 	}
 	defer check.Err(out.Close)
@@ -175,7 +183,7 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 	var resp *http.Response
 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
 		if err := checkContextCanceled(ctx); err != nil {
-			log.Printf("Miner canceled job search: %v\n", err)
+			log.Printf("Miner canceled job search: %v", err)
 			return
 		}
 		operation := func() error {
@@ -201,15 +209,15 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Error uploading output: %v\n", err)
+				log.Printf("Error uploading output: %v", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Error uploading output: %v\n", err)
+			log.Printf("Error uploading output: %v", err)
 			return
 		}
 	}
 	if err != nil && err != io.EOF {
-		log.Printf("Error reading log buffer: %v\n", err)
+		log.Printf("Error reading log buffer: %v", err)
 		return
 	}
 
@@ -236,16 +244,16 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error uploading output: %v\n", err)
+			log.Printf("Error uploading output: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Error uploading output: %v\n", err)
+		log.Printf("Error uploading output: %v", err)
 		return
 	}
 
 	// TODO: do I really want miner uploading output when he/she cancels?
 	// if err := checkContextCanceled(ctx); err != nil {
-	// 	log.Printf("Miner canceled job search: %v\n", err)
+	// 	log.Printf("Miner canceled job search: %v", err)
 	// 	return
 	// }
 	ctx = context.Background()
@@ -295,10 +303,10 @@ func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authTo
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error uploading output: %v\n", err)
+			log.Printf("Error uploading output: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Error uploading output: %v\n", err)
+		log.Printf("Error uploading output: %v", err)
 		return
 	}
 

@@ -21,7 +21,7 @@ func seedDockerdCache(ctx context.Context) error {
 	refStr := fmt.Sprintf("%s/%s/%s:%s", registry, repo, img, tag)
 	cli, err := docker.NewEnvClient()
 	if err != nil {
-		log.Printf("Error creating docker client: %v\n", err)
+		log.Printf("Error creating docker client: %v", err)
 		return err
 	}
 	defer check.Err(cli.Close)
@@ -29,13 +29,13 @@ func seedDockerdCache(ctx context.Context) error {
 		RegistryAuth: "none",
 	})
 	if err != nil {
-		log.Printf("Error pulling base image: %v\n", err)
+		log.Printf("Error pulling base image: %v", err)
 		return err
 	}
 	defer check.Err(pullResp.Close)
 
 	if err := jsonmessage.DisplayJSONMessagesStream(pullResp, os.Stdout, os.Stdout.Fd(), nil); err != nil {
-		log.Printf("Error displaying pull response: %v\n", err)
+		log.Printf("Error displaying pull response: %v", err)
 		return err
 	}
 	log.Printf("Base image pulled\n")

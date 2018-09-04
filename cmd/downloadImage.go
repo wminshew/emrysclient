@@ -18,14 +18,14 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		RegistryAuth: "none",
 	})
 	if err != nil {
-		log.Printf("Error downloading image: %v\n", err)
+		log.Printf("Error downloading image: %v", err)
 		errCh <- err
 		return
 	}
 	defer check.Err(pullResp.Close)
 
 	if err := jsonmessage.DisplayJSONMessagesStream(pullResp, os.Stdout, os.Stdout.Fd(), nil); err != nil {
-		log.Printf("Error downloading image: %v\n", err)
+		log.Printf("Error downloading image: %v", err)
 		errCh <- err
 		return
 	}

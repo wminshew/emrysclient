@@ -32,7 +32,7 @@ var registerCmd = &cobra.Command{
 			Host:   h,
 		}
 		if err := checkVersion(client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+			log.Printf("Version error: %v", err)
 			return
 		}
 
@@ -40,7 +40,7 @@ var registerCmd = &cobra.Command{
 		minerLogin(c)
 		bodyBuf := &bytes.Buffer{}
 		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+			log.Printf("Failed to encode email & password: %v", err)
 			return
 		}
 
@@ -63,10 +63,10 @@ var registerCmd = &cobra.Command{
 		ctx := context.Background()
 		if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Register error: %v\n", err)
+				log.Printf("Register error: %v", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Register error: %v\n", err)
+			log.Printf("Register error: %v", err)
 			os.Exit(1)
 		}
 

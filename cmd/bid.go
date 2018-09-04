@@ -21,11 +21,11 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 	defer func() { bidsOut-- }()
 	u.RawQuery = ""
 	if err := checkVersion(client, u); err != nil {
-		log.Printf("Version error: %v\n", err)
+		log.Printf("Version error: %v", err)
 		return
 	}
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v\n", err)
+		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
 	jID := msg.Job.ID.String()
@@ -35,7 +35,7 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 		MinRate: viper.GetFloat64("bid-rate"),
 	}
 	if err := json.NewEncoder(&body).Encode(b); err != nil {
-		log.Printf("Bid error: encoding json: %v\n", err)
+		log.Printf("Bid error: encoding json: %v", err)
 		return
 	}
 
@@ -44,7 +44,7 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), &body)
 	if err != nil {
-		log.Printf("Bid error: creating request: %v\n", err)
+		log.Printf("Bid error: creating request: %v", err)
 		return
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
@@ -77,10 +77,10 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Bid error: %v\n", err)
+			log.Printf("Bid error: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Bid error: %v\n", err)
+		log.Printf("Bid error: %v", err)
 		return
 	}
 

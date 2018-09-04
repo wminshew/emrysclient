@@ -10,7 +10,7 @@ import (
 func getToken() (string, error) {
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v", err)
 		return "", err
 	}
 	p := path.Join(u.HomeDir, ".config", "emrysminer", "jwt")

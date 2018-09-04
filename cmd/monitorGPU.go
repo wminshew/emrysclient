@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
+	// "github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/gonvml"
 	"log"
 	"strconv"
@@ -66,7 +67,7 @@ func monitorGPU(ctx context.Context) {
 		// no flag provided, grab all detected devices
 		numDevices, err := gonvml.DeviceCount()
 		if err != nil {
-			log.Printf("Error counting nvidia devices: %v\n", err)
+			log.Printf("Error counting nvidia devices: %v", err)
 			panic(err)
 		}
 		for i := 0; i < int(numDevices); i++ {

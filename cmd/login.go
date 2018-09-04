@@ -40,7 +40,7 @@ var loginCmd = &cobra.Command{
 			Host:   h,
 		}
 		if err := checkVersion(client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+			log.Printf("Version error: %v", err)
 			return
 		}
 
@@ -50,7 +50,7 @@ var loginCmd = &cobra.Command{
 
 		bodyBuf := &bytes.Buffer{}
 		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+			log.Printf("Failed to encode email & password: %v", err)
 			return
 		}
 
@@ -79,15 +79,15 @@ var loginCmd = &cobra.Command{
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Login error: %v\n", err)
+				log.Printf("Login error: %v", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Login error: %v\n", err)
+			log.Printf("Login error: %v", err)
 			os.Exit(1)
 		}
 
 		if err := storeToken(loginResp.Token); err != nil {
-			log.Printf("Failed to store login token: %v\n", err)
+			log.Printf("Failed to store login token: %v", err)
 			os.Exit(1)
 		}
 
@@ -104,7 +104,7 @@ func minerLogin(c *creds.Miner) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Printf("\nFailed to read password from console: %v\n", err)
+		log.Printf("\nFailed to read password from console: %v", err)
 		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
@@ -116,7 +116,7 @@ func storeToken(t string) error {
 	perm = 0755
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
 	dir := path.Join(u.HomeDir, ".config", "emrysminer")

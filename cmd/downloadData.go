@@ -23,7 +23,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), nil)
 	if err != nil {
-		log.Printf("Data: error: creating request: %v\n", err)
+		log.Printf("Data: error: creating request: %v", err)
 		errCh <- err
 		return
 	}
@@ -55,7 +55,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Data: error: %v\n", err)
+			log.Printf("Data: error: %v", err)
 			log.Printf("Data: trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Data: error %v %v: %v\n", req.Method, req.URL.Path, err)
