@@ -58,7 +58,7 @@ func init() {
 		}
 		return nil
 	}(); err != nil {
-		log.Printf("Error binding pflag: %v\n", err)
+		log.Printf("Error binding pflag: %v", err)
 		panic(err)
 	}
 }

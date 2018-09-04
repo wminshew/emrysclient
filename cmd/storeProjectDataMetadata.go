@@ -15,18 +15,18 @@ func storeProjectDataMetadata(project string, r io.Reader) error {
 	perm = 0755
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
 	p := path.Join(configDir, "projects", project, ".data_sync_metadata")
 	if err := os.MkdirAll(filepath.Dir(p), perm); err != nil {
-		log.Printf("Failed to make directory %s to save project %s metadata: %v\n", configDir, project, err)
+		log.Printf("Failed to make directory %s to save project %s metadata: %v", configDir, project, err)
 		return err
 	}
 	f, err := os.Create(p)
 	if err != nil {
-		log.Printf("Failed to create file %s to save project %s metadata: %v\n", p, project, err)
+		log.Printf("Failed to create file %s to save project %s metadata: %v", p, project, err)
 		return err
 	}
 	defer check.Err(f.Close)

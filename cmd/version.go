@@ -38,7 +38,7 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 	operation := func() error {
 		resp, err := client.Get(u.String())
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", "GET", u, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -50,7 +50,7 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Version: error: %v\n", err)
+			log.Printf("Version: error: %v", err)
 			log.Printf("Version: trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err

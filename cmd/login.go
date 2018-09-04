@@ -40,7 +40,7 @@ var loginCmd = &cobra.Command{
 		}
 		ctx := context.Background()
 		if err := checkVersion(ctx, client, u); err != nil {
-			log.Printf("Version error: %v\n", err)
+			log.Printf("Version error: %v", err)
 			return
 		}
 
@@ -50,7 +50,7 @@ var loginCmd = &cobra.Command{
 
 		bodyBuf := &bytes.Buffer{}
 		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Failed to encode email & password: %v\n", err)
+			log.Printf("Failed to encode email & password: %v", err)
 			return
 		}
 		p := path.Join("user", "login")
@@ -59,7 +59,7 @@ var loginCmd = &cobra.Command{
 		operation := func() error {
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
-				return fmt.Errorf("%s %v: %v", "POST", u, err)
+				return err
 			}
 			defer check.Err(resp.Body.Close)
 
@@ -76,14 +76,14 @@ var loginCmd = &cobra.Command{
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Login error: %v\n", err)
+				log.Printf("Login error: %v", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Login error: %v\n", err)
+			log.Printf("Login error: %v", err)
 			os.Exit(1)
 		}
 		if err := storeToken(loginResp.Token); err != nil {
-			log.Printf("Failed to store login token: %v\n", err)
+			log.Printf("Failed to store login token: %v", err)
 			os.Exit(1)
 		}
 		log.Printf("Success! Your login token will expire in %s days\n", c.Duration)
@@ -99,7 +99,7 @@ func userLogin(c *creds.User) {
 	fmt.Printf("Password: ")
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		log.Printf("\nFailed to read password from console: %v\n", err)
+		log.Printf("\nFailed to read password from console: %v", err)
 		return
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))

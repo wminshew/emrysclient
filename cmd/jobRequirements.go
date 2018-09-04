@@ -39,13 +39,13 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %v", b)
+			return fmt.Errorf("server response: %s", b)
 		}
 		jID = resp.Header.Get("X-Job-ID")
 
@@ -54,7 +54,7 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error sending job requirements: %v\n", err)
+			log.Printf("Error sending job requirements: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return "", err
@@ -80,13 +80,13 @@ func (j *jobReq) cancel(client *http.Client, u url.URL, uID, jID, authToken stri
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %v", b)
+			return fmt.Errorf("server response: %s", b)
 		}
 
 		return nil
@@ -94,7 +94,7 @@ func (j *jobReq) cancel(client *http.Client, u url.URL, uID, jID, authToken stri
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error sending job requirements: %v\n", err)
+			log.Printf("Error canceling job: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err

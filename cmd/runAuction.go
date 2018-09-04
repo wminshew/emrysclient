@@ -28,7 +28,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	operation := func() error {
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -42,7 +42,7 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Auction error: %v\n", err)
+			log.Printf("Auction error: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return fmt.Errorf("%v", err)

@@ -40,7 +40,7 @@ func streamOutputLog(ctx context.Context, client *http.Client, u url.URL, jID, a
 	outputLogPath := filepath.Join(output, jID, "log")
 	f, err := os.OpenFile(outputLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("Output log: error creating output log file %v: %v\n", outputLogPath, err)
+		log.Printf("Output log: error creating output log file %v: %v", outputLogPath, err)
 		return err
 	}
 	defer check.Err(f.Close)
@@ -71,7 +71,7 @@ pollLoop:
 
 			resp, err := client.Do(req)
 			if err != nil {
-				return fmt.Errorf("%v %v: %v", req.Method, req.URL.Path, err)
+				return err
 			}
 			defer check.Err(resp.Body.Close)
 
@@ -106,14 +106,14 @@ pollLoop:
 							break pollLoop
 						}
 					}
-					log.Printf("Error unmarshaling json message: %v\n", err)
+					log.Printf("Error unmarshaling json message: %v", err)
 					log.Printf("json message: %s\n", string(event.Data))
 					return err
 				}
 
 				tee := io.TeeReader(bytes.NewReader(buf), os.Stdout)
 				if _, err = io.Copy(f, tee); err != nil {
-					log.Printf("Output log: error copying response body: %v\n", err)
+					log.Printf("Output log: error copying response body: %v", err)
 					return err
 				}
 

@@ -14,7 +14,7 @@ import (
 func getProjectDataMetadata(project string, dataJSON *map[string]job.FileMetadata) error {
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
@@ -24,12 +24,12 @@ func getProjectDataMetadata(project string, dataJSON *map[string]job.FileMetadat
 	}
 	f, err := os.Open(p)
 	if err != nil {
-		log.Printf("Failed to open file %s to get project %s metadata: %v\n", p, project, err)
+		log.Printf("Failed to open file %s to get project %s metadata: %v", p, project, err)
 		return err
 	}
 	defer check.Err(f.Close)
 	if err := json.NewDecoder(f).Decode(dataJSON); err != nil && err != io.EOF {
-		log.Printf("Error decoding data directory as JSON: %v\n", err)
+		log.Printf("Error decoding data directory as JSON: %v", err)
 		return err
 	}
 	return nil

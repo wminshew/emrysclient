@@ -37,7 +37,7 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%v %v: %v", req.Method, req.URL.Path, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -55,7 +55,7 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Output data: error: %v\n", err)
+			log.Printf("Output data: error: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return fmt.Errorf("%s", err)

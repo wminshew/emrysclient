@@ -14,13 +14,13 @@ func storeToken(t string) error {
 	perm = 0755
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v\n", err)
+		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
 	p := path.Join(configDir, "jwt")
 	if err := os.MkdirAll(filepath.Dir(p), perm); err != nil {
-		log.Printf("Failed to make directory %s to save login token: %v\n", configDir, err)
+		log.Printf("Failed to make directory %s to save login token: %v", configDir, err)
 		return err
 	}
 	if err := ioutil.WriteFile(p, []byte(t), perm); err != nil {

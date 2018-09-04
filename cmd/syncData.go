@@ -89,7 +89,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		}
 		return nil
 	}(); err != nil {
-		log.Printf("Data: error: %v\n", err)
+		log.Printf("Data: error: %v", err)
 		errCh <- err
 		return
 	}
@@ -111,7 +111,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %s: %s", req.Method, req.URL, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -158,7 +158,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 			select {
 			case err := <-errCh:
 				close(done)
-				log.Printf("Data: error uploading data set: %v\n", err)
+				log.Printf("Data: error uploading data set: %v", err)
 				errCh <- err
 				return
 			case result := <-results:
@@ -199,7 +199,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 					defer check.Err(zw.Close)
 					defer check.Err(f.Close)
 					if _, err := io.Copy(zw, f); err != nil {
-						log.Printf("Data: error: copying file to zlib writer: %v\n", err)
+						log.Printf("Data: error: copying file to zlib writer: %v", err)
 						return
 					}
 				}()
@@ -214,7 +214,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 
 				resp, err := client.Do(req)
 				if err != nil {
-					return fmt.Errorf("%s %v: %v", req.Method, req.URL, err)
+					return err
 				}
 				defer check.Err(resp.Body.Close)
 

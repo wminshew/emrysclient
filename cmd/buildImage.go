@@ -27,11 +27,11 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		r, w := io.Pipe()
 		go func() {
 			if err := archiver.TarGz.Write(w, []string{main, reqs}); err != nil {
-				log.Printf("Image: error: tar-gzipping docker context files: %v\n", err)
+				log.Printf("Image: error: tar-gzipping docker context files: %v", err)
 				return
 			}
 			if err := w.Close(); err != nil {
-				log.Printf("Image: error: closing pipe writer: %v\n", err)
+				log.Printf("Image: error: closing pipe writer: %v", err)
 				return
 			}
 		}()
@@ -47,7 +47,7 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		log.Printf("Image: building...\n")
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, u, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -59,10 +59,10 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 	}
 	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Image: error: %v\n", err)
+			log.Printf("Image: error: %v", err)
 			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Image: error: %v\n", err)
+		log.Printf("Image: error: %v", err)
 		errCh <- err
 		return
 	}

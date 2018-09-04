@@ -34,16 +34,16 @@ var runCmd = &cobra.Command{
 
 		authToken, err := getToken()
 		if err != nil {
-			log.Printf("Error: retrieving authToken: %v\n", err)
+			log.Printf("Error: retrieving authToken: %v", err)
 			return
 		}
 		claims := &jwt.StandardClaims{}
 		if _, _, err := new(jwt.Parser).ParseUnverified(authToken, claims); err != nil {
-			log.Printf("Error: parsing authToken: %v\n", err)
+			log.Printf("Error: parsing authToken: %v", err)
 			return
 		}
 		if err := claims.Valid(); err != nil {
-			log.Printf("Error: invalid authToken: %v\n", err)
+			log.Printf("Error: invalid authToken: %v", err)
 			log.Printf("Please login again.\n")
 			return
 		}
@@ -62,14 +62,14 @@ var runCmd = &cobra.Command{
 			Host:   h,
 		}
 		if err := checkVersion(ctx, client, u); err != nil {
-			log.Printf("Version: error: %v\n", err)
+			log.Printf("Version: error: %v", err)
 			return
 		}
 
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		if err := viper.ReadInConfig(); err != nil {
-			log.Printf("Error: reading config file: %v\n", err)
+			log.Printf("Error: reading config file: %v", err)
 			return
 		}
 
@@ -81,19 +81,19 @@ var runCmd = &cobra.Command{
 			output:       viper.GetString("output"),
 		}
 		if err := j.validate(); err != nil {
-			log.Printf("Error: invalid job requirements: %v\n", err)
+			log.Printf("Error: invalid job requirements: %v", err)
 			return
 		}
 		var jID string
 		if jID, err = j.send(ctx, client, u, uID, authToken); err != nil {
-			log.Printf("Error: sending job requirements: %v\n", err)
+			log.Printf("Error: sending job requirements: %v", err)
 			return
 		}
 		completed := false
 		defer func() {
 			if !completed {
 				if err := j.cancel(client, u, uID, jID, authToken); err != nil {
-					log.Printf("Error: canceling job: %v\n", err)
+					log.Printf("Error: canceling job: %v", err)
 					return
 				}
 			}
@@ -121,7 +121,7 @@ var runCmd = &cobra.Command{
 		}
 
 		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
-			log.Printf("Auction: error: %v\n", err)
+			log.Printf("Auction: error: %v", err)
 			return
 		}
 
@@ -130,19 +130,19 @@ var runCmd = &cobra.Command{
 		}
 		outputDir := filepath.Join(j.output, jID)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
-			log.Printf("Output data: error making output dir %v: %v\n", outputDir, err)
+			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
 		}
 
 		log.Printf("Executing job %s\n", jID)
 		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
-			log.Printf("Output log: error: %v\n", err)
+			log.Printf("Output log: error: %v", err)
 			return
 		}
 		buffer := 1 * time.Second
 		time.Sleep(buffer)
 		if err := downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
-			log.Printf("Output data: error: %v\n", err)
+			log.Printf("Output data: error: %v", err)
 			return
 		}
 
