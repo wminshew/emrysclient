@@ -78,7 +78,7 @@ func monitorGPU(ctx context.Context) {
 		for _, s := range devicesStr {
 			u, err := strconv.ParseUint(s, 10, 64)
 			if err != nil {
-				log.Printf("Invalid devices entry %s: %v\n", s, err)
+				log.Printf("Invalid devices entry %s: %v", s, err)
 				panic(err)
 			}
 			devices = append(devices, uint(u))
