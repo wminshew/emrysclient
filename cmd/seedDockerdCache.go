@@ -12,7 +12,7 @@ import (
 )
 
 func seedDockerdCache(ctx context.Context) error {
-	log.Printf("Downloading base image...\n")
+	log.Printf("Pulling base image to seed dockerd cache...\n")
 
 	registry := "registry.emrys.io"
 	repo := "emrys"

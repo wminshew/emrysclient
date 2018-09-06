@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
-	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io/ioutil"
@@ -17,22 +16,17 @@ import (
 	"time"
 )
 
-func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
+func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken string, msg *job.Message) {
+	bidsOut++
 	defer func() { bidsOut-- }()
 	u.RawQuery = ""
-	if err := checkVersion(client, u); err != nil {
-		log.Printf("Version error: %v", err)
-		return
-	}
-	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v", err)
-		return
-	}
 	jID := msg.Job.ID.String()
 
 	var body bytes.Buffer
+	// TODO: is this better than encoding in URL query?
 	b := &job.Bid{
-		MinRate: viper.GetFloat64("bid-rate"),
+		BidRate:  w.bidRate,
+		WorkerID: w.uuid,
 	}
 	if err := json.NewEncoder(&body).Encode(b); err != nil {
 		log.Printf("Bid error: encoding json: %v", err)
@@ -61,7 +55,7 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 		}
 		defer check.Err(resp.Body.Close)
 
-		if busy {
+		if w.busy {
 			log.Println("Bid rejected -- you're busy with another job!")
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
@@ -86,6 +80,6 @@ func bid(ctx context.Context, client *http.Client, u url.URL, mID, authToken str
 
 	if winner {
 		log.Printf("You won job %v!\n", jID)
-		executeJob(ctx, client, u, mID, authToken, jID)
+		go w.executeJob(ctx, client, u, mID, authToken, jID)
 	}
 }

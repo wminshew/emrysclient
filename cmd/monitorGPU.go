@@ -1,45 +1,19 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
-	// "github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/gonvml"
 	"log"
+	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
-
-// GPUSnapshot holds data collected about the mining GPU
-type GPUSnapshot struct {
-	TimeStamp         int64
-	MinorNumber       uint
-	UUID              string
-	Name              string
-	Brand             uint
-	PersistenceMode   uint
-	ComputeMode       uint
-	PerformanceState  uint
-	AvgGPUUtilization uint
-	AvgPowerUsage     uint
-	TotalMemory       uint64
-	UsedMemory        uint64
-	GrClock           uint
-	SMClock           uint
-	MemClock          uint
-	GrMaxClock        uint
-	SMMaxClock        uint
-	MemMaxClock       uint
-	PcieTxThroughput  uint
-	PcieRxThroughput  uint
-	PcieGeneration    uint
-	PcieWidth         uint
-	PcieMaxGeneration uint
-	PcieMaxWidth      uint
-	Temperature       uint
-	FanSpeed          uint
-}
 
 const (
 	gpuPeriod                   = 10 * time.Second
@@ -47,229 +21,227 @@ const (
 	nvmlComputeExclusiveProcess = 3
 )
 
-func monitorGPU(ctx context.Context) {
-	if err := gonvml.Initialize(); err != nil {
-		log.Printf("Couldn't initialize gonvml: %v. Make sure NVML is in the shared library search path.", err)
-		panic(err)
-	}
-	defer check.Err(gonvml.Shutdown)
+func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint, authToken string) {
+	dStr := string(device)
 
-	driverVersion, err := gonvml.SystemDriverVersion()
+	dev, err := gonvml.DeviceHandleByIndex(device)
 	if err != nil {
-		log.Printf("Error finding nvidia driver: %v", err)
-		return
-	}
-	log.Printf("Nvidia driver: %v", driverVersion)
-
-	devices := []uint{}
-	devicesStr := viper.GetStringSlice("devices")
-	if len(devicesStr) == 0 {
-		// no flag provided, grab all detected devices
-		numDevices, err := gonvml.DeviceCount()
-		if err != nil {
-			log.Printf("Error counting nvidia devices: %v", err)
-			panic(err)
-		}
-		for i := 0; i < int(numDevices); i++ {
-			devices = append(devices, uint(i))
-		}
-	} else {
-		// flag provided, convert to uints
-		for _, s := range devicesStr {
-			u, err := strconv.ParseUint(s, 10, 64)
-			if err != nil {
-				log.Printf("Invalid devices entry %s: %v", s, err)
-				panic(err)
-			}
-			devices = append(devices, uint(u))
-		}
+		log.Printf("Device %s: DeviceHandleByIndex() error: %v", dStr, err)
+		panic(err)
 	}
 
 	// initialize
-	for _, i := range devices {
-		dev, err := gonvml.DeviceHandleByIndex(uint(i))
-		if err != nil {
-			log.Printf("DeviceHandleByIndex(%d) error: %v", i, err)
-			panic(err)
-		}
+	if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
+		log.Printf("Device %s: SetPersistenceMode() error: %v", dStr, err)
+		panic(err)
+	}
 
-		if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
-			log.Printf("SetPersistenceMode() error: %v", err)
-			panic(err)
-		}
-
-		if err := dev.SetComputeMode(nvmlComputeExclusiveProcess); err != nil {
-			log.Printf("SetComputeMode() error: %v", err)
-			panic(err)
-		}
+	if err := dev.SetComputeMode(nvmlComputeExclusiveProcess); err != nil {
+		log.Printf("Device %s: SetComputeMode() error: %v", dStr, err)
+		panic(err)
 	}
 
 	// monitor
+	m := "POST"
+	p := path.Join("job", jID, "device_snapshot")
+	u.Path = p
 	for {
-		for _, i := range devices {
-			g := GPUSnapshot{}
-			g.TimeStamp = time.Now().Unix()
+		d := job.DeviceSnapshot{}
+		d.TimeStamp = time.Now().Unix()
 
-			dev, err := gonvml.DeviceHandleByIndex(uint(i))
-			if err != nil {
-				log.Printf("DeviceHandleByIndex(%d) error: %v", i, err)
-				continue
-			}
-
-			minorNumber, err := dev.MinorNumber()
-			if err != nil {
-				log.Printf("MinorNumber() error: %v", err)
-				continue
-			}
-			g.MinorNumber = minorNumber
-
-			uuid, err := dev.UUID()
-			if err != nil {
-				log.Printf("UUID() error: %v", err)
-				continue
-			}
-			g.UUID = uuid
-
-			name, err := dev.Name()
-			if err != nil {
-				log.Printf("Name() error: %v", err)
-				continue
-			}
-			g.Name = name
-
-			brand, err := dev.Brand()
-			if err != nil {
-				log.Printf("Brand() error: %v", err)
-				continue
-			}
-			g.Brand = brand
-
-			persistenceMode, err := dev.PersistenceMode()
-			if err != nil {
-				log.Printf("PersistenceMode() error: %v", err)
-				continue
-			}
-			g.PersistenceMode = persistenceMode
-
-			computeMode, err := dev.ComputeMode()
-			if err != nil {
-				log.Printf("ComputeMode() error: %v", err)
-				continue
-			}
-			g.ComputeMode = computeMode
-
-			performanceState, err := dev.PerformanceState()
-			if err != nil {
-				log.Printf("PerformanceState() error: %v", err)
-				continue
-			}
-			g.PerformanceState = performanceState
-
-			gpuUtilization, err := dev.AverageGPUUtilization(gpuPeriod)
-			if err != nil {
-				log.Printf("UtilizationRates() error: %v", err)
-			}
-			g.AvgGPUUtilization = gpuUtilization
-
-			powerUsage, err := dev.AveragePowerUsage(gpuPeriod)
-			if err != nil {
-				log.Printf("PowerUsage() error: %v", err)
-			}
-			g.AvgPowerUsage = powerUsage
-
-			totalMemory, usedMemory, err := dev.MemoryInfo()
-			if err != nil {
-				log.Printf("MemoryInfo() error: %v", err)
-			}
-			g.TotalMemory = totalMemory
-			g.UsedMemory = usedMemory
-
-			grClock, err := dev.GrClock()
-			if err != nil {
-				log.Printf("GrClock() error: %v", err)
-			}
-			g.GrClock = grClock
-
-			smClock, err := dev.SMClock()
-			if err != nil {
-				log.Printf("SMClock() error: %v", err)
-			}
-			g.SMClock = smClock
-
-			memClock, err := dev.MemClock()
-			if err != nil {
-				log.Printf("MemClock() error: %v", err)
-			}
-			g.MemClock = memClock
-
-			grMaxClock, err := dev.GrMaxClock()
-			if err != nil {
-				log.Printf("GrMaxClock() error: %v", err)
-			}
-			g.GrMaxClock = grMaxClock
-
-			smMaxClock, err := dev.SMMaxClock()
-			if err != nil {
-				log.Printf("SMMaxClock() error: %v", err)
-			}
-			g.SMMaxClock = smMaxClock
-
-			memMaxClock, err := dev.MemMaxClock()
-			if err != nil {
-				log.Printf("MemMaxClock() error: %v", err)
-			}
-			g.MemMaxClock = memMaxClock
-
-			pcieTxThroughput, err := dev.PcieTxThroughput()
-			if err != nil {
-				log.Printf("PcieTxThroughput() error: %v", err)
-			}
-			g.PcieTxThroughput = pcieTxThroughput
-
-			pcieRxThroughput, err := dev.PcieRxThroughput()
-			if err != nil {
-				log.Printf("PcieRxThroughput() error: %v", err)
-			}
-			g.PcieRxThroughput = pcieRxThroughput
-
-			pcieGen, err := dev.PcieGeneration()
-			if err != nil {
-				log.Printf("PcieGeneration() error: %v", err)
-			}
-			g.PcieGeneration = pcieGen
-
-			pcieWidth, err := dev.PcieWidth()
-			if err != nil {
-				log.Printf("PcieGeneration() error: %v", err)
-			}
-			g.PcieWidth = pcieWidth
-
-			pcieMaxGeneration, err := dev.PcieMaxGeneration()
-			if err != nil {
-				log.Printf("PcieGeneration() error: %v", err)
-			}
-			g.PcieMaxGeneration = pcieMaxGeneration
-
-			pcieMaxWidth, err := dev.PcieMaxWidth()
-			if err != nil {
-				log.Printf("PcieGeneration() error: %v", err)
-			}
-			g.PcieMaxWidth = pcieMaxWidth
-
-			temperature, err := dev.Temperature()
-			if err != nil {
-				log.Printf("Temperature() error: %v", err)
-			}
-			g.Temperature = temperature
-
-			fanSpeed, err := dev.FanSpeed()
-			if err != nil {
-				log.Printf("FanSpeed() error: %v", err)
-			}
-			g.FanSpeed = fanSpeed
-
-			log.Printf("GPU Snapshot: %+v", g)
+		minorNumber, err := dev.MinorNumber()
+		if err != nil {
+			log.Printf("Device %s: MinorNumber() error: %v", dStr, err)
+			continue
 		}
+		d.MinorNumber = minorNumber
+
+		uuid, err := dev.UUID()
+		if err != nil {
+			log.Printf("Device %s: UUID() error: %v", dStr, err)
+			continue
+		}
+		d.UUID = uuid
+
+		name, err := dev.Name()
+		if err != nil {
+			log.Printf("Device %s: Name() error: %v", dStr, err)
+			continue
+		}
+		d.Name = name
+
+		brand, err := dev.Brand()
+		if err != nil {
+			log.Printf("Device %s: Brand() error: %v", dStr, err)
+			continue
+		}
+		d.Brand = brand
+
+		persistenceMode, err := dev.PersistenceMode()
+		if err != nil {
+			log.Printf("Device %s: PersistenceMode() error: %v", dStr, err)
+			continue
+		}
+		d.PersistenceMode = persistenceMode
+
+		computeMode, err := dev.ComputeMode()
+		if err != nil {
+			log.Printf("Device %s: ComputeMode() error: %v", dStr, err)
+			continue
+		}
+		d.ComputeMode = computeMode
+
+		performanceState, err := dev.PerformanceState()
+		if err != nil {
+			log.Printf("Device %s: PerformanceState() error: %v", dStr, err)
+			continue
+		}
+		d.PerformanceState = performanceState
+
+		gpuUtilization, err := dev.AverageGPUUtilization(gpuPeriod)
+		if err != nil {
+			log.Printf("Device %s: UtilizationRates() error: %v", dStr, err)
+		}
+		d.AvgGPUUtilization = gpuUtilization
+
+		powerUsage, err := dev.AveragePowerUsage(gpuPeriod)
+		if err != nil {
+			log.Printf("Device %s: PowerUsage() error: %v", dStr, err)
+		}
+		d.AvgPowerUsage = powerUsage
+
+		totalMemory, usedMemory, err := dev.MemoryInfo()
+		if err != nil {
+			log.Printf("Device %s: MemoryInfo() error: %v", dStr, err)
+		}
+		d.TotalMemory = totalMemory
+		d.UsedMemory = usedMemory
+
+		grClock, err := dev.GrClock()
+		if err != nil {
+			log.Printf("Device %s: GrClock() error: %v", dStr, err)
+		}
+		d.GrClock = grClock
+
+		smClock, err := dev.SMClock()
+		if err != nil {
+			log.Printf("Device %s: SMClock() error: %v", dStr, err)
+		}
+		d.SMClock = smClock
+
+		memClock, err := dev.MemClock()
+		if err != nil {
+			log.Printf("Device %s: MemClock() error: %v", dStr, err)
+		}
+		d.MemClock = memClock
+
+		grMaxClock, err := dev.GrMaxClock()
+		if err != nil {
+			log.Printf("Device %s: GrMaxClock() error: %v", dStr, err)
+		}
+		d.GrMaxClock = grMaxClock
+
+		smMaxClock, err := dev.SMMaxClock()
+		if err != nil {
+			log.Printf("Device %s: SMMaxClock() error: %v", dStr, err)
+		}
+		d.SMMaxClock = smMaxClock
+
+		memMaxClock, err := dev.MemMaxClock()
+		if err != nil {
+			log.Printf("Device %s: MemMaxClock() error: %v", dStr, err)
+		}
+		d.MemMaxClock = memMaxClock
+
+		pcieTxThroughput, err := dev.PcieTxThroughput()
+		if err != nil {
+			log.Printf("Device %s: PcieTxThroughput() error: %v", dStr, err)
+		}
+		d.PcieTxThroughput = pcieTxThroughput
+
+		pcieRxThroughput, err := dev.PcieRxThroughput()
+		if err != nil {
+			log.Printf("Device %s: PcieRxThroughput() error: %v", dStr, err)
+		}
+		d.PcieRxThroughput = pcieRxThroughput
+
+		pcieGen, err := dev.PcieGeneration()
+		if err != nil {
+			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		}
+		d.PcieGeneration = pcieGen
+
+		pcieWidth, err := dev.PcieWidth()
+		if err != nil {
+			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		}
+		d.PcieWidth = pcieWidth
+
+		pcieMaxGeneration, err := dev.PcieMaxGeneration()
+		if err != nil {
+			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		}
+		d.PcieMaxGeneration = pcieMaxGeneration
+
+		pcieMaxWidth, err := dev.PcieMaxWidth()
+		if err != nil {
+			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		}
+		d.PcieMaxWidth = pcieMaxWidth
+
+		temperature, err := dev.Temperature()
+		if err != nil {
+			log.Printf("Device %s: Temperature() error: %v", dStr, err)
+		}
+		d.Temperature = temperature
+
+		fanSpeed, err := dev.FanSpeed()
+		if err != nil {
+			log.Printf("Device %s: FanSpeed() error: %v", dStr, err)
+		}
+		d.FanSpeed = fanSpeed
+
+		// TODO: remove gpu log; or maybe just print the temp
+		log.Printf("Device %s: snapshot: %+v", dStr, d)
+
+		var body bytes.Buffer
+		if err := json.NewEncoder(&body).Encode(&d); err != nil {
+			log.Printf("Monitor error: encoding json: %v", err)
+			return
+		}
+
+		req, err := http.NewRequest(m, u.String(), &body)
+		if err != nil {
+			log.Printf("Monitor error: creating request: %v", err)
+			return
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req = req.WithContext(ctx)
+
+		operation := func() error {
+			resp, err := client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer check.Err(resp.Body.Close)
+
+			if resp.StatusCode == http.StatusOK {
+				b, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("server response: %s", b)
+			}
+
+			return nil
+		}
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Monitor error: %v", err)
+				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Monitor error: %v", err)
+			return
+		}
+
 		select {
 		case <-ctx.Done():
 			return

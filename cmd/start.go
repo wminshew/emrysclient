@@ -7,10 +7,12 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/fsnotify/fsnotify"
+	"github.com/satori/go.uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
 	"net"
@@ -37,28 +39,32 @@ type pollEvent struct {
 }
 
 var (
-	busy      = false
-	terminate = false
-	bidsOut   = 0
-	cm        *cryptoMiner
+	terminate     = false
+	jobsInProcess = 0
+	bidsOut       = 0
 )
 
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Begin mining on emrys",
-	Long: "Start executing deep learning jobs for money. " +
+	Long: "Start training deep learning models for money. " +
 		"When no jobs are available, or if the asking rates are " +
 		"below your minimum, emrysminer will execute ./mining-command",
 	Run: func(cmd *cobra.Command, args []string) {
+		if os.Geteuid() != 0 { // TODO: does this work correctly?
+			log.Printf("Insufficient privileges. Are you root?\n")
+			return
+		}
+
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
 		go monitorInterrupts(stop, cancel)
-		go monitorGPU(ctx)
 
 		authToken, err := getToken()
 		if err != nil {
 			log.Printf("Error getting authToken: %v", err)
+			// TODO: test to see if you end up with stray processes on returning here; may have to close(stop) or something similar
 			return
 		}
 		claims := &jwt.StandardClaims{}
@@ -108,16 +114,104 @@ var startCmd = &cobra.Command{
 			log.Printf("Error reading config file: %v", err)
 			return
 		}
+
+		if err := gonvml.Initialize(); err != nil {
+			log.Printf("Error initializing gonvml: %v. Please make sure NVML is in the shared library search path.", err)
+			panic(err)
+		}
+		defer check.Err(gonvml.Shutdown)
+
+		driverVersion, err := gonvml.SystemDriverVersion()
+		if err != nil {
+			log.Printf("Error finding nvidia driver: %v", err)
+			return
+		}
+		log.Printf("Nvidia driver: %v\n", driverVersion)
+
+		devices := []uint{}
+		devicesStr := viper.GetStringSlice("devices") // TODO: test how yaml works; is order preserved?
+		if len(devicesStr) == 0 {
+			// no flag provided, grab all detected devices
+			numDevices, err := gonvml.DeviceCount()
+			if err != nil {
+				log.Printf("Error counting nvidia devices: %v", err)
+				return
+			}
+			for i := 0; i < int(numDevices); i++ {
+				devices = append(devices, uint(i))
+			}
+		} else {
+			// flag provided, convert to uints
+			for _, s := range devicesStr {
+				u, err := strconv.ParseUint(s, 10, 64)
+				if err != nil {
+					log.Printf("Invalid devices entry %s: %v", s, err)
+					return
+				}
+				devices = append(devices, uint(u))
+			}
+		}
+
+		bidRatesStr := viper.GetStringSlice("bid-rates")
+		if len(bidRatesStr) != 1 && len(bidRatesStr) != len(devices) {
+			log.Printf("Mismatch between number of devices (%d) and bid-rates (%d). Either set a single bid rate for all devices, or one for each device.\n",
+				len(devices), len(bidRatesStr))
+			return
+		}
+		workers := []worker{}
+		cryptoMiners := []*cryptoMiners{}
+		for i, d := range devices {
+			go monitorGPU(ctx, d)
+
+			cm := &cryptoMiner{
+				command: viper.GetString("mining-command"),
+				device:  d,
+			}
+			cm.init(ctx)
+			defer cm.stop()
+			cryptoMiners = append(cryptoMiners, cm)
+
+			dev, err := gonvml.DeviceHandleByIndex(d)
+			if err != nil {
+				log.Printf("Device %d: DeviceHandleByIndex() error: %v", d, err)
+				return
+			}
+			dUUIDtr, err := dev.UUID()
+			if err != nil {
+				log.Printf("Device %d: UUID() error: %v", d, err)
+				return
+			}
+			dUUID, err := uuid.FromString(dUUIDStr)
+			if err != nil {
+				log.Printf("Device %d: error converting device uuid to uuid.UUID: %v", d, err)
+				return
+			}
+			var brStr string
+			if len(bidRatesStr) == 1 {
+				brStr = bidRatesStr[0]
+			} else {
+				brStr = bidRatesStr[i]
+			}
+			br, err := strconv.ParseFloat(brStr, 10, 64)
+			if err != nil {
+				log.Printf("Invalid bid-rate entry %s: %v", brStr, err)
+				return
+			}
+			workers = append(workers, worker{
+				device:  d,
+				uuid:    dUUID,
+				busy:    false,
+				bidRate: br,
+			})
+		}
+
+		// TODO: make sure .. things are updated properly on change? run some tests to get working
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
+			// TODO: update cryptominer, if necessary
+			// TODO: update worker, if necessary
 		})
-
-		cm = &cryptoMiner{
-			command: viper.GetString("mining-command"),
-		}
-		cm.init(ctx)
-		defer cm.stop()
 
 		if err := seedDockerdCache(ctx); err != nil {
 			log.Printf("Error downloading job image: %v", err)
@@ -140,8 +234,46 @@ var startCmd = &cobra.Command{
 		pr := pollResponse{}
 		for {
 			if terminate {
-				log.Printf("Mining terminated.\n")
+				log.Printf("Mining job search canceled.\n")
 				return
+			}
+			if err := checkVersion(client, u); err != nil {
+				log.Printf("Version error: %v", err)
+				return
+			}
+
+			log.Printf("Pinging emrys for jobs...\n")
+			operation = func() error {
+				if req, err = http.NewRequest(m, u.String(), nil); err != nil {
+					return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+				}
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+				req = req.WithContext(ctx)
+
+				resp, err = client.Do(req)
+				if err != nil {
+					return err
+				}
+				defer check.Err(resp.Body.Close)
+
+				if resp.StatusCode != http.StatusOK {
+					b, _ := ioutil.ReadAll(resp.Body)
+					return fmt.Errorf("server response: %s", b)
+				}
+
+				if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+					return fmt.Errorf("json decoding response: %v", err)
+				}
+				return nil
+			}
+			if err := backoff.RetryNotify(operation,
+				backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
+				func(err error, t time.Duration) {
+					log.Printf("Pinging error: %v", err)
+					log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+				}); err != nil {
+				log.Printf("Unable to connect to emrys: %v", err)
+				os.Exit(1)
 			}
 
 			if err := checkContextCanceled(ctx); err != nil {
@@ -149,70 +281,34 @@ var startCmd = &cobra.Command{
 				return
 			}
 
-			if !busy {
-				log.Printf("Pinging emrys for jobs...\n")
-				operation = func() error {
-					if req, err = http.NewRequest(m, u.String(), nil); err != nil {
-						return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+			if len(pr.Events) > 0 {
+				log.Println(len(pr.Events), "job(s) up for auction")
+				for _, event := range pr.Events {
+					sinceTime = event.Timestamp
+					msg := &job.Message{}
+					if err := json.Unmarshal(event.Data, msg); err != nil {
+						log.Printf("Error unmarshaling json message: %v", err)
+						log.Println("json message: ", string(event.Data))
+						continue
 					}
-					req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-					req = req.WithContext(ctx)
-
-					resp, err = client.Do(req)
-					if err != nil {
-						return fmt.Errorf("%v %v: %v", m, u.Path, err)
+					if msg.Job == nil {
+						continue
 					}
-					defer check.Err(resp.Body.Close)
-
-					if resp.StatusCode != http.StatusOK {
-						b, _ := ioutil.ReadAll(resp.Body)
-						return fmt.Errorf("server response: %s", b)
-					}
-
-					if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-						return fmt.Errorf("json decoding response: %v", err)
-					}
-					return nil
-				}
-				if err := backoff.RetryNotify(operation,
-					backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
-					func(err error, t time.Duration) {
-						log.Printf("Pinging error: %v", err)
-						log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
-					}); err != nil {
-					log.Printf("Unable to connect to emrys: %v", err)
-					os.Exit(1)
-				}
-
-				if len(pr.Events) > 0 {
-					log.Println(len(pr.Events), "job(s) up for auction")
-					for _, event := range pr.Events {
-						sinceTime = event.Timestamp
-						msg := &job.Message{}
-						if err := json.Unmarshal(event.Data, msg); err != nil {
-							log.Printf("Error unmarshaling json message: %v", err)
-							log.Println("json message: ", string(event.Data))
-							continue
+					for _, w := range workers {
+						if !w.busy {
+							go w.bid(ctx, client, u, mID, authToken, msg)
 						}
-						if msg.Job == nil {
-							continue
-						}
-						bidsOut++
-						go bid(ctx, client, u, mID, authToken, msg)
-					}
-				} else {
-					if pr.Timestamp > sinceTime {
-						sinceTime = pr.Timestamp
 					}
 				}
-
-				q = u.Query()
-				q.Set("since_time", fmt.Sprintf("%d", sinceTime))
-				u.RawQuery = q.Encode()
 			} else {
-				// wait until finished with job
-				time.Sleep(5 * time.Second)
+				if pr.Timestamp > sinceTime {
+					sinceTime = pr.Timestamp
+				}
 			}
+
+			q = u.Query()
+			q.Set("since_time", fmt.Sprintf("%d", sinceTime))
+			u.RawQuery = q.Encode()
 		}
 	},
 }

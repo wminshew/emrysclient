@@ -24,15 +24,17 @@ import (
 	"time"
 )
 
-func executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
-	busy = true
-	defer func() { busy = false }()
-	cm.stop()
-	defer cm.start()
+func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
+	w.busy = true
+	defer func() { w.busy = false }()
+	jobsInProcess++
+	defer func() { jobsInProcess-- }()
 	if err := checkContextCanceled(ctx); err != nil {
 		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
+	cm.stop()
+	defer cm.start()
 
 	cli, err := docker.NewEnvClient()
 	if err != nil {

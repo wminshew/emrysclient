@@ -27,8 +27,9 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	loginCmd.Flags().IntP("save", "s", 7, "Days until token received in response on successful login expires.")
 	startCmd.Flags().StringP("config", "c", ".emrysminer", "Path to config file (don't include extension)")
-	startCmd.Flags().Float64P("bid-rate", "b", 0, "Bid rate ($/hr) for mining jobs (required)")
+	startCmd.Flags().StringSliceP("bid-rates", "b", []string{}, "Per device bid rates ($/hr) for mining jobs (required; may set 1 value for all devices, or 1 value per device)")
 	startCmd.Flags().StringSliceP("devices", "d", []string{}, "Cuda devices to mine with on emrys (does not affect mining-command in .emrysminer.yaml). If blank, program will mine with all detected devices.")
+	startCmd.Flags().StringP("mining-command", "m", "", "Mining command to execute between emrys jobs. Use $DEVICE as the devices flag within the mining command so emrys can toggle mining correctly per device.")
 	startCmd.Flags().SortFlags = false
 	if err := viper.BindPFlag("save", loginCmd.Flags().Lookup("save")); err != nil {
 		log.Printf("Error binding pflag config")
@@ -38,12 +39,16 @@ func init() {
 		log.Printf("Error binding pflag config")
 		return
 	}
-	if err := viper.BindPFlag("bid-rate", startCmd.Flags().Lookup("bid-rate")); err != nil {
+	if err := viper.BindPFlag("bid-rates", startCmd.Flags().Lookup("bid-rates")); err != nil {
 		log.Printf("Error binding pflag bid-rate")
 		return
 	}
 	if err := viper.BindPFlag("devices", startCmd.Flags().Lookup("devices")); err != nil {
 		log.Printf("Error binding pflag devices")
+		return
+	}
+	if err := viper.BindPFlag("mining-command", startCmd.Flags().Lookup("mining-command")); err != nil {
+		log.Printf("Error binding pflag config")
 		return
 	}
 }
