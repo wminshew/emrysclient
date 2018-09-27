@@ -5,7 +5,9 @@ import (
 )
 
 type worker struct {
-	device uint
-	uuid   uuid.UUID
-	busy   bool
+	device  uint
+	uuid    uuid.UUID
+	busy    bool
+	bidRate float64
+	miner   *cryptoMiner
 }

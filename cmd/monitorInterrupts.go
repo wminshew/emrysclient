@@ -18,7 +18,7 @@ func monitorInterrupts(stop <-chan os.Signal, cancelFunc func()) {
 		if jobsInProcess == 1 {
 			log.Printf("Warning! You are currently working on a job and will be penalized for quitting. Otherwise, this program will terminate upon completion.\n")
 		} else {
-			log.Printf("Warning! You are currently working on %s jobs and will be penalized for quitting. Otherwise, this program will terminate upon completion.\n", jobsInProcess)
+			log.Printf("Warning! You are currently working on %d jobs and will be penalized for quitting. Otherwise, this program will terminate upon completion.\n", jobsInProcess)
 		}
 		for jobsInProcess > 0 || bidsOut > 0 {
 			select {

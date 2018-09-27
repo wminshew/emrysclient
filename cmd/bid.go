@@ -26,7 +26,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	// TODO: is this better than encoding in URL query?
 	b := &job.Bid{
 		BidRate:  w.bidRate,
-		WorkerID: w.uuid,
+		DeviceID: w.uuid,
 	}
 	if err := json.NewEncoder(&body).Encode(b); err != nil {
 		log.Printf("Bid error: encoding json: %v", err)
@@ -44,7 +44,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 	req = req.WithContext(ctx)
 
-	log.Printf("Sending bid with rate: %v...\n", b.MinRate)
+	log.Printf("Sending bid with rate: %v...\n", b.BidRate)
 	var resp *http.Response
 	winner := false
 	operation := func() error {

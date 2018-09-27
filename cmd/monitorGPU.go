@@ -3,28 +3,34 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/cenkalti/backoff"
-	"github.com/spf13/viper"
+	"github.com/satori/go.uuid"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/gonvml"
+	"io/ioutil"
 	"log"
+	// "math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
+	"path"
 	"time"
 )
 
 const (
+	// meanGpuPeriod               = 10 * time.Second
+	// maxGpuPeriod                = 25 * time.Second
 	gpuPeriod                   = 10 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
 )
 
-func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint, authToken string) {
-	dStr := string(device)
+func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL, authToken string) {
+	dStr := string(w.device)
 
-	dev, err := gonvml.DeviceHandleByIndex(device)
+	dev, err := gonvml.DeviceHandleByIndex(w.device)
 	if err != nil {
 		log.Printf("Device %s: DeviceHandleByIndex() error: %v", dStr, err)
 		panic(err)
@@ -43,7 +49,7 @@ func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint
 
 	// monitor
 	m := "POST"
-	p := path.Join("job", jID, "device_snapshot")
+	p := path.Join("miner", "device_snapshot")
 	u.Path = p
 	for {
 		d := job.DeviceSnapshot{}
@@ -56,12 +62,16 @@ func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint
 		}
 		d.MinorNumber = minorNumber
 
-		uuid, err := dev.UUID()
+		uuidStr, err := dev.UUID()
 		if err != nil {
 			log.Printf("Device %s: UUID() error: %v", dStr, err)
 			continue
 		}
-		d.UUID = uuid
+		d.ID, err = uuid.FromString(uuidStr)
+		if err != nil {
+			log.Printf("Device %s: error converting device uuid to uuid.UUID: %v", dStr, err)
+			return
+		}
 
 		name, err := dev.Name()
 		if err != nil {
@@ -225,7 +235,7 @@ func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode != http.StatusOK {
 				b, _ := ioutil.ReadAll(resp.Body)
 				return fmt.Errorf("server response: %s", b)
 			}
@@ -235,17 +245,21 @@ func monitorGPU(ctx context.Context, client *http.Client, u url.URL, device uint
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Monitor error: %v", err)
+				log.Printf("GPU monitor error: %v", err)
 				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Monitor error: %v", err)
+			log.Printf("GPU monitor error: %v", err)
 			return
 		}
 
+		// stochGpuPeriod := rand.ExpFloat64() * meanGpuPeriod
+		// log.Printf("Stochastic gpu period: %v", stochGpuPeriod)
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(gpuPeriod):
+			// case <-time.After(stochGpuPeriod):
+			// case <-time.After(maxGpuPeriod):
 		}
 	}
 }

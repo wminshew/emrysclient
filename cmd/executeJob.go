@@ -33,8 +33,8 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		log.Printf("Miner canceled job search: %v", err)
 		return
 	}
-	cm.stop()
-	defer cm.start()
+	w.miner.stop()
+	defer w.miner.start()
 
 	cli, err := docker.NewEnvClient()
 	if err != nil {

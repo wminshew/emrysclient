@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"time"
 )
 
@@ -51,7 +52,7 @@ var startCmd = &cobra.Command{
 		"When no jobs are available, or if the asking rates are " +
 		"below your minimum, emrysminer will execute ./mining-command",
 	Run: func(cmd *cobra.Command, args []string) {
-		if os.Geteuid() != 0 { // TODO: does this work correctly?
+		if os.Geteuid() != 0 {
 			log.Printf("Insufficient privileges. Are you root?\n")
 			return
 		}
@@ -130,6 +131,7 @@ var startCmd = &cobra.Command{
 
 		devices := []uint{}
 		devicesStr := viper.GetStringSlice("devices") // TODO: test how yaml works; is order preserved?
+		log.Printf("%+v\n", devicesStr)               //TODO: test order preservation
 		if len(devicesStr) == 0 {
 			// no flag provided, grab all detected devices
 			numDevices, err := gonvml.DeviceCount()
@@ -159,24 +161,13 @@ var startCmd = &cobra.Command{
 			return
 		}
 		workers := []worker{}
-		cryptoMiners := []*cryptoMiners{}
 		for i, d := range devices {
-			go monitorGPU(ctx, d)
-
-			cm := &cryptoMiner{
-				command: viper.GetString("mining-command"),
-				device:  d,
-			}
-			cm.init(ctx)
-			defer cm.stop()
-			cryptoMiners = append(cryptoMiners, cm)
-
 			dev, err := gonvml.DeviceHandleByIndex(d)
 			if err != nil {
 				log.Printf("Device %d: DeviceHandleByIndex() error: %v", d, err)
 				return
 			}
-			dUUIDtr, err := dev.UUID()
+			dUUIDStr, err := dev.UUID()
 			if err != nil {
 				log.Printf("Device %d: UUID() error: %v", d, err)
 				return
@@ -192,17 +183,29 @@ var startCmd = &cobra.Command{
 			} else {
 				brStr = bidRatesStr[i]
 			}
-			br, err := strconv.ParseFloat(brStr, 10, 64)
+			br, err := strconv.ParseFloat(brStr, 64)
 			if err != nil {
 				log.Printf("Invalid bid-rate entry %s: %v", brStr, err)
 				return
 			}
-			workers = append(workers, worker{
+
+			cm := &cryptoMiner{
+				command: viper.GetString("mining-command"),
+				device:  d,
+			}
+			w := worker{
 				device:  d,
 				uuid:    dUUID,
 				busy:    false,
 				bidRate: br,
-			})
+				miner:   cm,
+			}
+
+			go w.monitorGPU(ctx, client, u, authToken)
+			w.miner.init(ctx)
+			defer w.miner.stop()
+
+			workers = append(workers, w)
 		}
 
 		// TODO: make sure .. things are updated properly on change? run some tests to get working

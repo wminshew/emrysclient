@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -41,6 +42,11 @@ func checkVersion(client *http.Client, u url.URL) error {
 			return fmt.Errorf("%s %v: %v", "GET", u.Path, err)
 		}
 		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode != http.StatusOK {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server response: %s", b)
+		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
 			return fmt.Errorf("failed to decode response: %v", err)
