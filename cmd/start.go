@@ -297,7 +297,8 @@ var startCmd = &cobra.Command{
 					if msg.Job == nil {
 						continue
 					}
-					for _, w := range workers {
+					for _, worker := range workers {
+						w := worker
 						if !w.busy {
 							go w.bid(ctx, client, u, mID, authToken, msg)
 						}

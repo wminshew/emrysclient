@@ -48,59 +48,167 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		panic(err)
 	}
 
-	// monitor
+	// init snapshot
+	initD := job.DeviceSnapshot{}
+	initD.TimeStamp = time.Now().Unix()
+
+	minorNumber, err := dev.MinorNumber()
+	if err != nil {
+		log.Printf("device %s: MinorNumber() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.MinorNumber = minorNumber
+
+	uuidStr, err := dev.UUID()
+	if err != nil {
+		log.Printf("device %s: UUID() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.ID, err = uuid.FromString(uuidStr[4:]) // strip off "gpu-" prepend
+	if err != nil {
+		log.Printf("device %s: error converting device uuid to uuid.uuid: %v", dStr, err)
+		panic(err)
+	}
+
+	name, err := dev.Name()
+	if err != nil {
+		log.Printf("device %s: Name() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.Name = name
+
+	brand, err := dev.Brand()
+	if err != nil {
+		log.Printf("Device %s: Brand() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.Brand = brand
+
+	defaultPowerLimit, err := dev.DefaultPowerLimit()
+	if err != nil {
+		log.Printf("Device %s: DefaultPowerLimit() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.DefaultPowerLimit = defaultPowerLimit
+
+	totalMemory, _, err := dev.MemoryInfo()
+	if err != nil {
+		log.Printf("Device %s: MemoryInfo() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.TotalMemory = totalMemory
+
+	grMaxClock, err := dev.GrMaxClock()
+	if err != nil {
+		log.Printf("Device %s: GrMaxClock() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.GrMaxClock = grMaxClock
+
+	smMaxClock, err := dev.SMMaxClock()
+	if err != nil {
+		log.Printf("Device %s: SMMaxClock() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.SMMaxClock = smMaxClock
+
+	memMaxClock, err := dev.MemMaxClock()
+	if err != nil {
+		log.Printf("Device %s: MemMaxClock() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.MemMaxClock = memMaxClock
+
+	pcieMaxGeneration, err := dev.PcieMaxGeneration()
+	if err != nil {
+		log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.PcieMaxGeneration = pcieMaxGeneration
+
+	pcieMaxWidth, err := dev.PcieMaxWidth()
+	if err != nil {
+		log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
+		panic(err)
+	}
+	initD.PcieMaxWidth = pcieMaxWidth
+
 	m := "POST"
 	p := path.Join("miner", "device_snapshot")
 	u.Path = p
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&initD); err != nil {
+		log.Printf("Monitor error: encoding json: %v", err)
+		return
+	}
+
+	req, err := http.NewRequest(m, u.String(), &body)
+	if err != nil {
+		log.Printf("Monitor error: creating request: %v", err)
+		return
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req = req.WithContext(ctx)
+
+	operation := func() error {
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode != http.StatusOK {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server response: %s", b)
+		}
+
+		return nil
+	}
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Monitor error: %v", err)
+			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Monitor error: %v", err)
+		return
+	}
+
+	// monitor
 	for {
 		d := job.DeviceSnapshot{}
 		d.TimeStamp = time.Now().Unix()
-
-		minorNumber, err := dev.MinorNumber()
-		if err != nil {
-			log.Printf("Device %s: MinorNumber() error: %v", dStr, err)
-			continue
-		}
-		d.MinorNumber = minorNumber
-
-		uuidStr, err := dev.UUID()
-		if err != nil {
-			log.Printf("Device %s: UUID() error: %v", dStr, err)
-			continue
-		}
-		d.ID, err = uuid.FromString(uuidStr[4:]) // strip off "GPU-" prepend
-		if err != nil {
-			log.Printf("Device %s: error converting device uuid to uuid.UUID: %v", dStr, err)
-			return
-		}
-
-		name, err := dev.Name()
-		if err != nil {
-			log.Printf("Device %s: Name() error: %v", dStr, err)
-			continue
-		}
-		d.Name = name
-
-		brand, err := dev.Brand()
-		if err != nil {
-			log.Printf("Device %s: Brand() error: %v", dStr, err)
-			continue
-		}
-		d.Brand = brand
+		d.ID = initD.ID
 
 		persistenceMode, err := dev.PersistenceMode()
 		if err != nil {
 			log.Printf("Device %s: PersistenceMode() error: %v", dStr, err)
 			continue
 		}
-		d.PersistenceMode = persistenceMode
+		if persistenceMode != nvmlFeatureEnabled {
+			log.Printf("Persistence mode disabled--aborting\n")
+			panic(fmt.Errorf("persistence mode disabled"))
+		}
 
 		computeMode, err := dev.ComputeMode()
 		if err != nil {
 			log.Printf("Device %s: ComputeMode() error: %v", dStr, err)
 			continue
 		}
-		d.ComputeMode = computeMode
+		if computeMode != nvmlComputeExclusiveProcess {
+			log.Printf("Exclusive compute mode disabled--aborting\n")
+			panic(fmt.Errorf("exclusive compute mode disabled"))
+		}
+
+		powerLimit, err := dev.PowerLimit()
+		if err != nil {
+			log.Printf("Device %s: PowerLimit() error: %v", dStr, err)
+		}
+		if powerLimit != defaultPowerLimit {
+			log.Printf("Power limit not set to default--aborting\n")
+			panic(fmt.Errorf("power limit altered"))
+		}
 
 		performanceState, err := dev.PerformanceState()
 		if err != nil {
@@ -121,23 +229,10 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.AvgPowerUsage = powerUsage
 
-		powerLimit, err := dev.PowerLimit()
-		if err != nil {
-			log.Printf("Device %s: PowerLimit() error: %v", dStr, err)
-		}
-		d.PowerLimit = powerLimit
-
-		DefaultPowerLimit, err := dev.DefaultPowerLimit()
-		if err != nil {
-			log.Printf("Device %s: DefaultPowerLimit() error: %v", dStr, err)
-		}
-		d.DefaultPowerLimit = DefaultPowerLimit
-
-		totalMemory, usedMemory, err := dev.MemoryInfo()
+		_, usedMemory, err := dev.MemoryInfo()
 		if err != nil {
 			log.Printf("Device %s: MemoryInfo() error: %v", dStr, err)
 		}
-		d.TotalMemory = totalMemory
 		d.UsedMemory = usedMemory
 
 		grClock, err := dev.GrClock()
@@ -157,24 +252,6 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			log.Printf("Device %s: MemClock() error: %v", dStr, err)
 		}
 		d.MemClock = memClock
-
-		grMaxClock, err := dev.GrMaxClock()
-		if err != nil {
-			log.Printf("Device %s: GrMaxClock() error: %v", dStr, err)
-		}
-		d.GrMaxClock = grMaxClock
-
-		smMaxClock, err := dev.SMMaxClock()
-		if err != nil {
-			log.Printf("Device %s: SMMaxClock() error: %v", dStr, err)
-		}
-		d.SMMaxClock = smMaxClock
-
-		memMaxClock, err := dev.MemMaxClock()
-		if err != nil {
-			log.Printf("Device %s: MemMaxClock() error: %v", dStr, err)
-		}
-		d.MemMaxClock = memMaxClock
 
 		pcieTxThroughput, err := dev.PcieTxThroughput()
 		if err != nil {
@@ -200,18 +277,6 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.PcieWidth = pcieWidth
 
-		pcieMaxGeneration, err := dev.PcieMaxGeneration()
-		if err != nil {
-			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
-		}
-		d.PcieMaxGeneration = pcieMaxGeneration
-
-		pcieMaxWidth, err := dev.PcieMaxWidth()
-		if err != nil {
-			log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
-		}
-		d.PcieMaxWidth = pcieMaxWidth
-
 		temperature, err := dev.Temperature()
 		if err != nil {
 			log.Printf("Device %s: Temperature() error: %v", dStr, err)
@@ -224,8 +289,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.FanSpeed = fanSpeed
 
-		// TODO: remove gpu log; or maybe just print the temp
-		log.Printf("Device %s: snapshot: %+v", dStr, d)
+		log.Printf("Device %s: temperature: %v", dStr, d.Temperature)
 
 		var body bytes.Buffer
 		if err := json.NewEncoder(&body).Encode(&d); err != nil {

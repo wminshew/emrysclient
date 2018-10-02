@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
 )
 
@@ -21,6 +22,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	defer func() { bidsOut-- }()
 	u.RawQuery = ""
 	jID := msg.Job.ID.String()
+	dStr := strconv.Itoa(int(w.device))
 
 	var body bytes.Buffer
 	b := &job.Bid{
@@ -28,7 +30,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 		DeviceID: w.uuid,
 	}
 	if err := json.NewEncoder(&body).Encode(b); err != nil {
-		log.Printf("Bid error: encoding json: %v", err)
+		log.Printf("Device %s: bid error: encoding json: %v", dStr, err)
 		return
 	}
 
@@ -37,13 +39,13 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), &body)
 	if err != nil {
-		log.Printf("Bid error: creating request: %v", err)
+		log.Printf("Device %s: bid error: creating request: %v", dStr, err)
 		return
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 	req = req.WithContext(ctx)
 
-	log.Printf("Sending bid with rate: %v...\n", b.BidRate)
+	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.BidRate)
 	var resp *http.Response
 	winner := false
 	operation := func() error {
@@ -55,11 +57,11 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 		defer check.Err(resp.Body.Close)
 
 		if w.busy {
-			log.Printf("Bid rejected -- you're busy with job %s!\n", w.jID)
+			log.Printf("Device %s: bid rejected -- you're busy with job %s!\n", dStr, w.jID)
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
 		} else if resp.StatusCode == http.StatusPaymentRequired {
-			log.Println("Your bid was too low, maybe next time!")
+			log.Printf("Device %s: your bid was too low, maybe next time!\n", dStr)
 		} else {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
@@ -70,15 +72,15 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Bid error: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Device %s: bid error: %v", dStr, err)
+			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Bid error: %v", err)
+		log.Printf("Device %s: bid error: %v", dStr, err)
 		return
 	}
 
 	if winner {
-		log.Printf("You won job %v!\n", jID)
+		log.Printf("Device %s: you won job %v!\n", dStr, jID)
 		go w.executeJob(ctx, client, u, mID, authToken, jID)
 	}
 }
