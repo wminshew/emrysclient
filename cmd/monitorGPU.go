@@ -121,6 +121,18 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.AvgPowerUsage = powerUsage
 
+		powerLimit, err := dev.PowerLimit()
+		if err != nil {
+			log.Printf("Device %s: PowerLimit() error: %v", dStr, err)
+		}
+		d.PowerLimit = powerLimit
+
+		DefaultPowerLimit, err := dev.DefaultPowerLimit()
+		if err != nil {
+			log.Printf("Device %s: DefaultPowerLimit() error: %v", dStr, err)
+		}
+		d.DefaultPowerLimit = DefaultPowerLimit
+
 		totalMemory, usedMemory, err := dev.MemoryInfo()
 		if err != nil {
 			log.Printf("Device %s: MemoryInfo() error: %v", dStr, err)

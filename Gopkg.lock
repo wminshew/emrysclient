@@ -255,13 +255,13 @@
     "pkg/job",
     "pkg/jsonmessage"
   ]
-  revision = "16fcce61c1b5670f6e1d39958ffaf8c8127ccdaa"
+  revision = "d4633693158ce686dece08f095ea76a66d152351"
 
 [[projects]]
   branch = "master"
   name = "github.com/wminshew/gonvml"
   packages = ["."]
-  revision = "52781f51131fb57e415d1145a7566cac2ff1eb4b"
+  revision = "5138bcedfd8ba96ef14d41755624797cdf1019d5"
 
 [[projects]]
   branch = "master"
