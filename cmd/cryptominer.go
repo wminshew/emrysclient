@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 )
 
@@ -17,7 +18,7 @@ type cryptoMiner struct {
 }
 
 func (cm *cryptoMiner) init(ctx context.Context) {
-	dStr := string(cm.device)
+	dStr := strconv.Itoa(int(cm.device))
 	cm.startCh = make(chan struct{}, 1)
 	cm.stopCh = make(chan struct{}, 1)
 
@@ -39,7 +40,7 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			case <-ctx.Done():
 			case <-cm.stopCh:
 			}
-			log.Printf("Device %s: pause mining...\n", dStr)
+			log.Printf("Device %s: halt mining...\n", dStr)
 			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP); err != nil {
 				log.Printf("Device %s: error interrupting cryptomining process: %v", dStr, err)
 				return

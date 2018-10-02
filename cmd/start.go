@@ -130,8 +130,7 @@ var startCmd = &cobra.Command{
 		log.Printf("Nvidia driver: %v\n", driverVersion)
 
 		devices := []uint{}
-		devicesStr := viper.GetStringSlice("devices") // TODO: test how yaml works; is order preserved?
-		log.Printf("%+v\n", devicesStr)               //TODO: test order preservation
+		devicesStr := viper.GetStringSlice("devices")
 		if len(devicesStr) == 0 {
 			// no flag provided, grab all detected devices
 			numDevices, err := gonvml.DeviceCount()
@@ -172,7 +171,7 @@ var startCmd = &cobra.Command{
 				log.Printf("Device %d: UUID() error: %v", d, err)
 				return
 			}
-			dUUID, err := uuid.FromString(dUUIDStr)
+			dUUID, err := uuid.FromString(dUUIDStr[4:]) // strip off "GPU-" prepend
 			if err != nil {
 				log.Printf("Device %d: error converting device uuid to uuid.UUID: %v", d, err)
 				return
@@ -197,6 +196,7 @@ var startCmd = &cobra.Command{
 				device:  d,
 				uuid:    dUUID,
 				busy:    false,
+				jID:     "",
 				bidRate: br,
 				miner:   cm,
 			}

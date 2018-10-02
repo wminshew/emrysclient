@@ -12,11 +12,12 @@ import (
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
-	// "math/rand"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
+	// "math/rand"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 )
 
 func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL, authToken string) {
-	dStr := string(w.device)
+	dStr := strconv.Itoa(int(w.device))
 
 	dev, err := gonvml.DeviceHandleByIndex(w.device)
 	if err != nil {
@@ -67,7 +68,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			log.Printf("Device %s: UUID() error: %v", dStr, err)
 			continue
 		}
-		d.ID, err = uuid.FromString(uuidStr)
+		d.ID, err = uuid.FromString(uuidStr[4:]) // strip off "GPU-" prepend
 		if err != nil {
 			log.Printf("Device %s: error converting device uuid to uuid.UUID: %v", dStr, err)
 			return
@@ -226,6 +227,9 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			return
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		if w.busy {
+			req.URL.Query().Set("jID", w.jID)
+		}
 		req = req.WithContext(ctx)
 
 		operation := func() error {

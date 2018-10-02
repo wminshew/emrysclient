@@ -23,7 +23,6 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 	jID := msg.Job.ID.String()
 
 	var body bytes.Buffer
-	// TODO: is this better than encoding in URL query?
 	b := &job.Bid{
 		BidRate:  w.bidRate,
 		DeviceID: w.uuid,
@@ -56,7 +55,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 		defer check.Err(resp.Body.Close)
 
 		if w.busy {
-			log.Println("Bid rejected -- you're busy with another job!")
+			log.Printf("Bid rejected -- you're busy with job %s!\n", w.jID)
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
 		} else if resp.StatusCode == http.StatusPaymentRequired {

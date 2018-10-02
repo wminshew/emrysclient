@@ -19,6 +19,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -26,7 +27,11 @@ import (
 
 func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
 	w.busy = true
-	defer func() { w.busy = false }()
+	w.jID = jID
+	defer func() {
+		w.busy = false
+		w.jID = ""
+	}()
 	jobsInProcess++
 	defer func() { jobsInProcess-- }()
 	if err := checkContextCanceled(ctx); err != nil {
@@ -131,6 +136,12 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	userHome := "/home/user"
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
+	dStr := strconv.Itoa(int(w.device))
+	if err = os.Setenv("NVIDIA_VISIBLE_DEVICES", dStr); err != nil {
+		log.Printf("Error setting NVIDIA_VISIBLE_DEVICES=%s: %v\n", dStr, err)
+		return
+	}
+	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
 	c, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: imgRefStr,
 		Tty:   true,
@@ -143,7 +154,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		CapDrop: []string{
 			"ALL",
 		},
-		// ReadonlyRootfs: true,
+		// ReadonlyRootfs: true, // TODO
 		Runtime: "nvidia",
 		SecurityOpt: []string{
 			"no-new-privileges",
