@@ -61,7 +61,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
 		} else if resp.StatusCode == http.StatusPaymentRequired {
-			log.Printf("Device %s: your bid was too low, maybe next time!\n", dStr)
+			log.Printf("Device %s: your bid was too high, maybe next time!\n", dStr)
 		} else {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)

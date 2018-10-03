@@ -34,8 +34,9 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	}()
 	jobsInProcess++
 	defer func() { jobsInProcess-- }()
+	dStr := strconv.Itoa(int(w.device))
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v", err)
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
 	}
 	w.miner.stop()
@@ -43,26 +44,26 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 
 	cli, err := docker.NewEnvClient()
 	if err != nil {
-		log.Printf("Error creating docker client: %v", err)
+		log.Printf("Device %s: error creating docker client: %v", dStr, err)
 		return
 	}
 	defer check.Err(cli.Close)
 
 	currUser, err := user.Current()
 	if err != nil {
-		log.Printf("Error getting current user: %v", err)
+		log.Printf("Device %s: error getting current user: %v", dStr, err)
 		return
 	}
 	if os.Geteuid() == 0 {
 		currUser, err = user.Lookup(os.Getenv("SUDO_USER"))
 		if err != nil {
-			log.Printf("Error getting current sudo user: %v", err)
+			log.Printf("Device %s: error getting current sudo user: %v", dStr, err)
 			return
 		}
 	}
 	jobDir := filepath.Join(currUser.HomeDir, ".emrys", jID)
 	if err = os.MkdirAll(jobDir, 0755); err != nil {
-		log.Printf("Error making job dir %v: %v\n", jobDir, err)
+		log.Printf("Device %s: error making job dir %v: %v", dStr, jobDir, err)
 		return
 	}
 	defer check.Err(func() error { return os.RemoveAll(jobDir) })
@@ -79,10 +80,10 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,
 		}); err != nil {
-			log.Printf("Error removing job image %v: %v\n", jID, err)
+			log.Printf("Device %s: error removing job image %v: %v", dStr, jID, err)
 		}
 		if _, err := cli.BuildCachePrune(ctx); err != nil {
-			log.Printf("Error pruning build cache: %v", err)
+			log.Printf("Device %s: error pruning build cache: %v", dStr, err)
 		}
 	}()
 
@@ -99,13 +100,13 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		return
 	}
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v", err)
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
 	}
 
 	fileInfos, err := ioutil.ReadDir(jobDir)
 	if err != nil {
-		log.Printf("Error reading job dir %s: %v\n", jobDir, err)
+		log.Printf("Device %s: error reading job dir %s: %v", dStr, jobDir, err)
 		return
 	}
 	var hostDataDir string
@@ -114,7 +115,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	} else {
 		hostDataDir = filepath.Join(jobDir, "data")
 		if _, err := os.Create(hostDataDir); err != nil {
-			log.Printf("Error creating empty data dir %s: %v\n", hostDataDir, err)
+			log.Printf("Device %s: error creating empty data dir %s: %v", dStr, hostDataDir, err)
 			return
 		}
 	}
@@ -122,12 +123,12 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	hostOutputDir := filepath.Join(jobDir, "output")
 	oldUMask := syscall.Umask(000)
 	if err = os.Chmod(hostDataDir, 0777); err != nil {
-		log.Printf("Error modifying data dir %v permissions: %v\n", hostDataDir, err)
+		log.Printf("Device %s: error modifying data dir %v permissions: %v", dStr, hostDataDir, err)
 		_ = syscall.Umask(oldUMask)
 		return
 	}
 	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
-		log.Printf("Error making output dir %v: %v\n", hostOutputDir, err)
+		log.Printf("Device %s: error making output dir %v: %v", dStr, hostOutputDir, err)
 		_ = syscall.Umask(oldUMask)
 		return
 	}
@@ -136,9 +137,8 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	userHome := "/home/user"
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
-	dStr := strconv.Itoa(int(w.device))
 	if err = os.Setenv("NVIDIA_VISIBLE_DEVICES", dStr); err != nil {
-		log.Printf("Error setting NVIDIA_VISIBLE_DEVICES=%s: %v\n", dStr, err)
+		log.Printf("Device %s: error setting NVIDIA_VISIBLE_DEVICES=%s: %v", dStr, dStr, err)
 		return
 	}
 	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
@@ -161,17 +161,17 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		},
 	}, nil, "")
 	if err != nil {
-		log.Printf("Error creating container: %v", err)
+		log.Printf("Device %s: error creating container: %v", dStr, err)
 		return
 	}
 	if err := checkContextCanceled(ctx); err != nil {
-		log.Printf("Miner canceled job search: %v", err)
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
 	}
 
-	log.Printf("Running container...\n")
+	log.Printf("Device %s: Running container...\n", dStr)
 	if err := cli.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
-		log.Printf("Error starting container: %v", err)
+		log.Printf("Device %s: error starting container: %v", dStr, err)
 		return
 	}
 
@@ -181,7 +181,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		ShowStderr: true,
 	})
 	if err != nil {
-		log.Printf("Error logging container: %v", err)
+		log.Printf("Device %s: error logging container: %v", dStr, err)
 		return
 	}
 	defer check.Err(out.Close)
@@ -196,7 +196,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	var resp *http.Response
 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
 		if err := checkContextCanceled(ctx); err != nil {
-			log.Printf("Miner canceled job search: %v", err)
+			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 			return
 		}
 		operation := func() error {
@@ -222,15 +222,15 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Error uploading output: %v", err)
-				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+				log.Printf("Device %s: error uploading output: %v", dStr, err)
+				log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Error uploading output: %v", err)
+			log.Printf("Device %s: error uploading output: %v", dStr, err)
 			return
 		}
 	}
 	if err != nil && err != io.EOF {
-		log.Printf("Error reading log buffer: %v", err)
+		log.Printf("Device %s: error reading log buffer: %v", dStr, err)
 		return
 	}
 
@@ -257,16 +257,16 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error uploading output: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Device %s: error uploading output: %v", dStr, err)
+			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Error uploading output: %v", err)
+		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return
 	}
 
 	// TODO: do I really want miner uploading output when he/she cancels?
 	// if err := checkContextCanceled(ctx); err != nil {
-	// 	log.Printf("Miner canceled job search: %v", err)
+	// 	log.Printf("Device %s: miner canceled job execution: %v", err)
 	// 	return
 	// }
 	ctx = context.Background()
@@ -277,7 +277,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 			files, err := ioutil.ReadDir(hostOutputDir)
 			outputFiles := make([]string, 0, len(files))
 			if err != nil {
-				log.Printf("Error uploading output: reading files in output directory %v: %v\n", hostOutputDir, err)
+				log.Printf("Device %s: error uploading output: reading files in output directory %v: %v\n", dStr, hostOutputDir, err)
 				return
 			}
 			for _, file := range files {
@@ -285,7 +285,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 				outputFiles = append(outputFiles, outputFile)
 			}
 			if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-				log.Printf("Error uploading output: packing output directory %v: %v\n", hostOutputDir, err)
+				log.Printf("Device %s: error uploading output: packing output directory %v: %v\n", dStr, hostOutputDir, err)
 				return
 			}
 		}()
@@ -300,7 +300,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 		req = req.WithContext(ctx)
 
-		log.Printf("Uploading output...\n")
+		log.Printf("Device %s: Uploading output...\n", dStr)
 		resp, err := client.Do(req)
 		if err != nil {
 			return fmt.Errorf("%v %v: %v", m, u.Path, err)
@@ -316,12 +316,12 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error uploading output: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Device %s: error uploading output: %v", dStr, err)
+			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Error uploading output: %v", err)
+		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return
 	}
 
-	log.Printf("Job completed!\n")
+	log.Printf("Device %s: Job completed!\n", dStr)
 }
