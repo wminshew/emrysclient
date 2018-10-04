@@ -264,12 +264,10 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		return
 	}
 
-	// TODO: do I really want miner uploading output when he/she cancels?
-	// if err := checkContextCanceled(ctx); err != nil {
-	// 	log.Printf("Device %s: miner canceled job execution: %v", err)
-	// 	return
-	// }
-	ctx = context.Background()
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+		return
+	}
 	operation = func() error {
 		pr, pw := io.Pipe()
 		go func() {
