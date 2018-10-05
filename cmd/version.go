@@ -42,6 +42,11 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 		}
 		defer check.Err(resp.Body.Close)
 
+		if resp.StatusCode != http.StatusOK {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server response: %s", b)
+		}
+
 		if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
 			return fmt.Errorf("decoding response: %v", err)
 		}
