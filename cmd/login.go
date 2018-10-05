@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
@@ -36,7 +37,7 @@ var loginCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
+		if err := checkVersion(context.Background(), client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
 		}
@@ -56,7 +57,7 @@ var loginCmd = &cobra.Command{
 
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
-				return fmt.Errorf("%s %v: %v", "POST", u.Path, err)
+				return err
 			}
 			defer check.Err(resp.Body.Close)
 

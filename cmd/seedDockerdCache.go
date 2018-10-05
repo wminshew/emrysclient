@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-func seedDockerdCache(ctx context.Context) error {
+func seedDockerdCache(ctx context.Context, authToken string) error {
 	log.Printf("Pulling base image to seed dockerd cache...\n")
 
 	registry := "registry.emrys.io"
@@ -24,6 +24,9 @@ func seedDockerdCache(ctx context.Context) error {
 		log.Printf("Error creating docker client: %v", err)
 		return err
 	}
+	cli.SetCustomHTTPHeaders(map[string]string{
+		"Authorization": fmt.Sprintf("Bearer %v", authToken),
+	})
 	defer check.Err(cli.Close)
 	pullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
 		RegistryAuth: "none",

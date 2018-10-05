@@ -31,7 +31,8 @@ var registerCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
+		ctx := context.Background()
+		if err := checkVersion(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
 		}
@@ -49,7 +50,7 @@ var registerCmd = &cobra.Command{
 		operation := func() error {
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
-				return fmt.Errorf("%s %v: %v", "POST", u.Path, err)
+				return err
 			}
 			defer check.Err(resp.Body.Close)
 
@@ -60,7 +61,6 @@ var registerCmd = &cobra.Command{
 
 			return nil
 		}
-		ctx := context.Background()
 		if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Register error: %v", err)

@@ -32,14 +32,14 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func checkVersion(client *http.Client, u url.URL) error {
+func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 	p := path.Join("miner", "version")
 	u.Path = p
 	verResp := creds.VersionResp{}
 	operation := func() error {
 		resp, err := client.Get(u.String())
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", "GET", u.Path, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -53,7 +53,6 @@ func checkVersion(client *http.Client, u url.URL) error {
 		}
 		return nil
 	}
-	ctx := context.Background()
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {

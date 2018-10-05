@@ -104,7 +104,7 @@ var startCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
-		if err := checkVersion(client, u); err != nil {
+		if err := checkVersion(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
 		}
@@ -216,7 +216,7 @@ var startCmd = &cobra.Command{
 			// TODO: update worker, if necessary
 		})
 
-		if err := seedDockerdCache(ctx); err != nil {
+		if err := seedDockerdCache(ctx, authToken); err != nil {
 			log.Printf("Error downloading job image: %v", err)
 			return
 		}
@@ -240,7 +240,7 @@ var startCmd = &cobra.Command{
 				log.Printf("Mining job search canceled.\n")
 				return
 			}
-			if err := checkVersion(client, u); err != nil {
+			if err := checkVersion(ctx, client, u); err != nil {
 				log.Printf("Version error: %v", err)
 				return
 			}

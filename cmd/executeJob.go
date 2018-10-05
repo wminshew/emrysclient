@@ -48,6 +48,9 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		return
 	}
 	defer check.Err(cli.Close)
+	cli.SetCustomHTTPHeaders(map[string]string{
+		"Authorization": fmt.Sprintf("Bearer %s", authToken),
+	})
 
 	currUser, err := user.Current()
 	if err != nil {
