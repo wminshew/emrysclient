@@ -3,10 +3,8 @@ package cmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
@@ -22,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 var loginCmd = &cobra.Command{
@@ -48,17 +45,15 @@ var loginCmd = &cobra.Command{
 		minerLogin(c)
 		c.Duration = strconv.Itoa(viper.GetInt("save"))
 
-		bodyBuf := &bytes.Buffer{}
-		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Failed to encode email & password: %v", err)
-			return
-		}
-
-		ctx := context.Background()
 		p := path.Join("miner", "login")
 		u.Path = p
 		loginResp := creds.LoginResp{}
-		operation := func() error {
+		if err := func() error {
+			bodyBuf := &bytes.Buffer{}
+			if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
+				return err
+			}
+
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
 				return fmt.Errorf("%s %v: %v", "POST", u.Path, err)
@@ -75,13 +70,7 @@ var loginCmd = &cobra.Command{
 			}
 
 			return nil
-		}
-		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
-			func(err error, t time.Duration) {
-				log.Printf("Login error: %v", err)
-				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
-			}); err != nil {
+		}(); err != nil {
 			log.Printf("Login error: %v", err)
 			os.Exit(1)
 		}
@@ -112,20 +101,18 @@ func minerLogin(c *creds.Miner) {
 }
 
 func storeToken(t string) error {
-	var perm os.FileMode
-	perm = 0755
 	u, err := user.Current()
 	if err != nil {
 		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
 	dir := path.Join(u.HomeDir, ".config", "emrysminer")
-	if err := os.MkdirAll(dir, perm); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
 		return err
 	}
 	p := path.Join(dir, "jwt")
-	if err := ioutil.WriteFile(p, []byte(t), perm); err != nil {
+	if err := ioutil.WriteFile(p, []byte(t), 0600); err != nil {
 		log.Printf("Failed to write login token to disk at %s: %v", p, err)
 		return err
 	}
