@@ -48,9 +48,6 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		return
 	}
 	defer check.Err(cli.Close)
-	cli.SetCustomHTTPHeaders(map[string]string{
-		"Authorization": fmt.Sprintf("Bearer %s", authToken),
-	})
 
 	currUser, err := user.Current()
 	if err != nil {
@@ -78,7 +75,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	registry := "registry.emrys.io"
 	repo := "miner"
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
-	go downloadImage(ctx, &wg, errCh, cli, imgRefStr)
+	go downloadImage(ctx, &wg, errCh, cli, imgRefStr, authToken)
 	defer func() {
 		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,

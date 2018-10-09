@@ -217,7 +217,7 @@ var startCmd = &cobra.Command{
 		})
 
 		if err := seedDockerdCache(ctx, authToken); err != nil {
-			log.Printf("Error downloading job image: %v", err)
+			log.Printf("Error seeding docker cache: %v", err)
 			return
 		}
 
@@ -235,6 +235,7 @@ var startCmd = &cobra.Command{
 		var resp *http.Response
 		var operation backoff.Operation
 		pr := pollResponse{}
+		log.Printf("Connecting to emrys for jobs...\n")
 		for {
 			if terminate {
 				log.Printf("Mining job search canceled.\n")
@@ -245,7 +246,6 @@ var startCmd = &cobra.Command{
 				return
 			}
 
-			log.Printf("Pinging emrys for jobs...\n")
 			operation = func() error {
 				if req, err = http.NewRequest(m, u.String(), nil); err != nil {
 					return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
@@ -272,10 +272,10 @@ var startCmd = &cobra.Command{
 			if err := backoff.RetryNotify(operation,
 				backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
 				func(err error, t time.Duration) {
-					log.Printf("Pinging error: %v", err)
+					log.Printf("Connect error: %v", err)
 					log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
 				}); err != nil {
-				log.Printf("Unable to connect to emrys: %v", err)
+				log.Printf("Connect error: %v", err)
 				os.Exit(1)
 			}
 
