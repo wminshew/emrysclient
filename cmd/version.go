@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
