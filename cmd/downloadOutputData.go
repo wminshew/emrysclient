@@ -56,7 +56,7 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Output data: error: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return fmt.Errorf("%s", err)
 	}

@@ -129,7 +129,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Data: error: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Data: error: %v", err)
 		errCh <- err
@@ -229,7 +229,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 				func(err error, t time.Duration) {
 					log.Printf("Data: error: %v", err)
-					log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 				}); err != nil {
 				errCh <- err
 				return

@@ -90,7 +90,7 @@ pollLoop:
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Output log: error: %v", err)
-				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
 			return fmt.Errorf("%v", err)
 		}

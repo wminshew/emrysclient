@@ -60,7 +60,7 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: error: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Image: error: %v", err)
 		errCh <- err

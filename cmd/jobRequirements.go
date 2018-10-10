@@ -55,7 +55,7 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error sending job requirements: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return "", err
 	}
@@ -95,7 +95,7 @@ func (j *jobReq) cancel(client *http.Client, u url.URL, uID, jID, authToken stri
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error canceling job: %v", err)
-			log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err
 	}
