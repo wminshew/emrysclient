@@ -40,7 +40,7 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: downloading error: %v", err)
-			log.Printf("Image: trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Image: downloading error: %v", err)
 		errCh <- err
@@ -77,7 +77,7 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: error: %v", err)
-			log.Printf("Image: trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Image: error: %v", err)
 		errCh <- err

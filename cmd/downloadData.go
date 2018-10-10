@@ -56,7 +56,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Data: error: %v", err)
-			log.Printf("Data: trying again in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Data: retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Data: error: %v", err)
 		errCh <- err

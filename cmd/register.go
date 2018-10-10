@@ -64,7 +64,7 @@ var registerCmd = &cobra.Command{
 		if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Register error: %v", err)
-				log.Printf("Trying again in %s seconds\n", t.Round(time.Second).String())
+				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
 			log.Printf("Register error: %v", err)
 			os.Exit(1)

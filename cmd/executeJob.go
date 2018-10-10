@@ -216,7 +216,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Device %s: error uploading output: %v", dStr, err)
-				log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
+				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
 			return
@@ -251,7 +251,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
-			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
+			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return
@@ -308,7 +308,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
-			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
+			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return

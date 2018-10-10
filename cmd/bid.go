@@ -74,7 +74,7 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Device %s: bid error: %v", dStr, err)
-			log.Printf("Device %s: trying again in %s seconds\n", dStr, t.Round(time.Second).String())
+			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 		}); err != nil {
 		log.Printf("Device %s: bid error: %v", dStr, err)
 		return
