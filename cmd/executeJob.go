@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL, mID, authToken, jID string) {
+func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client *http.Client, u url.URL, mID, jID, authToken, dockerAuthStr string) {
 	w.busy = true
 	w.jID = jID
 	defer func() {
@@ -41,13 +41,6 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	}
 	w.miner.stop()
 	defer w.miner.start()
-
-	dClient, err := docker.NewEnvClient()
-	if err != nil {
-		log.Printf("Device %s: error creating docker client: %v", dStr, err)
-		return
-	}
-	defer check.Err(dClient.Close)
 
 	currUser, err := user.Current()
 	if err != nil {
@@ -75,7 +68,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	registry := "registry.emrys.io"
 	repo := "miner"
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
-	go downloadImage(ctx, &wg, errCh, client, u, dClient, imgRefStr, jID, authToken)
+	go downloadImage(ctx, &wg, errCh, client, u, dClient, imgRefStr, jID, authToken, dockerAuthStr)
 	defer func() {
 		if _, err := dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,

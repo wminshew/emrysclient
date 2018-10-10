@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"context"
+	"docker.io/go-docker"
+	"docker.io/go-docker/api/types"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -104,6 +107,14 @@ var startCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
+
+		dClient, err := docker.NewEnvClient()
+		if err != nil {
+			log.Printf("Error creating docker client: %v", err)
+			panic(err)
+		}
+		defer check.Err(dClient.Close)
+
 		if err := checkVersion(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
@@ -216,7 +227,17 @@ var startCmd = &cobra.Command{
 			// TODO: update worker, if necessary
 		})
 
-		if err := seedDockerdCache(ctx, authToken); err != nil {
+		dockerAuthConfig := types.AuthConfig{
+			RegistryToken: authToken,
+		}
+		dockerAuthJSON, err := json.Marshal(dockerAuthConfig)
+		if err != nil {
+			log.Printf("Error marshaling docker auth config: %v", err)
+			return
+		}
+		dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
+
+		if err := seedDockerdCache(ctx, dClient, dockerAuthStr); err != nil {
 			log.Printf("Error seeding docker cache: %v", err)
 			return
 		}
@@ -300,7 +321,7 @@ var startCmd = &cobra.Command{
 					for _, worker := range workers {
 						w := worker
 						if !w.busy {
-							go w.bid(ctx, client, u, mID, authToken, msg)
+							go w.bid(ctx, dClient, client, u, mID, authToken, dockerAuthStr, msg)
 						}
 					}
 				}

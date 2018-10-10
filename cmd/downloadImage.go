@@ -4,8 +4,6 @@ import (
 	"context"
 	"docker.io/go-docker"
 	"docker.io/go-docker/api/types"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/wminshew/emrys/pkg/check"
@@ -20,22 +18,12 @@ import (
 	"time"
 )
 
-func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, cli *docker.Client, refStr, jID, authToken string) {
+func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, dClient *docker.Client, refStr, jID, authToken, dockerAuthStr string) {
 	defer wg.Done()
 	log.Printf("Image: downloading...\n")
-	authConfig := types.AuthConfig{
-		RegistryToken: authToken,
-	}
-	authJSON, err := json.Marshal(authConfig)
-	if err != nil {
-		log.Printf("Image: error: marshaling auth config into json: %v", err)
-		errCh <- err
-		return
-	}
-	authStr := base64.URLEncoding.EncodeToString(authJSON)
 	operation := func() error {
-		pullResp, err := cli.ImagePull(ctx, refStr, types.ImagePullOptions{
-			RegistryAuth: authStr,
+		pullResp, err := dClient.ImagePull(ctx, refStr, types.ImagePullOptions{
+			RegistryAuth: dockerAuthStr,
 		})
 		if err != nil {
 			return err
