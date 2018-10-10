@@ -252,9 +252,6 @@ var startCmd = &cobra.Command{
 		q.Set("since_time", fmt.Sprintf("%d", sinceTime))
 		u.RawQuery = q.Encode()
 
-		var req *http.Request
-		var resp *http.Response
-		var operation backoff.Operation
 		pr := pollResponse{}
 		log.Printf("Connecting to emrys for jobs...\n")
 		for {
@@ -267,14 +264,15 @@ var startCmd = &cobra.Command{
 				return
 			}
 
-			operation = func() error {
-				if req, err = http.NewRequest(m, u.String(), nil); err != nil {
+			operation := func() error {
+				req, err := http.NewRequest(m, u.String(), nil)
+				if err != nil {
 					return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 				}
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 				req = req.WithContext(ctx)
 
-				resp, err = client.Do(req)
+				resp, err := client.Do(req)
 				if err != nil {
 					return err
 				}

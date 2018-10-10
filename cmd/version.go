@@ -54,7 +54,7 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Version error: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

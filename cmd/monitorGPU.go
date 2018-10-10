@@ -23,6 +23,7 @@ import (
 const (
 	// meanGpuPeriod               = 10 * time.Second
 	// maxGpuPeriod                = 25 * time.Second
+	maxUploadRetries            = 5
 	gpuPeriod                   = 10 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
@@ -166,7 +167,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Monitor error: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
@@ -323,7 +324,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("GPU monitor error: %v", err)
 				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

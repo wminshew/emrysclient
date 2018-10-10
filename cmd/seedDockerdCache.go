@@ -36,7 +36,7 @@ func seedDockerdCache(ctx context.Context, dClient *docker.Client, dockerAuthStr
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error pulling base image: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

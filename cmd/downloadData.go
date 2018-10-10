@@ -31,10 +31,9 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	req = req.WithContext(ctx)
 
 	log.Printf("Data: downloading...\n")
-	var resp *http.Response
 	operation := func() error {
-		var err error
-		if resp, err = client.Do(req); err != nil {
+		resp, err := client.Do(req)
+		if err != nil {
 			return err
 		}
 		defer check.Err(resp.Body.Close)

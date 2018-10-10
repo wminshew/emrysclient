@@ -185,22 +185,20 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 	p := path.Join("job", jID, "log")
 	u.Path = p
 	var n int
-	var req *http.Request
-	var resp *http.Response
 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
 		if err := checkContextCanceled(ctx); err != nil {
 			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 			return
 		}
 		operation := func() error {
-			req, err = http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
+			req, err := http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
 				return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 			req = req.WithContext(ctx)
 
-			resp, err = client.Do(req)
+			resp, err := client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -229,13 +227,13 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 
 	operation := func() error {
 		// POST with empty body signifies log upload complete
-		req, err = http.NewRequest(m, u.String(), nil)
+		req, err := http.NewRequest(m, u.String(), nil)
 		if err != nil {
 			return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
-		resp, err = client.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
