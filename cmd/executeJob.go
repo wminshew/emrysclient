@@ -42,12 +42,12 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	w.miner.stop()
 	defer w.miner.start()
 
-	cli, err := docker.NewEnvClient()
+	dClient, err := docker.NewEnvClient()
 	if err != nil {
 		log.Printf("Device %s: error creating docker client: %v", dStr, err)
 		return
 	}
-	defer check.Err(cli.Close)
+	defer check.Err(dClient.Close)
 
 	currUser, err := user.Current()
 	if err != nil {
@@ -75,14 +75,14 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	registry := "registry.emrys.io"
 	repo := "miner"
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, jID)
-	go downloadImage(ctx, &wg, errCh, cli, imgRefStr, authToken)
+	go downloadImage(ctx, &wg, errCh, client, u, dClient, imgRefStr, jID, authToken)
 	defer func() {
-		if _, err := cli.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
+		if _, err := dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,
 		}); err != nil {
 			log.Printf("Device %s: error removing job image %v: %v", dStr, jID, err)
 		}
-		if _, err := cli.BuildCachePrune(ctx); err != nil {
+		if _, err := dClient.BuildCachePrune(ctx); err != nil {
 			log.Printf("Device %s: error pruning build cache: %v", dStr, err)
 		}
 	}()
@@ -142,7 +142,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		return
 	}
 	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
-	c, err := cli.ContainerCreate(ctx, &container.Config{
+	c, err := dClient.ContainerCreate(ctx, &container.Config{
 		Image: imgRefStr,
 		Tty:   true,
 	}, &container.HostConfig{
@@ -170,12 +170,12 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 	}
 
 	log.Printf("Device %s: Running container...\n", dStr)
-	if err := cli.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
+	if err := dClient.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
 		log.Printf("Device %s: error starting container: %v", dStr, err)
 		return
 	}
 
-	out, err := cli.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
+	out, err := dClient.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
@@ -209,7 +209,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 
 			resp, err = client.Do(req)
 			if err != nil {
-				return fmt.Errorf("%v %v: %v", m, u.Path, err)
+				return err
 			}
 			defer check.Err(resp.Body.Close)
 
@@ -244,7 +244,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%v %v: %v", m, u.Path, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
@@ -301,7 +301,7 @@ func (w *worker) executeJob(ctx context.Context, client *http.Client, u url.URL,
 		log.Printf("Device %s: Uploading output...\n", dStr)
 		resp, err := client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%v %v: %v", m, u.Path, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 

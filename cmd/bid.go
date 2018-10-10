@@ -52,7 +52,7 @@ func (w *worker) bid(ctx context.Context, client *http.Client, u url.URL, mID, a
 		var err error
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("%s %v: %v", req.Method, req.URL.Path, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 

@@ -35,13 +35,13 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 	operation := func() error {
 		var err error
 		if resp, err = client.Do(req); err != nil {
-			return fmt.Errorf("%s %s: %v", req.Method, req.URL, err)
+			return err
 		}
 		defer check.Err(resp.Body.Close)
 
 		if resp.StatusCode != http.StatusOK {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("%v detail: %s", resp.StatusCode, b)
+			return fmt.Errorf("server response: %s", b)
 		}
 
 		if resp.ContentLength != 0 {
@@ -58,7 +58,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 			log.Printf("Data: error: %v", err)
 			log.Printf("Data: trying again in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Data: error %v %v: %v\n", req.Method, req.URL.Path, err)
+		log.Printf("Data: error: %v", err)
 		errCh <- err
 		return
 	}
