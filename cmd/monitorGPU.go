@@ -12,19 +12,18 @@ import (
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"time"
-	// "math/rand"
 )
 
 const (
-	// meanGpuPeriod               = 10 * time.Second
-	// maxGpuPeriod                = 25 * time.Second
+	meanGPUPeriod               = 10 * time.Second
+	maxGPUPeriod                = 25 * time.Second
 	maxUploadRetries            = 5
-	gpuPeriod                   = 10 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
 )
@@ -37,6 +36,8 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		log.Printf("Device %s: DeviceHandleByIndex() error: %v", dStr, err)
 		panic(err)
 	}
+
+	go userGPULog(ctx, dStr, dev)
 
 	// initialize
 	if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
@@ -178,6 +179,15 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 
 	// monitor
 	for {
+		stochGPUPeriod := rand.ExpFloat64() * meanGPUPeriod
+		log.Printf("Stochastic gpu period: %v\n", stochGPUPeriod)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(stochGPUPeriod):
+		case <-time.After(maxGPUPeriod):
+			stochGPUPeriod = maxGPUPeriod
+		}
 		d := job.DeviceSnapshot{}
 		d.TimeStamp = time.Now().Unix()
 		d.ID = initD.ID
@@ -218,13 +228,13 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.PerformanceState = performanceState
 
-		gpuUtilization, err := dev.AverageGPUUtilization(gpuPeriod)
+		gpuUtilization, err := dev.AverageGPUUtilization(stochGPUPeriod)
 		if err != nil {
 			log.Printf("Device %s: UtilizationRates() error: %v", dStr, err)
 		}
 		d.AvgGPUUtilization = gpuUtilization
 
-		powerUsage, err := dev.AveragePowerUsage(gpuPeriod)
+		powerUsage, err := dev.AveragePowerUsage(stochGPUPeriod)
 		if err != nil {
 			log.Printf("Device %s: PowerUsage() error: %v", dStr, err)
 		}
@@ -332,15 +342,22 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			log.Printf("GPU monitor error: %v", err)
 			return
 		}
+	}
+}
 
-		// stochGpuPeriod := rand.ExpFloat64() * meanGpuPeriod
-		// log.Printf("Stochastic gpu period: %v", stochGpuPeriod)
+// userGPULog regularly logs temperature to user
+func userGPULog(ctx context.Context, dStr string, dev gonvml.Device) {
+	for {
+		temperature, err := dev.Temperature()
+		if err != nil {
+			log.Printf("Device %s: Temperature() error: %v", dStr, err)
+		}
+
+		log.Printf("Device %s: temperature: %v", dStr, temperature)
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(gpuPeriod):
-			// case <-time.After(stochGpuPeriod):
-			// case <-time.After(maxGpuPeriod):
+		case <-time.After(meanGPUPeriod):
 		}
 	}
 }
