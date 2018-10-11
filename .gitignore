@@ -2,4 +2,4 @@ vendor
 tags
 emrysminer
 *.swp
-mining-script.sh
+*.swo
