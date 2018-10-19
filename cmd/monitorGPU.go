@@ -12,6 +12,7 @@ import (
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -180,6 +181,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 	// monitor
 	for {
 		stochGPUPeriod := time.Duration(rand.ExpFloat64() * float64(meanGPUPeriod))
+		log.Printf("Device %s: period: %v", dStr, stochGPUPeriod)
 		select {
 		case <-ctx.Done():
 			return
@@ -227,13 +229,15 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.PerformanceState = performanceState
 
-		gpuUtilization, err := dev.AverageGPUUtilization(stochGPUPeriod)
+		gpuUtilSamplingPeriod := time.Duration(math.Max(float64(stochGPUPeriod), float64(150*time.Millisecond)))
+		gpuUtilization, err := dev.AverageGPUUtilization(gpuUtilSamplingPeriod)
 		if err != nil {
 			log.Printf("Device %s: UtilizationRates() error: %v", dStr, err)
 		}
 		d.AvgGPUUtilization = gpuUtilization
 
-		powerUsage, err := dev.AveragePowerUsage(stochGPUPeriod)
+		gpuPowerSamplingPeriod := time.Duration(math.Max(float64(stochGPUPeriod), float64(1000*time.Millisecond)))
+		powerUsage, err := dev.AveragePowerUsage(gpuPowerSamplingPeriod)
 		if err != nil {
 			log.Printf("Device %s: PowerUsage() error: %v", dStr, err)
 		}
