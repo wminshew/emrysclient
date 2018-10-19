@@ -299,8 +299,6 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.FanSpeed = fanSpeed
 
-		log.Printf("Device %s: temperature: %v", dStr, d.Temperature)
-
 		var body bytes.Buffer
 		if err := json.NewEncoder(&body).Encode(&d); err != nil {
 			log.Printf("Monitor error: encoding json: %v", err)
