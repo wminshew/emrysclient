@@ -204,10 +204,13 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 				b, _ := ioutil.ReadAll(resp.Body)
 				return fmt.Errorf("server response: %s", b)
+			} else if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server response: temporary error")
 			}
+
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
@@ -239,10 +242,13 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
+		} else if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server response: temporary error")
 		}
+
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
@@ -296,10 +302,13 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
+		} else if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server response: temporary error")
 		}
+
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,

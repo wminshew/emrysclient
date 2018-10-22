@@ -278,14 +278,17 @@ var startCmd = &cobra.Command{
 				}
 				defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK {
+				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 					b, _ := ioutil.ReadAll(resp.Body)
 					return fmt.Errorf("server response: %s", b)
+				} else if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server response: temporary error")
 				}
 
 				if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
 					return fmt.Errorf("json decoding response: %v", err)
 				}
+
 				return nil
 			}
 			if err := backoff.RetryNotify(operation,

@@ -139,31 +139,30 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 	m := "POST"
 	p := path.Join("miner", "device_snapshot")
 	u.Path = p
-
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(&initD); err != nil {
-		log.Printf("Monitor error: encoding json: %v", err)
-		return
-	}
-
-	req, err := http.NewRequest(m, u.String(), &body)
-	if err != nil {
-		log.Printf("Monitor error: creating request: %v", err)
-		return
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	req = req.WithContext(ctx)
-
 	operation := func() error {
+		body := &bytes.Buffer{}
+		if err := json.NewEncoder(body).Encode(&initD); err != nil {
+			return err
+		}
+
+		req, err := http.NewRequest(m, u.String(), body)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req = req.WithContext(ctx)
+
 		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
+		} else if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server response: temporary error")
 		}
 
 		return nil
@@ -303,33 +302,33 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		d.FanSpeed = fanSpeed
 
-		var body bytes.Buffer
-		if err := json.NewEncoder(&body).Encode(&d); err != nil {
-			log.Printf("Monitor error: encoding json: %v", err)
-			return
-		}
-
-		req, err := http.NewRequest(m, u.String(), &body)
-		if err != nil {
-			log.Printf("Monitor error: creating request: %v", err)
-			return
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-		if w.busy {
-			req.URL.Query().Set("jID", w.jID)
-		}
-		req = req.WithContext(ctx)
-
 		operation := func() error {
+			body := &bytes.Buffer{}
+			if err := json.NewEncoder(body).Encode(&d); err != nil {
+				return err
+			}
+
+			req, err := http.NewRequest(m, u.String(), body)
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+			if w.busy {
+				req.URL.Query().Set("jID", w.jID)
+			}
+			req = req.WithContext(ctx)
+
 			resp, err := client.Do(req)
 			if err != nil {
 				return err
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 				b, _ := ioutil.ReadAll(resp.Body)
 				return fmt.Errorf("server response: %s", b)
+			} else if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server response: temporary error")
 			}
 
 			return nil
