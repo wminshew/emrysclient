@@ -40,23 +40,25 @@ var registerCmd = &cobra.Command{
 		c := &creds.User{}
 		userLogin(c)
 
-		bodyBuf := &bytes.Buffer{}
-		if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
-			log.Printf("Error: encoding email & password: %v", err)
-			return
-		}
 		p := path.Join("user")
 		u.Path = p
 		operation := func() error {
+			bodyBuf := &bytes.Buffer{}
+			if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
+				return err
+			}
+
 			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
 			if err != nil {
 				return err
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 				b, _ := ioutil.ReadAll(resp.Body)
 				return fmt.Errorf("server response: %s", b)
+			} else if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server response: temporary error")
 			}
 
 			return nil

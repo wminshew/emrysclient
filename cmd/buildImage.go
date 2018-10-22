@@ -51,10 +51,13 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
+		} else if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server response: temporary error")
 		}
+
 		return nil
 	}
 	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),

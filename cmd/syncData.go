@@ -115,9 +115,11 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return fmt.Errorf("server response: %s", b)
+		} else if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server response: temporary error")
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&uploadList); err != nil && err != io.EOF {
@@ -218,9 +220,11 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				}
 				defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK {
+				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 					b, _ := ioutil.ReadAll(resp.Body)
 					return fmt.Errorf("server response: %s", b)
+				} else if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server response: temporary error")
 				}
 
 				return nil

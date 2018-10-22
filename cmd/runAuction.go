@@ -29,9 +29,11 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	}
 	defer check.Err(resp.Body.Close)
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
 		b, _ := ioutil.ReadAll(resp.Body)
 		return fmt.Errorf("server response: %s", b)
+	} else if resp.StatusCode == http.StatusBadGateway {
+		return fmt.Errorf("server response: temporary error")
 	}
 
 	log.Printf("Miner selected!\n")
