@@ -22,7 +22,7 @@ var registerCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Create a new miner account",
 	Long: "Submit your email and a password to create a new " +
-		"account on https://emrys.io",
+		"account on emrys",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"

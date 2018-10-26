@@ -13,5 +13,5 @@ func resolveHost() string {
 	// 	return "localhost:4430"
 	// }
 	// return "wmdlserver.ddns.net:4430"
-	return "emrys.io"
+	return "api.emrys.io"
 }
