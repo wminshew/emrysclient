@@ -14,7 +14,7 @@ var rootCmd = &cobra.Command{
 	Long: "An easy & cost-effective deep learning training " +
 		"dispatcher. Emrys lets you quickly train models " +
 		"wherever its safe & most cost effective.\n" +
-		"Learn more at https://emrys.io",
+		"Learn more at https://www.emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Use \"emrys --help\" for more information about subcommands.\n")
 	},

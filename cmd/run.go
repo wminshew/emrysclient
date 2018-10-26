@@ -56,7 +56,7 @@ var runCmd = &cobra.Command{
 
 		client := &http.Client{}
 		s := "https"
-		h := "emrys.io"
+		h := "api.emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,

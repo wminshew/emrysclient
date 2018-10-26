@@ -31,7 +31,7 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"
-		h := "emrys.io"
+		h := "api.emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,
