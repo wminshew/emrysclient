@@ -42,11 +42,11 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		c := &creds.User{}
+		c := &creds.Account{}
 		userLogin(c)
-		c.Duration = strconv.Itoa(viper.GetInt("save"))
+		duration := strconv.Itoa(viper.GetInt("save"))
 
-		p := path.Join("user", "login")
+		p := path.Join("auth", "token")
 		u.Path = p
 		loginResp := creds.LoginResp{}
 		if err := func() error {
@@ -55,7 +55,16 @@ var loginCmd = &cobra.Command{
 				return err
 			}
 
-			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
+			req, err := http.NewRequest("POST", u.String(), bodyBuf)
+			if err != nil {
+				return err
+			}
+
+			q := req.URL.Query()
+			q.Set("duration", duration)
+			req.URL.RawQuery = q.Encode()
+
+			resp, err := client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -80,11 +89,11 @@ var loginCmd = &cobra.Command{
 			log.Printf("Failed to store login token: %v", err)
 			os.Exit(1)
 		}
-		log.Printf("Success! Your login token will expire in %s days\n", c.Duration)
+		log.Printf("Success! Your login token will expire in %s days (you will not be logged off as long as you continue running the client)\n", duration)
 	},
 }
 
-func userLogin(c *creds.User) {
+func userLogin(c *creds.Account) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Email: ")
 	email, _ := reader.ReadString('\n')

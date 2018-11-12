@@ -13,7 +13,7 @@ func getToken() (string, error) {
 		log.Printf("Failed to get current user: %v", err)
 		return "", err
 	}
-	p := path.Join(u.HomeDir, ".config", "emrys", "jwt")
+	p := path.Join(u.HomeDir, ".config", "emrys", "access_token")
 	byteToken, err := ioutil.ReadFile(p)
 	if err != nil {
 		log.Printf("Failed to read token at %s: %v", p, err)

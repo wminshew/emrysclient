@@ -16,7 +16,7 @@ func storeToken(t string) error {
 		return err
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
-	p := path.Join(configDir, "jwt")
+	p := path.Join(configDir, "access_token")
 	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
 		log.Printf("Failed to make directory %s to save login token: %v", configDir, err)
 		return err
