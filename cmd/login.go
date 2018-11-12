@@ -62,6 +62,7 @@ var loginCmd = &cobra.Command{
 
 			q := req.URL.Query()
 			q.Set("duration", duration)
+			q.Set("grant_type", "password")
 			req.URL.RawQuery = q.Encode()
 
 			resp, err := client.Do(req)
