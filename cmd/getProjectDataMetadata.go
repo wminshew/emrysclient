@@ -24,7 +24,7 @@ func getProjectDataMetadata(project string, dataJSON *map[string]job.FileMetadat
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
 	p := path.Join(configDir, "projects", project, ".data_sync_metadata")
-	if _, err := os.Stat(p); os.IsNotExist(err) {
+	if _, err = os.Stat(p); os.IsNotExist(err) {
 		return nil
 	}
 	f, err := os.Open(p)
