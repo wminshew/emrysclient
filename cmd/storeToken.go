@@ -1,29 +1,31 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
 )
 
 func storeToken(t string) error {
 	u, err := user.Current()
 	if err != nil {
-		log.Printf("Failed to get current user: %v", err)
-		return err
+		return fmt.Errorf("getting current user: %v", err)
 	}
-	configDir := path.Join(u.HomeDir, ".config", "emrys")
-	p := path.Join(configDir, "access_token")
-	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
-		log.Printf("Failed to make directory %s to save login token: %v", configDir, err)
-		return err
+	if os.Geteuid() == 0 {
+		u, err = user.Lookup(os.Getenv("SUDO_USER"))
+		if err != nil {
+			return fmt.Errorf("getting current sudo user: %v", err)
+		}
 	}
+	dir := path.Join(u.HomeDir, ".config", "emrys")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("making directory %s: %v", dir, err)
+	}
+	p := path.Join(dir, "access_token")
 	if err := ioutil.WriteFile(p, []byte(t), 0600); err != nil {
-		log.Printf("Failed to write login token to disk at %s: %v", p, err)
-		return err
+		return fmt.Errorf("writing token to disk at %s: %v", p, err)
 	}
 	return nil
 }
