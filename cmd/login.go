@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"strconv"
 	"strings"
@@ -111,23 +110,4 @@ func minerLogin(c *creds.Account) {
 	}
 	c.Password = strings.TrimSpace(string(bytePassword))
 	fmt.Println()
-}
-
-func storeToken(t string) error {
-	u, err := user.Current()
-	if err != nil {
-		log.Printf("Failed to get current user: %v", err)
-		return err
-	}
-	dir := path.Join(u.HomeDir, ".config", "emrys")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
-		return err
-	}
-	p := path.Join(dir, "access_token")
-	if err := ioutil.WriteFile(p, []byte(t), 0600); err != nil {
-		log.Printf("Failed to write login token to disk at %s: %v", p, err)
-		return err
-	}
-	return nil
 }
