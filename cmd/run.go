@@ -49,9 +49,10 @@ var runCmd = &cobra.Command{
 		}
 		uID := claims.Subject
 		exp := claims.ExpiresAt
-		remaining := time.Until(time.Unix(exp, 0))
-		if remaining <= 24*time.Hour {
-			log.Printf("Warning: token expires in apprx. ~%.f hours\n", remaining.Hours())
+		refreshAt := time.Unix(exp, 0).Add(refreshDurationBuffer)
+		if refreshAt.After(time.Now()) {
+			log.Printf("Token too close to expiration, please login again.")
+			return
 		}
 
 		client := &http.Client{}
@@ -61,6 +62,9 @@ var runCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
+
+		go monitorToken(ctx, client, u, &authToken, refreshAt)
+
 		if err := checkVersion(ctx, client, u); err != nil {
 			log.Printf("Version: error: %v", err)
 			return
