@@ -102,7 +102,7 @@ var startCmd = &cobra.Command{
 		}
 		client := &http.Client{Transport: tr}
 		s := "https"
-		h := resolveHost()
+		h := "api.emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,

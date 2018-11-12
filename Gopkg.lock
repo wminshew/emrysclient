@@ -255,7 +255,7 @@
     "pkg/job",
     "pkg/jsonmessage"
   ]
-  revision = "d4633693158ce686dece08f095ea76a66d152351"
+  revision = "af2757c198d8fb5bb8b67f757bf64cba24eb17ba"
 
 [[projects]]
   branch = "master"

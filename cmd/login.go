@@ -32,7 +32,7 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"
-		h := resolveHost()
+		h := "api.emrys.io"
 		u := url.URL{
 			Scheme: s,
 			Host:   h,
@@ -42,11 +42,11 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		c := &creds.Miner{}
+		c := &creds.Account{}
 		minerLogin(c)
-		c.Duration = strconv.Itoa(viper.GetInt("save"))
+		duration := strconv.Itoa(viper.GetInt("save"))
 
-		p := path.Join("miner", "login")
+		p := path.Join("auth", "token")
 		u.Path = p
 		loginResp := creds.LoginResp{}
 		if err := func() error {
@@ -55,7 +55,16 @@ var loginCmd = &cobra.Command{
 				return err
 			}
 
-			resp, err := client.Post(u.String(), "text/plain", bodyBuf)
+			req, err := http.NewRequest("POST", u.String(), bodyBuf)
+			if err != nil {
+				return err
+			}
+
+			q := req.URL.Query()
+			q.Set("duration", duration)
+			req.URL.RawQuery = q.Encode()
+
+			resp, err := client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -83,11 +92,11 @@ var loginCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		log.Printf("Success! Your login token will expire in %s days\n", c.Duration)
+		log.Printf("Success! Your login token will expire in %s days (you will not be logged off as long as you continue running the client)\n", duration)
 	},
 }
 
-func minerLogin(c *creds.Miner) {
+func minerLogin(c *creds.Account) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Email: ")
 	email, _ := reader.ReadString('\n')
@@ -109,12 +118,12 @@ func storeToken(t string) error {
 		log.Printf("Failed to get current user: %v", err)
 		return err
 	}
-	dir := path.Join(u.HomeDir, ".config", "emrysminer")
+	dir := path.Join(u.HomeDir, ".config", "emrys")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		log.Printf("Failed to make directory %s to save login token: %v\n", dir, err)
 		return err
 	}
-	p := path.Join(dir, "jwt")
+	p := path.Join(dir, "access_token")
 	if err := ioutil.WriteFile(p, []byte(t), 0600); err != nil {
 		log.Printf("Failed to write login token to disk at %s: %v", p, err)
 		return err
