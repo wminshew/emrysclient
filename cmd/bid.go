@@ -26,11 +26,11 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 	dStr := strconv.Itoa(int(w.device))
 
 	b := &job.Bid{
-		BidRate:  w.bidRate,
+		Rate:     w.bidRate,
 		DeviceID: w.uuid,
 	}
 
-	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.BidRate)
+	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.Rate)
 	m := "POST"
 	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
