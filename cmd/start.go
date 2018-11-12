@@ -84,7 +84,7 @@ var startCmd = &cobra.Command{
 		mID := claims.Subject
 		exp := claims.ExpiresAt
 		refreshAt := time.Unix(exp, 0).Add(refreshDurationBuffer)
-		if refreshAt.After(time.Now()) {
+		if refreshAt.Before(time.Now()) {
 			log.Printf("Token too close to expiration, please login again.")
 			return
 		}

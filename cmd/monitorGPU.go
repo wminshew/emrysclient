@@ -180,7 +180,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 	// monitor
 	for {
 		stochGPUPeriod := time.Duration(rand.ExpFloat64() * float64(meanGPUPeriod))
-		log.Printf("Device %s: period: %v", dStr, stochGPUPeriod)
+		// log.Printf("Device %s: period: %v", dStr, stochGPUPeriod)
 		select {
 		case <-ctx.Done():
 			return
