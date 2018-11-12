@@ -83,8 +83,10 @@ var startCmd = &cobra.Command{
 		}
 		mID := claims.Subject
 		exp := claims.ExpiresAt
-		if remaining := time.Until(time.Unix(exp, 0)); remaining <= 24*time.Hour {
-			log.Printf("Warning: login token expires in apprx. ~%.f hours\n", remaining.Hours())
+		refreshAt := time.Unix(exp, 0).Add(refreshDurationBuffer)
+		if refreshAt.After(time.Now()) {
+			log.Printf("Token too close to expiration, please login again.")
+			return
 		}
 
 		tr := &http.Transport{
@@ -107,6 +109,8 @@ var startCmd = &cobra.Command{
 			Scheme: s,
 			Host:   h,
 		}
+
+		go monitorToken(ctx, client, u, &authToken, refreshAt)
 
 		dClient, err := docker.NewEnvClient()
 		if err != nil {
