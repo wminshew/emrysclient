@@ -23,7 +23,6 @@ var rootCmd = &cobra.Command{
 func init() {
 	// cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(registerCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(runCmd)
 	loginCmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
