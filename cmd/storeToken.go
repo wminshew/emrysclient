@@ -25,7 +25,7 @@ func storeToken(t string) error {
 	}
 	p := path.Join(dir, "access_token")
 	if err := ioutil.WriteFile(p, []byte(t), 0600); err != nil {
-		return fmt.Errorf("writing token to disk at %s: %v", p, err)
+		return fmt.Errorf("writing file: %v", err)
 	}
 	return nil
 }

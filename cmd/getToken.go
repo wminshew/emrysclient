@@ -22,7 +22,7 @@ func getToken() (string, error) {
 	p := path.Join(u.HomeDir, ".config", "emrys", "access_token")
 	byteToken, err := ioutil.ReadFile(p)
 	if err != nil {
-		return "", fmt.Errorf("reading token at %s: %v", p, err)
+		return "", fmt.Errorf("reading files: %v", err)
 	}
 	return string(byteToken), nil
 }
