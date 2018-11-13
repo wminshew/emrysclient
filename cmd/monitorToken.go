@@ -46,11 +46,11 @@ func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken
 				}
 				defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
 					b, _ := ioutil.ReadAll(resp.Body)
-					return fmt.Errorf("server response: %s", b)
-				} else if resp.StatusCode == http.StatusBadGateway {
-					return fmt.Errorf("server response: temporary error")
+					return fmt.Errorf("server: %v", b)
 				}
 
 				if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {

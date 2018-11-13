@@ -43,18 +43,18 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		jID = resp.Header.Get("X-Job-ID")
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error sending job requirements: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
@@ -86,11 +86,11 @@ func (j *jobReq) cancel(client *http.Client, u url.URL, uID, jID, authToken stri
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		return nil

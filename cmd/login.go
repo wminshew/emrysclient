@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
@@ -20,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var loginCmd = &cobra.Command{
@@ -49,7 +51,7 @@ var loginCmd = &cobra.Command{
 		p := path.Join("auth", "token")
 		u.Path = p
 		loginResp := creds.LoginResp{}
-		if err := func() error {
+		operation := func() error {
 			bodyBuf := &bytes.Buffer{}
 			if err := json.NewEncoder(bodyBuf).Encode(c); err != nil {
 				return err
@@ -71,23 +73,31 @@ var loginCmd = &cobra.Command{
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+			if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server: temporary error")
+			} else if resp.StatusCode >= 300 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server response: %s", b)
-			} else if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server response: temporary error")
+				return backoff.Permanent(fmt.Errorf("server: %v", b))
 			}
 
 			if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
-				return fmt.Errorf("failed to decode response: %v", err)
+				return fmt.Errorf("decoding response: %v", err)
 			}
+
 			return nil
-		}(); err != nil {
+		}
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+			func(err error, t time.Duration) {
+				log.Printf("Login error: %v", err)
+				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
+			}); err != nil {
 			log.Printf("Login error: %v", err)
 			os.Exit(1)
 		}
+
 		if err := storeToken(loginResp.Token); err != nil {
-			log.Printf("Failed to store login token: %v", err)
+			log.Printf("Error storing login token: %v", err)
 			os.Exit(1)
 		}
 		log.Printf("Success! Your login token will expire in %s days (you will not be logged off as long as you continue running the client)\n", duration)
@@ -101,7 +111,7 @@ func userLogin(c *creds.Account) {
 	c.Email = strings.TrimSpace(email)
 
 	fmt.Printf("Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	bytePassword, err := terminal.ReadPassword(syscall.Stdin)
 	if err != nil {
 		log.Printf("\nFailed to read password from console: %v", err)
 		return

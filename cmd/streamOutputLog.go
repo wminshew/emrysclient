@@ -75,21 +75,21 @@ pollLoop:
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+			if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server: temporary error")
+			} else if resp.StatusCode >= 300 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server response: %s", b)
-			} else if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server response: temporary error")
+				return backoff.Permanent(fmt.Errorf("server: %v", b))
 			}
 
 			if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-				return fmt.Errorf("decoding json response: %v", err)
+				return fmt.Errorf("decoding response: %v", err)
 			}
 
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Output log: error: %v", err)
 				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

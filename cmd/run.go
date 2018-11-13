@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const (
+	maxBackoffRetries = 5
+)
+
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Dispatch a deep learning job",
@@ -125,8 +129,7 @@ var runCmd = &cobra.Command{
 		}
 
 		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
-			log.Printf("Auction: error: %v", err)
-			return
+			return // already logged
 		}
 
 		if err := checkContextCanceled(ctx); err != nil {

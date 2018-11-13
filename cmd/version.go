@@ -43,11 +43,11 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&verResp); err != nil {
@@ -56,7 +56,7 @@ func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Version: error: %v", err)
 			log.Printf("Version: retrying in %s seconds\n", t.Round(time.Second).String())

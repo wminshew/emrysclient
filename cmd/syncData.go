@@ -115,11 +115,11 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&uploadList); err != nil && err != io.EOF {
@@ -128,7 +128,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Data: error: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
@@ -220,17 +220,17 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				}
 				defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
 					b, _ := ioutil.ReadAll(resp.Body)
-					return fmt.Errorf("server response: %s", b)
-				} else if resp.StatusCode == http.StatusBadGateway {
-					return fmt.Errorf("server response: temporary error")
+					return backoff.Permanent(fmt.Errorf("server: %v", b))
 				}
 
 				return nil
 			}
 			if err := backoff.RetryNotify(operation,
-				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 				func(err error, t time.Duration) {
 					log.Printf("Data: error: %v", err)
 					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
