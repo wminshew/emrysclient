@@ -73,7 +73,7 @@ func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken
 				return nil
 			}
 			if err := backoff.RetryNotify(operation,
-				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 				func(err error, t time.Duration) {
 					log.Printf("Token refresh error: %v", err)
 					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

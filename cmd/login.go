@@ -87,7 +87,7 @@ var loginCmd = &cobra.Command{
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Login error: %v", err)
 				log.Printf("Login error: retrying in %s seconds\n", t.Round(time.Second).String())

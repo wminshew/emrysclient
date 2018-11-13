@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	maxUploadRetries = 5
+	maxBackoffRetries = 5
 )
 
 type pollResponse struct {
