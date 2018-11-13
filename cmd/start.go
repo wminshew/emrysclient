@@ -28,6 +28,10 @@ import (
 	"time"
 )
 
+const (
+	maxUploadRetries = 5
+)
+
 type pollResponse struct {
 	Events    []pollEvent `json:"events"`
 	Timestamp int64       `json:"timestamp"`
@@ -282,15 +286,15 @@ var startCmd = &cobra.Command{
 				}
 				defer check.Err(resp.Body.Close)
 
-				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
 					b, _ := ioutil.ReadAll(resp.Body)
-					return fmt.Errorf("server response: %s", b)
-				} else if resp.StatusCode == http.StatusBadGateway {
-					return fmt.Errorf("server response: temporary error")
+					return backoff.Permanent(fmt.Errorf("server: %v", b))
 				}
 
 				if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-					return fmt.Errorf("json decoding response: %v", err)
+					return fmt.Errorf("decoding response: %v", err)
 				}
 
 				return nil

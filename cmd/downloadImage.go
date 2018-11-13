@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,13 +33,27 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		defer check.Err(pullResp.Close)
 
 		if err := jsonmessage.DisplayJSONMessagesStream(pullResp, os.Stdout, os.Stdout.Fd(), nil); err != nil {
-			return err
+			split := strings.Split(err.Error(), "unexpected HTTP status:")
+			if len(split) == 1 {
+				return backoff.Permanent(err)
+			}
+			trimmedStatus := strings.TrimSpace(split[1])
+			statusCodeStr := trimmedStatus[:3]
+			statusCode, _ := strconv.Atoi(statusCodeStr)
+
+			if statusCode == http.StatusBadGateway {
+				return fmt.Errorf("server: temporary error")
+			} else if statusCode >= 300 {
+				return backoff.Permanent(fmt.Errorf("server: %s", trimmedStatus[3:]))
+			}
+
+			return backoff.Permanent(err)
 		}
 
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: downloading error: %v", err)
 			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())
@@ -66,17 +82,17 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: error: %v", err)
 			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())

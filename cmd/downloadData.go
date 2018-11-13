@@ -38,11 +38,11 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return backoff.Permanent(fmt.Errorf("server: %v", b))
 		}
 
 		if resp.ContentLength != 0 {
@@ -54,7 +54,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Data: error: %v", err)
 			log.Printf("Data: retrying in %s seconds\n", t.Round(time.Second).String())

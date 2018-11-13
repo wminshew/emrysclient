@@ -24,7 +24,6 @@ import (
 const (
 	meanGPUPeriod               = 10 * time.Second
 	maxGPUPeriod                = 25 * time.Second
-	maxUploadRetries            = 5
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
 )
@@ -158,11 +157,11 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server response: %s", b)
-		} else if resp.StatusCode == http.StatusBadGateway {
-			return fmt.Errorf("server response: temporary error")
+			return fmt.Errorf("server: %v", b)
 		}
 
 		return nil
@@ -324,11 +323,11 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			}
 			defer check.Err(resp.Body.Close)
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadGateway {
+			if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server: temporary error")
+			} else if resp.StatusCode >= 300 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server response: %s", b)
-			} else if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server response: temporary error")
+				return fmt.Errorf("server: %v", b)
 			}
 
 			return nil
