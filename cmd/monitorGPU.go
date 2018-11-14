@@ -23,7 +23,7 @@ import (
 
 const (
 	meanGPUPeriod               = 10 * time.Second
-	maxGPUPeriod                = 25 * time.Second
+	maxGPUPeriod                = 30 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
 )
@@ -313,7 +313,9 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 			if w.busy {
-				req.URL.Query().Set("jID", w.jID)
+				q := req.URL.Query()
+				q.Set("jID", w.jID)
+				req.URL.RawQuery = q.Encode()
 			}
 			req = req.WithContext(ctx)
 

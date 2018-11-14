@@ -178,7 +178,7 @@ var startCmd = &cobra.Command{
 				len(devices), len(bidRatesStr))
 			return
 		}
-		workers := []worker{}
+		workers := []*worker{}
 		for i, d := range devices {
 			dev, err := gonvml.DeviceHandleByIndex(d)
 			if err != nil {
@@ -211,7 +211,7 @@ var startCmd = &cobra.Command{
 				command: viper.GetString("mining-command"),
 				device:  d,
 			}
-			w := worker{
+			w := &worker{
 				device:  d,
 				uuid:    dUUID,
 				busy:    false,
