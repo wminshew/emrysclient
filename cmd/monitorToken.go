@@ -50,7 +50,7 @@ func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken
 					return fmt.Errorf("server: temporary error")
 				} else if resp.StatusCode >= 300 {
 					b, _ := ioutil.ReadAll(resp.Body)
-					return fmt.Errorf("server: %v", b)
+					return fmt.Errorf("server: %v", string(b))
 				}
 
 				if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {

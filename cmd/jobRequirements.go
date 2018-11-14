@@ -47,7 +47,7 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return backoff.Permanent(fmt.Errorf("server: %v", b))
+			return backoff.Permanent(fmt.Errorf("server: %v", string(b)))
 		}
 
 		jID = resp.Header.Get("X-Job-ID")
@@ -90,7 +90,7 @@ func (j *jobReq) cancel(client *http.Client, u url.URL, uID, jID, authToken stri
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return backoff.Permanent(fmt.Errorf("server: %v", b))
+			return backoff.Permanent(fmt.Errorf("server: %v", string(b)))
 		}
 
 		return nil

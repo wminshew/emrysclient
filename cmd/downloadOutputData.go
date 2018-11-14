@@ -45,7 +45,9 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return backoff.Permanent(fmt.Errorf("server: %v", b))
+			return backoff.Permanent(fmt.Errorf("server: %v", string(b)))
+		} else if resp.StatusCode == http.StatusNoContent {
+			return fmt.Errorf("server: output data not yet uploaded")
 		}
 
 		if err = archiver.TarGz.Read(resp.Body, outputDir); err != nil {
