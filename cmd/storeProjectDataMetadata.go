@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
+	"strconv"
 )
 
 func storeProjectDataMetadata(project string, r io.Reader) error {
@@ -21,17 +21,48 @@ func storeProjectDataMetadata(project string, r io.Reader) error {
 			return fmt.Errorf("getting current sudo user: %v", err)
 		}
 	}
+	var uid, gid int
+	if uid, err = strconv.Atoi(u.Uid); err != nil {
+		return fmt.Errorf("converting uid to int: %v", err)
+	}
+	if gid, err = strconv.Atoi(u.Gid); err != nil {
+		return fmt.Errorf("converting gid to int: %v", err)
+	}
+
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
-	p := path.Join(configDir, "projects", project, ".data_sync_metadata")
-	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+	if err = os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("making directory: %v", err)
 	}
+	if err = os.Chown(configDir, uid, gid); err != nil {
+		return fmt.Errorf("changing ownership: %v", err)
+	}
+
+	projectsDir := path.Join(configDir, "projects")
+	if err = os.MkdirAll(projectsDir, 0755); err != nil {
+		return fmt.Errorf("making directory: %v", err)
+	}
+	if err = os.Chown(projectsDir, uid, gid); err != nil {
+		return fmt.Errorf("changing ownership: %v", err)
+	}
+
+	projectDir := path.Join(projectsDir, project)
+	if err = os.MkdirAll(projectDir, 0755); err != nil {
+		return fmt.Errorf("making directory: %v", err)
+	}
+	if err = os.Chown(projectDir, uid, gid); err != nil {
+		return fmt.Errorf("changing ownership: %v", err)
+	}
+
+	p := path.Join(projectDir, ".data_sync_metadata")
 	f, err := os.Create(p)
 	if err != nil {
 		return fmt.Errorf("creating file: %v", err)
 	}
 	defer check.Err(f.Close)
-	if _, err := io.Copy(f, r); err != nil {
+	if err = os.Chown(p, uid, gid); err != nil {
+		return fmt.Errorf("changing ownership: %v", err)
+	}
+	if _, err = io.Copy(f, r); err != nil {
 		return fmt.Errorf("copying file: %v", err)
 	}
 	return nil

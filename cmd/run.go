@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -57,6 +59,23 @@ var runCmd = &cobra.Command{
 		if refreshAt.Before(time.Now()) {
 			log.Printf("Token too close to expiration, please login again.")
 			return
+		}
+
+		var uid, gid int
+		if os.Geteuid() == 0 {
+			sudoUser, err := user.Lookup(os.Getenv("SUDO_USER"))
+			if err != nil {
+				log.Printf("Error getting current sudo user: %v", err)
+				return
+			}
+			if uid, err = strconv.Atoi(sudoUser.Uid); err != nil {
+				log.Printf("Error converting uid to int: %v", err)
+				return
+			}
+			if gid, err = strconv.Atoi(sudoUser.Gid); err != nil {
+				log.Printf("Error converting gid to int: %v", err)
+				return
+			}
 		}
 
 		client := &http.Client{}
@@ -140,6 +159,14 @@ var runCmd = &cobra.Command{
 			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
 		}
+		if os.Geteuid() == 0 {
+			if err = os.Chown(j.output, uid, gid); err != nil {
+				log.Printf("Error changing ownership: %v", err)
+			}
+			if err = os.Chown(outputDir, uid, gid); err != nil {
+				log.Printf("Error changing ownership: %v", err)
+			}
+		}
 
 		log.Printf("Executing job %s\n", jID)
 		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
@@ -154,6 +181,7 @@ var runCmd = &cobra.Command{
 		}
 
 		completed = true
+
 		log.Printf("Complete!\n")
 	},
 }
