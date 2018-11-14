@@ -42,7 +42,7 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return backoff.Permanent(fmt.Errorf("server: %v", b))
+			return backoff.Permanent(fmt.Errorf("server: %v", string(b)))
 		}
 
 		if resp.ContentLength != 0 {

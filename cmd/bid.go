@@ -34,6 +34,7 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 	m := "POST"
 	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
+	winner := false
 	operation := func() error {
 		body := &bytes.Buffer{}
 		if err := json.NewEncoder(body).Encode(b); err != nil {
@@ -55,13 +56,15 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 
 		if w.busy {
 			return backoff.Permanent(fmt.Errorf("already busy with job %s", w.jID))
+		} else if resp.StatusCode == http.StatusOK {
+			winner = true
 		} else if resp.StatusCode == http.StatusPaymentRequired {
-			return backoff.Permanent(fmt.Errorf("bid too high, not selected"))
+			log.Printf("Device %s: bid too high, not selected\n", dStr)
 		} else if resp.StatusCode == http.StatusBadGateway {
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return backoff.Permanent(fmt.Errorf("server: %s", b))
+			return backoff.Permanent(fmt.Errorf("server: %s", string(b)))
 		}
 
 		return nil
@@ -76,6 +79,8 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 		return
 	}
 
-	log.Printf("Device %s: you won job %v!\n", dStr, jID)
-	go w.executeJob(ctx, dClient, client, u, mID, jID, authToken, dockerAuthStr)
+	if winner {
+		log.Printf("Device %s: you won job %v!\n", dStr, jID)
+		go w.executeJob(ctx, dClient, client, u, mID, jID, authToken, dockerAuthStr)
+	}
 }

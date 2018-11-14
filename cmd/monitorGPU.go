@@ -161,7 +161,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server: %v", b)
+			return fmt.Errorf("server: %v", string(b))
 		}
 
 		return nil
@@ -327,7 +327,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 				return fmt.Errorf("server: temporary error")
 			} else if resp.StatusCode >= 300 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server: %v", b)
+				return fmt.Errorf("server: %v", string(b))
 			}
 
 			return nil
@@ -335,10 +335,10 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("GPU monitor error: %v", err)
-				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
+				log.Printf("Device %s: gpu monitor error: %v", dStr, err)
+				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("GPU monitor error: %v", err)
+			log.Printf("Device %s: gpu monitor error: %v", dStr, err)
 			return
 		}
 	}

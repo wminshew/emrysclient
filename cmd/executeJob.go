@@ -208,7 +208,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 				return fmt.Errorf("server: temporary error")
 			} else if resp.StatusCode >= 300 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server: %v", b)
+				return fmt.Errorf("server: %v", string(b))
 			}
 
 			return nil
@@ -246,7 +246,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server: %v", b)
+			return fmt.Errorf("server: %v", string(b))
 		}
 
 		return nil
@@ -306,7 +306,7 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("server: %v", b)
+			return fmt.Errorf("server: %v", string(b))
 		}
 
 		return nil
