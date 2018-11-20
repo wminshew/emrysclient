@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -67,6 +68,7 @@ var startCmd = &cobra.Command{
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		go monitorInterrupts(stop, cancel)
 
 		authToken, err := getToken()
@@ -119,7 +121,7 @@ var startCmd = &cobra.Command{
 		dClient, err := docker.NewEnvClient()
 		if err != nil {
 			log.Printf("Error creating docker client: %v", err)
-			panic(err)
+			return
 		}
 		defer check.Err(dClient.Close)
 
@@ -135,9 +137,15 @@ var startCmd = &cobra.Command{
 			return
 		}
 
+		miningCmdStr := viper.GetString("mining-command")
+		if miningCmdStr != "" && !strings.Contains(miningCmdStr, "$DEVICE") {
+			log.Printf("Error: if mining-command is set, it must include $DEVICE")
+			return
+		}
+
 		if err := gonvml.Initialize(); err != nil {
 			log.Printf("Error initializing gonvml: %v. Please make sure NVML is in the shared library search path.", err)
-			panic(err)
+			return
 		}
 		defer check.Err(gonvml.Shutdown)
 
