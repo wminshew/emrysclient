@@ -14,7 +14,7 @@ import (
 )
 
 func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) error {
-	log.Printf("Running auction...\n")
+	log.Printf("Searching for cheapest compute meeting your requirements...\n")
 	m := "POST"
 	p := path.Join("auction", jID)
 	u.Path = p
@@ -32,7 +32,9 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 		}
 		defer check.Err(resp.Body.Close)
 
-		if resp.StatusCode == http.StatusBadGateway {
+		if resp.StatusCode == http.StatusPaymentRequired {
+			return backoff.Permanent(fmt.Errorf("server: no compute meeting your requirements is available at this time"))
+		} else if resp.StatusCode == http.StatusBadGateway {
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
 			b, _ := ioutil.ReadAll(resp.Body)
@@ -43,10 +45,10 @@ func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authTo
 	}
 	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Auction: error: %v", err)
-			log.Printf("Auction: retrying in %s seconds\n", t.Round(time.Second).String())
+			log.Printf("Search: error: %v", err)
+			log.Printf("Search: retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Auction: error: %v", err)
+		log.Printf("Search: error: %v", err)
 		return err
 	}
 
