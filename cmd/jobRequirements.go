@@ -62,7 +62,7 @@ func (j *jobReq) send(ctx context.Context, client *http.Client, u url.URL, uID, 
 		return "", err
 	}
 
-	log.Printf("Job requirements sent!\n")
+	log.Printf("Beginning job %s...\n", jID)
 	return jID, nil
 }
 

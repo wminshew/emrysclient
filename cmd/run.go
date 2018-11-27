@@ -170,7 +170,7 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		log.Printf("Executing job %s\n", jID)
+		log.Printf("Executing job %s...\n", jID)
 		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
 			log.Printf("Output log: error: %v", err)
 			return
