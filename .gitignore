@@ -1,7 +1,8 @@
 vendor
-emrysuser
+emrys
+emrysclient
 output
-.emrysconfig
+.emrys.*
 tags
 *.swp
 *.swo

@@ -1,3 +1,3 @@
-# emrysuser
+# emrys
 
-golang CLI for pushing deep learning jobs to emrys
+golang client for interacting with https://www.emrys.io
