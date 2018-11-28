@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wminshew/emrysuser/cmd/login"
-	"github.com/wminshew/emrysuser/cmd/run"
-	"github.com/wminshew/emrysuser/cmd/version"
+	"github.com/wminshew/emrysclient/cmd/login"
+	"github.com/wminshew/emrysclient/cmd/run"
+	"github.com/wminshew/emrysclient/cmd/version"
 	"log"
 	"os"
 )

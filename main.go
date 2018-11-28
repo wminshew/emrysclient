@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/wminshew/emrysuser/cmd"
+	"github.com/wminshew/emrysclient/cmd"
 )
 
 func main() {
