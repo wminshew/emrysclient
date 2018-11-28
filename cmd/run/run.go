@@ -1,10 +1,12 @@
-package cmd
+package run
 
 import (
 	"context"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/wminshew/emrysuser/cmd/version"
+	"github.com/wminshew/emrysuser/pkg/token"
 	"log"
 	"net/http"
 	"net/url"
@@ -21,7 +23,42 @@ const (
 	maxBackoffRetries = 5
 )
 
-var runCmd = &cobra.Command{
+func init() {
+	Cmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
+	Cmd.Flags().String("project", "", "User project (required)")
+	Cmd.Flags().String("requirements", "", "Path to requirements file (required)")
+	Cmd.Flags().String("main", "", "Path to main execution file (required)")
+	Cmd.Flags().String("data", "", "Path to the data directory (optional)")
+	Cmd.Flags().String("output", "", "Path to save the output directory (required)")
+	Cmd.Flags().SortFlags = false
+	if err := func() error {
+		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("project", Cmd.Flags().Lookup("project")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("requirements", Cmd.Flags().Lookup("requirements")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("main", Cmd.Flags().Lookup("main")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("data", Cmd.Flags().Lookup("data")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("output", Cmd.Flags().Lookup("output")); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		log.Printf("Run: error binding pflag: %v", err)
+		panic(err)
+	}
+}
+
+// Cmd exports login subcommand to root
+var Cmd = &cobra.Command{
 	Use:   "run",
 	Short: "Dispatch a deep learning job",
 	Long: "Syncs the appropriate maining files & data " +
@@ -38,7 +75,7 @@ var runCmd = &cobra.Command{
 			cancel()
 		}()
 
-		authToken, err := getToken()
+		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Error: retrieving authToken: %v", err)
 			return
@@ -55,7 +92,7 @@ var runCmd = &cobra.Command{
 		}
 		uID := claims.Subject
 		exp := claims.ExpiresAt
-		refreshAt := time.Unix(exp, 0).Add(refreshDurationBuffer)
+		refreshAt := time.Unix(exp, 0).Add(token.RefreshBuffer)
 		if refreshAt.Before(time.Now()) {
 			log.Printf("Token too close to expiration, please login again.")
 			return
@@ -86,9 +123,20 @@ var runCmd = &cobra.Command{
 			Host:   h,
 		}
 
-		go monitorToken(ctx, client, u, &authToken, refreshAt)
+		go func() {
+			for {
+				if err := token.Monitor(ctx, client, u, &authToken, refreshAt); err != nil {
+					log.Printf("Token: refresh error: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+			}
+		}()
 
-		if err := checkVersion(ctx, client, u); err != nil {
+		if err := version.Check(ctx, client, u); err != nil {
 			log.Printf("Version: error: %v", err)
 			return
 		}

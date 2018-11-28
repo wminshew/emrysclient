@@ -1,4 +1,4 @@
-package cmd
+package login
 
 import (
 	"bufio"
@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
+	"github.com/wminshew/emrysuser/cmd/version"
+	"github.com/wminshew/emrysuser/pkg/token"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
 	"log"
@@ -24,7 +26,18 @@ import (
 	"time"
 )
 
-var loginCmd = &cobra.Command{
+const maxBackoffRetries = 5
+
+func init() {
+	Cmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
+	if err := viper.BindPFlag("save", Cmd.Flags().Lookup("save")); err != nil {
+		log.Printf("Login: error binding pflag: %v", err)
+		panic(err)
+	}
+}
+
+// Cmd exports login subcommand to root
+var Cmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrys",
 	Long: "After receiving a valid email and password, " +
@@ -39,7 +52,7 @@ var loginCmd = &cobra.Command{
 			Host:   h,
 		}
 		ctx := context.Background()
-		if err := checkVersion(ctx, client, u); err != nil {
+		if err := version.Check(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
 		}
@@ -87,7 +100,7 @@ var loginCmd = &cobra.Command{
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Login error: %v", err)
 				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
@@ -96,7 +109,7 @@ var loginCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := storeToken(loginResp.Token); err != nil {
+		if err := token.Store(loginResp.Token); err != nil {
 			log.Printf("Error storing login token: %v", err)
 			os.Exit(1)
 		}

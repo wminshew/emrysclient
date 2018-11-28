@@ -1,4 +1,4 @@
-package cmd
+package token
 
 import (
 	"context"
@@ -17,16 +17,19 @@ import (
 )
 
 const (
-	refreshDurationBuffer = -5 * time.Minute
-	maxRetries            = 10
+	// RefreshBuffer before token expiration
+	RefreshBuffer = -5 * time.Minute
+	maxRetries    = 10
 )
 
-func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken *string, initialRefreshAt time.Time) {
+// Monitor watches & refreshes authToken before expiration while client runs
+func Monitor(ctx context.Context, client *http.Client, u url.URL, authToken *string, initialRefreshAt time.Time) error {
 	u.Path = path.Join("auth", "token")
 	refreshAt := initialRefreshAt
 	for {
 		select {
 		case <-ctx.Done():
+			return nil
 		case <-time.After(time.Until(refreshAt)):
 			loginResp := creds.LoginResp{}
 			operation := func() error {
@@ -57,7 +60,7 @@ func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken
 					return fmt.Errorf("decoding response: %v", err)
 				}
 
-				if err := storeToken(loginResp.Token); err != nil {
+				if err := Store(loginResp.Token); err != nil {
 					return fmt.Errorf("storing login token: %v", err)
 				}
 
@@ -69,18 +72,17 @@ func monitorToken(ctx context.Context, client *http.Client, u url.URL, authToken
 				}
 
 				exp := claims.ExpiresAt
-				refreshAt = time.Unix(exp, 0).Add(refreshDurationBuffer)
+				refreshAt = time.Unix(exp, 0).Add(RefreshBuffer)
 
 				return nil
 			}
 			if err := backoff.RetryNotify(operation,
 				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 				func(err error, t time.Duration) {
-					log.Printf("Token refresh error: %v", err)
+					log.Printf("Token: refresh error: %v", err)
 					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 				}); err != nil {
-				log.Printf("Token refresh error: %v", err)
-				return
+				return err
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-package cmd
+package version
 
 import (
 	"context"
@@ -23,16 +23,20 @@ var userVer = semver.Version{
 	Patch: 0,
 }
 
-var versionCmd = &cobra.Command{
+const maxBackoffRetries = 5
+
+// Cmd exports version subcommand to root
+var Cmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of emrys",
 	Long:  "All software has versions. This is emrys's",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("emrys v", userVer.String())
+		fmt.Printf("emrys v%s\n", userVer.String())
 	},
 }
 
-func checkVersion(ctx context.Context, client *http.Client, u url.URL) error {
+// Check verifies the user version is compatible with the server
+func Check(ctx context.Context, client *http.Client, u url.URL) error {
 	p := path.Join("user", "version")
 	u.Path = p
 	verResp := creds.VersionResp{}

@@ -1,4 +1,4 @@
-package cmd
+package token
 
 import (
 	"fmt"
@@ -8,7 +8,8 @@ import (
 	"path"
 )
 
-func storeToken(t string) error {
+// Store token t on disk
+func Store(t string) error {
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("getting current user: %v", err)
