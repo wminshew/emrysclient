@@ -46,9 +46,8 @@ func (cm *cryptoMiner) init(ctx context.Context) {
 			}
 			if mining {
 				log.Printf("Device %s: halt mining...\n", dStr)
-				// had syscall.SIGHUP not work once..
 				if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
-					log.Printf("Device %s: error interrupting cryptomining process: %v", dStr, err)
+					log.Printf("Device %s: error killing cryptomining process: %v", dStr, err)
 					return
 				}
 				if err := cmd.Process.Release(); err != nil {
