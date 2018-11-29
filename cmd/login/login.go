@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/creds"
-	"github.com/wminshew/emrysclient/cmd/version"
 	"github.com/wminshew/emrysclient/pkg/token"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
@@ -29,7 +28,7 @@ import (
 const maxBackoffRetries = 5
 
 func init() {
-	Cmd.Flags().Int("save", 7, "Days until token received in response on successful login expires.")
+	Cmd.Flags().Int("save", 7, "Days until login token expires.")
 	if err := viper.BindPFlag("save", Cmd.Flags().Lookup("save")); err != nil {
 		log.Printf("Login: error binding pflag: %v", err)
 		panic(err)
@@ -40,9 +39,8 @@ func init() {
 var Cmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in to emrys",
-	Long: "After receiving a valid email and password, " +
-		"login save a JSON web token (JWT) locally. By default, " +
-		"the token expires in 7 days.",
+	Long: "Log in to emrys. By default, " +
+		"the login token expires in 7 days.",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := &http.Client{}
 		s := "https"
@@ -52,10 +50,6 @@ var Cmd = &cobra.Command{
 			Host:   h,
 		}
 		ctx := context.Background()
-		if err := version.Check(ctx, client, u); err != nil {
-			log.Printf("Version error: %v", err)
-			return
-		}
 
 		c := &creds.Account{}
 		userLogin(c)

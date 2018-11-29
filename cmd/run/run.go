@@ -35,19 +35,19 @@ func init() {
 		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("project", Cmd.Flags().Lookup("project")); err != nil {
+		if err := viper.BindPFlag("user.project", Cmd.Flags().Lookup("project")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("requirements", Cmd.Flags().Lookup("requirements")); err != nil {
+		if err := viper.BindPFlag("user.requirements", Cmd.Flags().Lookup("requirements")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("main", Cmd.Flags().Lookup("main")); err != nil {
+		if err := viper.BindPFlag("user.main", Cmd.Flags().Lookup("main")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("data", Cmd.Flags().Lookup("data")); err != nil {
+		if err := viper.BindPFlag("user.data", Cmd.Flags().Lookup("data")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("output", Cmd.Flags().Lookup("output")); err != nil {
+		if err := viper.BindPFlag("user.output", Cmd.Flags().Lookup("output")); err != nil {
 			return err
 		}
 		return nil
@@ -77,24 +77,24 @@ var Cmd = &cobra.Command{
 
 		authToken, err := token.Get()
 		if err != nil {
-			log.Printf("Error: retrieving authToken: %v", err)
+			log.Printf("Run: error retrieving authToken: %v", err)
 			return
 		}
 		claims := &jwt.StandardClaims{}
 		if _, _, err := new(jwt.Parser).ParseUnverified(authToken, claims); err != nil {
-			log.Printf("Error: parsing authToken: %v", err)
+			log.Printf("Run: error parsing authToken: %v", err)
 			return
 		}
 		if err := claims.Valid(); err != nil {
-			log.Printf("Error: invalid authToken: %v", err)
-			log.Printf("Please login again.\n")
+			log.Printf("Run: invalid authToken: %v", err)
+			log.Printf("Run: please login again.\n")
 			return
 		}
 		uID := claims.Subject
 		exp := claims.ExpiresAt
 		refreshAt := time.Unix(exp, 0).Add(token.RefreshBuffer)
 		if refreshAt.Before(time.Now()) {
-			log.Printf("Token too close to expiration, please login again.")
+			log.Printf("Run: token too close to expiration, please login again.")
 			return
 		}
 
@@ -102,15 +102,15 @@ var Cmd = &cobra.Command{
 		if os.Geteuid() == 0 {
 			sudoUser, err := user.Lookup(os.Getenv("SUDO_USER"))
 			if err != nil {
-				log.Printf("Error getting current sudo user: %v", err)
+				log.Printf("Run: error getting current sudo user: %v", err)
 				return
 			}
 			if uid, err = strconv.Atoi(sudoUser.Uid); err != nil {
-				log.Printf("Error converting uid to int: %v", err)
+				log.Printf("Run: error converting uid to int: %v", err)
 				return
 			}
 			if gid, err = strconv.Atoi(sudoUser.Gid); err != nil {
-				log.Printf("Error converting gid to int: %v", err)
+				log.Printf("Run: error converting gid to int: %v", err)
 				return
 			}
 		}
@@ -136,8 +136,8 @@ var Cmd = &cobra.Command{
 			}
 		}()
 
-		if err := version.Check(ctx, client, u); err != nil {
-			log.Printf("Version: error: %v", err)
+		if err := version.CheckRun(ctx, client, u); err != nil {
+			log.Printf("Run: version error: %v", err)
 			return
 		}
 
@@ -146,31 +146,31 @@ var Cmd = &cobra.Command{
 		viper.AddConfigPath("$HOME/.config/emrys")
 		viper.AddConfigPath(".")
 		if err := viper.ReadInConfig(); err != nil {
-			log.Printf("Error: reading config file: %v", err)
+			log.Printf("Run: error reading config file: %v", err)
 			return
 		}
 
 		j := &jobReq{
-			project:      viper.GetString("project"),
-			requirements: viper.GetString("requirements"),
-			main:         viper.GetString("main"),
-			data:         viper.GetString("data"),
-			output:       viper.GetString("output"),
+			project:      viper.GetString("user.project"),
+			requirements: viper.GetString("user.requirements"),
+			main:         viper.GetString("user.main"),
+			data:         viper.GetString("user.data"),
+			output:       viper.GetString("user.output"),
 		}
 		if err := j.validate(); err != nil {
-			log.Printf("Error: invalid job requirements: %v", err)
+			log.Printf("Run: invalid job requirements: %v", err)
 			return
 		}
 		var jID string
 		if jID, err = j.send(ctx, client, u, uID, authToken); err != nil {
-			log.Printf("Error: sending job requirements: %v", err)
+			log.Printf("Run: error sending job requirements: %v", err)
 			return
 		}
 		completed := false
 		defer func() {
 			if !completed {
 				if err := j.cancel(client, u, uID, jID, authToken); err != nil {
-					log.Printf("Error: canceling job: %v", err)
+					log.Printf("Run: error canceling job: %v", err)
 					return
 				}
 			}
@@ -211,10 +211,10 @@ var Cmd = &cobra.Command{
 		}
 		if os.Geteuid() == 0 {
 			if err = os.Chown(j.output, uid, gid); err != nil {
-				log.Printf("Error changing ownership: %v", err)
+				log.Printf("Run: error changing ownership: %v", err)
 			}
 			if err = os.Chown(outputDir, uid, gid); err != nil {
-				log.Printf("Error changing ownership: %v", err)
+				log.Printf("Run: error changing ownership: %v", err)
 			}
 		}
 

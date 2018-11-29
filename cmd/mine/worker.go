@@ -1,4 +1,4 @@
-package cmd
+package mine
 
 import (
 	"github.com/satori/go.uuid"

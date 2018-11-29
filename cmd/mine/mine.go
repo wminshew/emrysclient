@@ -1,4 +1,4 @@
-package cmd
+package mine
 
 import (
 	"context"
@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/emrysclient/cmd/version"
+	"github.com/wminshew/emrysclient/pkg/token"
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
@@ -53,12 +55,39 @@ var (
 	bidsOut       = 0
 )
 
-var startCmd = &cobra.Command{
-	Use:   "start",
+func init() {
+	Cmd.Flags().StringP("config", "c", ".emrys", "Path to config file (don't include extension)")
+	Cmd.Flags().StringSliceP("bid-rates", "b", []string{}, "Per device bid rates ($/hr) for mining jobs (required; may set 1 value for all devices, or 1 value per device)")
+	Cmd.Flags().StringSliceP("devices", "d", []string{}, "Cuda devices to mine with on emrys. If blank, program will mine with all detected devices.")
+	Cmd.Flags().StringP("mining-command", "m", "", "Mining command to execute between emrys jobs. Must use $DEVICE flag so emrys can toggle mining-per-device correctly between jobs.")
+	Cmd.Flags().SortFlags = false
+	if err := func() error {
+		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("miner.bid-rates", Cmd.Flags().Lookup("bid-rates")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("miner.devices", Cmd.Flags().Lookup("devices")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("miner.mining-command", Cmd.Flags().Lookup("mining-command")); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		log.Printf("Mine: error binding pflag: %v", err)
+		panic(err)
+	}
+}
+
+// Cmd exports mine subcommand to root
+var Cmd = &cobra.Command{
+	Use:   "mine",
 	Short: "Begin mining on emrys",
-	Long: "Start training deep learning models for money. " +
+	Long: "Earn money by training deep learning models for emrys. " +
 		"When no jobs are available, or if the asking rates are " +
-		"below your minimum, emrysminer will execute ./mining-command",
+		"below your bid-rate, emrys will execute ./mining-command",
 	Run: func(cmd *cobra.Command, args []string) {
 		if os.Geteuid() != 0 {
 			log.Printf("Insufficient privileges. Are you root?\n")
@@ -71,27 +100,27 @@ var startCmd = &cobra.Command{
 		defer cancel()
 		go monitorInterrupts(stop, cancel)
 
-		authToken, err := getToken()
+		authToken, err := token.Get()
 		if err != nil {
-			log.Printf("Error getting authToken: %v", err)
+			log.Printf("Mine: error getting authToken: %v", err)
 			// TODO: test to see if you end up with stray processes on returning here; may have to close(stop) or something similar
 			return
 		}
 		claims := &jwt.StandardClaims{}
 		if _, _, err := new(jwt.Parser).ParseUnverified(authToken, claims); err != nil {
-			log.Printf("Error parsing authToken %v: %v\n", authToken, err)
+			log.Printf("Mine: error parsing authToken %v: %v\n", authToken, err)
 			return
 		}
 		if err := claims.Valid(); err != nil {
-			log.Printf("Error invalid authToken claims: %v", err)
+			log.Printf("Mine: invalid authToken: %v", err)
 			log.Printf("Please login again.\n")
 			return
 		}
 		mID := claims.Subject
 		exp := claims.ExpiresAt
-		refreshAt := time.Unix(exp, 0).Add(refreshDurationBuffer)
+		refreshAt := time.Unix(exp, 0).Add(token.RefreshBuffer)
 		if refreshAt.Before(time.Now()) {
-			log.Printf("Token too close to expiration, please login again.")
+			log.Printf("Mine: token too close to expiration, please login again.")
 			return
 		}
 
@@ -116,16 +145,27 @@ var startCmd = &cobra.Command{
 			Host:   h,
 		}
 
-		go monitorToken(ctx, client, u, &authToken, refreshAt)
+		go func() {
+			for {
+				if err := token.Monitor(ctx, client, u, &authToken, refreshAt); err != nil {
+					log.Printf("Token: refresh error: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+			}
+		}()
 
 		dClient, err := docker.NewEnvClient()
 		if err != nil {
-			log.Printf("Error creating docker client: %v", err)
+			log.Printf("Mine: error creating docker client: %v", err)
 			return
 		}
 		defer check.Err(dClient.Close)
 
-		if err := checkVersion(ctx, client, u); err != nil {
+		if err := version.CheckMine(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
 			return
 		}
@@ -135,36 +175,36 @@ var startCmd = &cobra.Command{
 		viper.AddConfigPath("$HOME/.config/emrys")
 		viper.AddConfigPath(".")
 		if err := viper.ReadInConfig(); err != nil {
-			log.Printf("Error reading config file: %v", err)
+			log.Printf("Mine: error reading config file: %v", err)
 			return
 		}
 
-		miningCmdStr := viper.GetString("mining-command")
+		miningCmdStr := viper.GetString("miner.mining-command")
 		if miningCmdStr != "" && !strings.Contains(miningCmdStr, "$DEVICE") {
-			log.Printf("Error: if mining-command is set, it must include $DEVICE")
+			log.Printf("Mine: error: if mining-command is set, it must include $DEVICE")
 			return
 		}
 
 		if err := gonvml.Initialize(); err != nil {
-			log.Printf("Error initializing gonvml: %v. Please make sure NVML is in the shared library search path.", err)
+			log.Printf("Mine: error initializing gonvml: %v. Please make sure NVML is in the shared library search path.", err)
 			return
 		}
 		defer check.Err(gonvml.Shutdown)
 
 		driverVersion, err := gonvml.SystemDriverVersion()
 		if err != nil {
-			log.Printf("Error finding nvidia driver: %v", err)
+			log.Printf("Mine: error finding nvidia driver: %v", err)
 			return
 		}
 		log.Printf("Nvidia driver: %v\n", driverVersion)
 
 		devices := []uint{}
-		devicesStr := viper.GetStringSlice("devices")
+		devicesStr := viper.GetStringSlice("miner.devices")
 		if len(devicesStr) == 0 {
 			// no flag provided, grab all detected devices
 			numDevices, err := gonvml.DeviceCount()
 			if err != nil {
-				log.Printf("Error counting nvidia devices: %v", err)
+				log.Printf("Mine: error counting nvidia devices: %v", err)
 				return
 			}
 			for i := 0; i < int(numDevices); i++ {
@@ -182,7 +222,7 @@ var startCmd = &cobra.Command{
 			}
 		}
 
-		bidRatesStr := viper.GetStringSlice("bid-rates")
+		bidRatesStr := viper.GetStringSlice("miner.bid-rates")
 		if len(bidRatesStr) != 1 && len(bidRatesStr) != len(devices) {
 			log.Printf("Mismatch between number of devices (%d) and bid-rates (%d). Either set a single bid rate for all devices, or one for each device.\n",
 				len(devices), len(bidRatesStr))
@@ -218,7 +258,7 @@ var startCmd = &cobra.Command{
 			}
 
 			cm := &cryptoMiner{
-				command: viper.GetString("mining-command"),
+				command: miningCmdStr,
 				device:  d,
 			}
 			w := &worker{
@@ -250,13 +290,13 @@ var startCmd = &cobra.Command{
 		}
 		dockerAuthJSON, err := json.Marshal(dockerAuthConfig)
 		if err != nil {
-			log.Printf("Error marshaling docker auth config: %v", err)
+			log.Printf("Mine: error marshaling docker auth config: %v", err)
 			return
 		}
 		dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
 
 		if err := seedDockerdCache(ctx, dClient, dockerAuthStr); err != nil {
-			log.Printf("Error seeding docker cache: %v", err)
+			log.Printf("Mine: error seeding docker cache: %v", err)
 			return
 		}
 
@@ -277,7 +317,7 @@ var startCmd = &cobra.Command{
 				log.Printf("Mining job search canceled.\n")
 				return
 			}
-			if err := checkVersion(ctx, client, u); err != nil {
+			if err := version.CheckMine(ctx, client, u); err != nil {
 				log.Printf("Version error: %v", err)
 				return
 			}
@@ -330,8 +370,7 @@ var startCmd = &cobra.Command{
 					sinceTime = event.Timestamp
 					msg := &job.Message{}
 					if err := json.Unmarshal(event.Data, msg); err != nil {
-						log.Printf("Error unmarshaling json message: %v", err)
-						log.Println("json message: ", string(event.Data))
+						log.Printf("Mine: error unmarshaling json message: %v", err)
 						continue
 					}
 					if msg.Job == nil {
