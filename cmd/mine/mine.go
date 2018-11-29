@@ -87,7 +87,8 @@ var Cmd = &cobra.Command{
 	Short: "Begin mining on emrys",
 	Long: "Earn money by training deep learning models for emrys. " +
 		"When no jobs are available, or if the asking rates are " +
-		"below your bid-rate, emrys will execute ./mining-command",
+		"below your bid-rate, emrys will execute ./mining-command" +
+		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
 		if os.Geteuid() != 0 {
 			log.Printf("Insufficient privileges. Are you root?\n")

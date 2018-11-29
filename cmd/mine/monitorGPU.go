@@ -16,6 +16,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"time"
@@ -26,6 +28,12 @@ const (
 	maxGPUPeriod                = 30 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
+	minTemp                     = 40
+	targetTemp                  = 65
+	maxTemp                     = 75
+	minFan                      = 25
+	incFan                      = 5
+	maxFan                      = 85
 )
 
 func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL, authToken string) {
@@ -337,28 +345,90 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		if err := backoff.RetryNotify(operation,
 			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 			func(err error, t time.Duration) {
-				log.Printf("Device %s: gpu monitor error: %v", dStr, err)
+				log.Printf("Device %s: error monitoring gpu: %v", dStr, err)
 				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
-			log.Printf("Device %s: gpu monitor error: %v", dStr, err)
+			log.Printf("Device %s: error monitoring gpu: %v", dStr, err)
 			return
 		}
 	}
 }
 
-// userGPULog regularly logs temperature to user
+// userGPULog regularly logs temperature to user; updates fan accordingly
 func userGPULog(ctx context.Context, dStr string, dev gonvml.Device) {
 	for {
 		temperature, err := dev.Temperature()
 		if err != nil {
 			log.Printf("Device %s: Temperature() error: %v", dStr, err)
 		}
+		fanSpeed, err := dev.FanSpeed()
+		if err != nil {
+			log.Printf("Device %s: FanSpeed() error: %v", dStr, err)
+		}
 
-		log.Printf("Device %s: temperature: %v", dStr, temperature)
+		log.Printf("Device %s: temperature: %v; fan: %v", dStr, temperature, fanSpeed)
+
+		// TODO: add logic to set GPUFanControlState=1; maybe some of that other stuff too..?
+		fs := int(fanSpeed)
+		var newFanSpeed int
+		if temperature > maxTemp {
+			newFanSpeed = maxFan
+		} else if temperature > targetTemp {
+			newFanSpeed = fs + incFan
+			if newFanSpeed > maxFan {
+				newFanSpeed = maxFan
+			}
+		} else if temperature > minTemp {
+			newFanSpeed = fs - incFan
+			if newFanSpeed < minFan {
+				newFanSpeed = minFan
+			}
+		} else {
+			newFanSpeed = minFan
+		}
+		if err := updateFan(ctx, dStr, newFanSpeed); err != nil {
+			log.Printf("Device %s: error updating fan speed: %v", dStr, err)
+		}
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(meanGPUPeriod):
 		}
 	}
+}
+
+func updateFan(ctx context.Context, dStr string, newFanSpeed int) error {
+	// nvidia-settings -a '[fan:{dStr}]/GPUTargetFanSpeed={newFanSpeed}'
+	cmdStr := "nvidia-settings"
+	args := append([]string{"-a"}, fmt.Sprintf("[fan:%s]/GPUTargetFanSpeed=%d", dStr, newFanSpeed))
+	cmd := exec.CommandContext(ctx, cmdStr, args...)
+	// cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+	// cmd.Env = append(os.Environ(), fmt.Sprintf("DEVICE=%s", dStr))
+	// if cm.command != "" {
+	// 	mining = true
+	// 	log.Printf("Device %s: begin mining...\n", dStr)
+	// 	if err := cmd.Start(); err != nil {
+	// 		log.Printf("Device %s: error starting cryptomining process: %v", dStr, err)
+	// 		return
+	// 	}
+	// }
+	// select {
+	// case <-ctx.Done():
+	// case <-cm.stopCh:
+	// }
+	// if mining {
+	// 	log.Printf("Device %s: halt mining...\n", dStr)
+	// 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP); err != nil {
+	// 		log.Printf("Device %s: error interrupting cryptomining process: %v", dStr, err)
+	// 		return
+	// 	}
+	// 	if err := cmd.Process.Release(); err != nil {
+	// 		log.Printf("Device %s: error releasing cryptomining process: %v", dStr, err)
+	// 		return
+	// 	}
+	// }
 }

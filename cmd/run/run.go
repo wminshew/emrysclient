@@ -63,7 +63,8 @@ var Cmd = &cobra.Command{
 	Short: "Dispatch a deep learning job",
 	Long: "Syncs the appropriate maining files & data " +
 		"with the central server, then locates the cheapest " +
-		"spare GPU cycles on the internet to execute your job",
+		"spare GPU cycles on the internet to execute your job" +
+		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
