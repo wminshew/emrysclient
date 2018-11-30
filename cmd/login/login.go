@@ -42,6 +42,11 @@ var Cmd = &cobra.Command{
 	Long: "Log in to emrys. By default, " +
 		"the login token expires in 7 days.",
 	Run: func(cmd *cobra.Command, args []string) {
+		if os.Geteuid() != 0 {
+			log.Printf("Insufficient privileges. Are you root?\n")
+			return
+		}
+
 		client := &http.Client{}
 		s := "https"
 		h := "api.emrys.io"
