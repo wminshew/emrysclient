@@ -6,6 +6,7 @@ import (
 	"github.com/wminshew/emrysclient/cmd/login"
 	"github.com/wminshew/emrysclient/cmd/mine"
 	"github.com/wminshew/emrysclient/cmd/run"
+	"github.com/wminshew/emrysclient/cmd/update"
 	"github.com/wminshew/emrysclient/cmd/version"
 	"log"
 	"os"
@@ -31,6 +32,7 @@ func init() {
 	rootCmd.AddCommand(login.Cmd)
 	rootCmd.AddCommand(run.Cmd)
 	rootCmd.AddCommand(mine.Cmd)
+	rootCmd.AddCommand(update.Cmd)
 }
 
 // Execute the root command

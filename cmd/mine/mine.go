@@ -168,6 +168,7 @@ var Cmd = &cobra.Command{
 
 		if err := version.CheckMine(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
+			log.Printf("Please execute emrys update")
 			return
 		}
 
