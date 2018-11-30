@@ -5,6 +5,6 @@ user:
   output: "test/numpy/output"
 miner:
   devices: 0 1
-  bid-rates: 0.2 0.3
+  bid-rates: 0.3 0.2
   mining-command: ~/Downloads/0.3.4b/miner --server us1-zcash.flypool.org
     --user t1Pna25G7oNPR3bdEpF4ZSyXWdKKpe3uNij.worker1 --port 3333 --cuda_devices $DEVICE
