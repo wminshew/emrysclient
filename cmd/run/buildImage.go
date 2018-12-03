@@ -17,16 +17,15 @@ import (
 	"time"
 )
 
-func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken, main, reqs string) {
+func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
 	defer wg.Done()
-	m := "POST"
-	p := path.Join("image", uID, project, jID)
+	p := path.Join("image", j.userID, j.project, j.id)
 	u.Path = p
 	operation := func() error {
 		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
 		go func() {
-			if err := archiver.TarGz.Write(w, []string{main, reqs}); err != nil {
+			if err := archiver.TarGz.Write(w, []string{j.main, j.requirements}); err != nil {
 				log.Printf("Image: error: tar-gzipping docker context files: %v", err)
 				return
 			}
@@ -35,17 +34,17 @@ func buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, cli
 				return
 			}
 		}()
-		req, err := http.NewRequest(m, u.String(), r)
+		req, err := http.NewRequest(post, u.String(), r)
 		if err != nil {
-			return fmt.Errorf("creating %s %v: %v", req.Method, u, err)
+			return err
 		}
 		req = req.WithContext(ctx)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
-		req.Header.Set("X-Main", filepath.Base(main))
-		req.Header.Set("X-Reqs", filepath.Base(reqs))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+		req.Header.Set("X-Main", filepath.Base(j.main))
+		req.Header.Set("X-Reqs", filepath.Base(j.requirements))
 
 		log.Printf("Image: building...\n")
-		resp, err := client.Do(req)
+		resp, err := j.client.Do(req)
 		if err != nil {
 			return err
 		}

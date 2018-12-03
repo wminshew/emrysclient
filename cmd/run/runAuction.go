@@ -1,7 +1,9 @@
 package run
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/wminshew/emrys/pkg/check"
@@ -13,20 +15,25 @@ import (
 	"time"
 )
 
-func runAuction(ctx context.Context, client *http.Client, u url.URL, jID, authToken string) error {
+func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 	log.Printf("Searching for cheapest compute meeting your requirements...\n")
-	m := "POST"
-	p := path.Join("auction", jID)
+	p := path.Join("auction", j.id)
 	u.Path = p
 	operation := func() error {
-		req, err := http.NewRequest(m, u.String(), nil)
+		bodyBuf := &bytes.Buffer{}
+		if err := json.NewEncoder(bodyBuf).Encode(j); err != nil {
+			return backoff.Permanent(err)
+		}
+		log.Printf("%+v", bodyBuf)
+
+		req, err := http.NewRequest(post, u.String(), bodyBuf)
 		if err != nil {
-			return fmt.Errorf("creating request: %v", err)
+			return err
 		}
 		req = req.WithContext(ctx)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
 
-		resp, err := client.Do(req)
+		resp, err := j.client.Do(req)
 		if err != nil {
 			return err
 		}

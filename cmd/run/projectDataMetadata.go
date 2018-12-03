@@ -1,8 +1,10 @@
 package run
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/wminshew/emrys/pkg/check"
+	"github.com/wminshew/emrys/pkg/job"
 	"io"
 	"os"
 	"os/user"
@@ -10,7 +12,34 @@ import (
 	"strconv"
 )
 
-func storeProjectDataMetadata(project string, r io.Reader) error {
+func (j *userJob) getProjectDataMetadata(dataJSON *map[string]job.FileMetadata) error {
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("getting current user: %v", err)
+	}
+	if os.Geteuid() == 0 {
+		u, err = user.Lookup(os.Getenv("SUDO_USER"))
+		if err != nil {
+			return fmt.Errorf("getting current sudo user: %v", err)
+		}
+	}
+	configDir := path.Join(u.HomeDir, ".config", "emrys")
+	p := path.Join(configDir, "projects", j.project, ".data_sync_metadata")
+	if _, err = os.Stat(p); os.IsNotExist(err) {
+		return nil
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return fmt.Errorf("opening file: %v", err)
+	}
+	defer check.Err(f.Close)
+	if err := json.NewDecoder(f).Decode(dataJSON); err != nil && err != io.EOF {
+		return fmt.Errorf("decoding json: %v", err)
+	}
+	return nil
+}
+
+func (j *userJob) storeProjectDataMetadata(r io.Reader) error {
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("getting current user: %v", err)
@@ -45,7 +74,7 @@ func storeProjectDataMetadata(project string, r io.Reader) error {
 		return fmt.Errorf("changing ownership: %v", err)
 	}
 
-	projectDir := path.Join(projectsDir, project)
+	projectDir := path.Join(projectsDir, j.project)
 	if err = os.MkdirAll(projectDir, 0755); err != nil {
 		return fmt.Errorf("making directory: %v", err)
 	}

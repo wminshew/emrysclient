@@ -18,10 +18,10 @@ import (
 	"time"
 )
 
-func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID, authToken, output string) error {
+func (j *userJob) downloadOutputData(ctx context.Context, u url.URL) error {
 	log.Printf("Output data: downloading...\n")
 
-	outputDir := filepath.Join(output, jID, "data")
+	outputDir := filepath.Join(j.output, j.id, "data")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("making output directory %v: %v", outputDir, err)
 	}
@@ -43,18 +43,17 @@ func downloadOutputData(ctx context.Context, client *http.Client, u url.URL, jID
 		}
 	}
 
-	m := "GET"
-	p := path.Join("job", jID, "data")
+	p := path.Join("job", j.id, "data")
 	u.Path = p
 	operation := func() error {
-		req, err := http.NewRequest(m, u.String(), nil)
+		req, err := http.NewRequest(get, u.String(), nil)
 		if err != nil {
-			return fmt.Errorf("creating request: %v", err)
+			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
 		req = req.WithContext(ctx)
 
-		resp, err := client.Do(req)
+		resp, err := j.client.Do(req)
 		if err != nil {
 			return err
 		}

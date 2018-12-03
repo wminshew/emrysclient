@@ -21,15 +21,22 @@ import (
 
 const (
 	maxBackoffRetries = 5
+	post              = "POST"
+	get               = "GET"
 )
 
 func init() {
-	Cmd.Flags().String("config", ".emrys", "Path to config file (don't include extension)")
+	Cmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
 	Cmd.Flags().String("project", "", "User project (required)")
 	Cmd.Flags().String("requirements", "", "Path to requirements file (required)")
 	Cmd.Flags().String("main", "", "Path to main execution file (required)")
-	Cmd.Flags().String("data", "", "Path to the data directory (optional)")
+	Cmd.Flags().String("data", "", "Path to the data directory")
 	Cmd.Flags().String("output", "", "Path to save the output directory (required)")
+	Cmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
+	Cmd.Flags().String("gpu", "k80", "Minimum acceptable gpu for job. Defaults to k80")
+	Cmd.Flags().String("ram", "8gb", "Minimum acceptable gb of available ram for job. Defaults to 8gb")
+	Cmd.Flags().String("disk", "25gb", "Minimum acceptable gb of disk space for job. Defaults to 25gb")
+	Cmd.Flags().String("pcie", "8x", "Minimum acceptable gpu pci-e for job. Defaults to 8x")
 	Cmd.Flags().SortFlags = false
 	if err := func() error {
 		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
@@ -48,6 +55,21 @@ func init() {
 			return err
 		}
 		if err := viper.BindPFlag("user.output", Cmd.Flags().Lookup("output")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.rate", Cmd.Flags().Lookup("rate")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.gpu", Cmd.Flags().Lookup("gpu")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.ram", Cmd.Flags().Lookup("ram")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.disk", Cmd.Flags().Lookup("disk")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.pcie", Cmd.Flags().Lookup("pcie")); err != nil {
 			return err
 		}
 		return nil
@@ -152,26 +174,37 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		j := &jobReq{
+		j := &userJob{
+			client:       client,
+			userID:       uID,
+			authToken:    authToken,
 			project:      viper.GetString("user.project"),
 			requirements: viper.GetString("user.requirements"),
 			main:         viper.GetString("user.main"),
 			data:         viper.GetString("user.data"),
 			output:       viper.GetString("user.output"),
+			Rate:         viper.GetFloat64("user.rate"),
+			GPU:          viper.GetString("user.gpu"),
+			RAM:          viper.GetString("user.ram"),
+			Disk:         viper.GetString("user.disk"),
+			Pcie:         viper.GetString("user.pcie"),
 		}
+		authToken = "test"
+		log.Println(authToken)
+		log.Println(j.authToken)
+		os.Exit(0)
 		if err := j.validate(); err != nil {
 			log.Printf("Run: invalid job requirements: %v", err)
 			return
 		}
-		var jID string
-		if jID, err = j.send(ctx, client, u, uID, authToken); err != nil {
+		if err := j.send(ctx, u); err != nil {
 			log.Printf("Run: error sending job requirements: %v", err)
 			return
 		}
 		completed := false
 		defer func() {
 			if !completed {
-				if err := j.cancel(client, u, uID, jID, authToken); err != nil {
+				if err := j.cancel(u); err != nil {
 					log.Printf("Run: error canceling job: %v", err)
 					return
 				}
@@ -184,8 +217,8 @@ var Cmd = &cobra.Command{
 		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
-		go buildImage(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.main, j.requirements)
-		go syncData(ctx, &wg, errCh, client, u, uID, j.project, jID, authToken, j.data)
+		go j.buildImage(ctx, &wg, errCh, u)
+		go j.syncData(ctx, &wg, errCh, u)
 		done := make(chan struct{})
 		go func() {
 			wg.Wait()
@@ -199,14 +232,14 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		if err := runAuction(ctx, client, u, jID, authToken); err != nil {
+		if err := j.runAuction(ctx, u); err != nil {
 			return // already logged
 		}
 
 		if err := checkContextCanceled(ctx); err != nil {
 			return
 		}
-		outputDir := filepath.Join(j.output, jID)
+		outputDir := filepath.Join(j.output, j.id)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
 			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
@@ -220,14 +253,14 @@ var Cmd = &cobra.Command{
 			}
 		}
 
-		log.Printf("Executing job %s...\n", jID)
-		if err := streamOutputLog(ctx, client, u, jID, authToken, j.output); err != nil {
+		log.Printf("Executing job %s...\n", j.id)
+		if err := j.streamOutputLog(ctx, u); err != nil {
 			log.Printf("Output log: error: %v", err)
 			return
 		}
 		buffer := 1 * time.Second
 		time.Sleep(buffer)
-		if err := downloadOutputData(ctx, client, u, jID, authToken, j.output); err != nil {
+		if err := j.downloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
 			return
 		}

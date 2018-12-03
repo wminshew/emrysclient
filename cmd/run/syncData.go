@@ -23,21 +23,21 @@ import (
 	"time"
 )
 
-func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, uID, project, jID, authToken string, dataDir string) {
+func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
 	defer wg.Done()
 	log.Printf("Data: syncing...\n")
 
 	bodyBuf := &bytes.Buffer{}
 	var b []byte
 	if err := func() error {
-		if dataDir != "" {
+		if j.data != "" {
 			oldMetadata := make(map[string]job.FileMetadata)
-			if err := getProjectDataMetadata(project, &oldMetadata); err != nil {
+			if err := j.getProjectDataMetadata(&oldMetadata); err != nil {
 				return fmt.Errorf("retrieving data directory metadata: %v", err)
 			}
 
 			newMetadata := make(map[string]job.FileMetadata)
-			if err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
+			if err := filepath.Walk(j.data, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
@@ -45,7 +45,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 					return nil
 				}
 
-				rP, err := filepath.Rel(dataDir, path)
+				rP, err := filepath.Rel(j.data, path)
 				if err != nil {
 					return err
 				}
@@ -73,7 +73,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 				newMetadata[rP] = fileMd
 				return nil
 			}); err != nil {
-				return fmt.Errorf("walking data directory %s: %v", dataDir, err)
+				return fmt.Errorf("walking data directory %s: %v", j.data, err)
 			}
 
 			if err := json.NewEncoder(bodyBuf).Encode(newMetadata); err != nil {
@@ -84,7 +84,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		}
 
 		b = bodyBuf.Bytes()
-		if err := storeProjectDataMetadata(project, bytes.NewReader(b)); err != nil {
+		if err := j.storeProjectDataMetadata(bytes.NewReader(b)); err != nil {
 			return fmt.Errorf("storing data directory metadata: %v", err)
 		}
 		return nil
@@ -94,22 +94,21 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		return
 	}
 
-	m := "POST"
 	h := "data.emrys.io"
-	p := path.Join("user", uID, "project", project, "job", jID)
+	p := path.Join("user", j.userID, "project", j.project, "job", j.id)
 	u.Host = h
 	u.Path = p
 
 	uploadList := []string{}
 	operation := func() error {
-		req, err := http.NewRequest(m, u.String(), bytes.NewReader(b))
+		req, err := http.NewRequest(post, u.String(), bytes.NewReader(b))
 		if err != nil {
-			return fmt.Errorf("creating request %v %v: %v", m, p, err)
+			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
 		req = req.WithContext(ctx)
 
-		resp, err := client.Do(req)
+		resp, err := j.client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -147,7 +146,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 		chUploadPaths := make(chan string, numUploaders)
 		results := make(chan string, numUploaders)
 		for i := 0; i < numUploaders; i++ {
-			go uploadWorker(ctx, client, u, authToken, dataDir, done, errCh, chUploadPaths, results)
+			go j.uploadWorker(ctx, u, done, errCh, chUploadPaths, results)
 		}
 
 		for _, relPath := range uploadList {
@@ -176,7 +175,7 @@ func syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, clien
 	log.Printf("Data: synced!\n")
 }
 
-func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken, dataDir string, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
+func (j *userJob) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
 	m := "PUT"
 	basePath := u.Path
 	for {
@@ -189,7 +188,7 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 			operation := func() error {
 				log.Printf("Data: uploading: %v\n", relPath)
 
-				uploadFilepath := path.Join(dataDir, relPath)
+				uploadFilepath := path.Join(j.data, relPath)
 				f, err := os.Open(uploadFilepath)
 				if err != nil {
 					return fmt.Errorf("opening file %v: %v", uploadFilepath, err)
@@ -211,10 +210,10 @@ func uploadWorker(ctx context.Context, client *http.Client, u url.URL, authToken
 				if err != nil {
 					return fmt.Errorf("creating request: %v", err)
 				}
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
 				req = req.WithContext(ctx)
 
-				resp, err := client.Do(req)
+				resp, err := j.client.Do(req)
 				if err != nil {
 					return err
 				}

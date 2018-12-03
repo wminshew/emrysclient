@@ -34,10 +34,10 @@ type pollEvent struct {
 
 var maxTimeout = 60 * 2
 
-func streamOutputLog(ctx context.Context, client *http.Client, u url.URL, jID, authToken, output string) error {
+func (j *userJob) streamOutputLog(ctx context.Context, u url.URL) error {
 	log.Printf("Output log: streaming... (may take a minute to begin)\n")
 
-	outputLogPath := filepath.Join(output, jID, "log")
+	outputLogPath := filepath.Join(j.output, j.id, "log")
 	f, err := os.OpenFile(outputLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Output log: error creating output log file %v: %v", outputLogPath, err)
@@ -45,8 +45,7 @@ func streamOutputLog(ctx context.Context, client *http.Client, u url.URL, jID, a
 	}
 	defer check.Err(f.Close)
 
-	m := "GET"
-	p := path.Join("job", jID, "log")
+	p := path.Join("job", j.id, "log")
 	u.Path = p
 	q := u.Query()
 	q.Set("timeout", fmt.Sprintf("%d", maxTimeout))
@@ -62,14 +61,14 @@ pollLoop:
 
 		pr := pollResponse{}
 		operation := func() error {
-			req, err := http.NewRequest(m, u.String(), nil)
+			req, err := http.NewRequest(get, u.String(), nil)
 			if err != nil {
-				return fmt.Errorf("creating request: %v", err)
+				return err
 			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
 			req = req.WithContext(ctx)
 
-			resp, err := client.Do(req)
+			resp, err := j.client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -94,7 +93,7 @@ pollLoop:
 				log.Printf("Output log: error: %v", err)
 				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 			}); err != nil {
-			return fmt.Errorf("%v", err)
+			return err
 		}
 
 		if len(pr.Events) > 0 {

@@ -279,12 +279,11 @@ var Cmd = &cobra.Command{
 			workers = append(workers, w)
 		}
 
-		// TODO: make sure .. things are updated properly on change? run some tests to get working
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
-			// TODO: update cryptominer, if necessary
-			// TODO: update worker, if necessary
+			// TODO: update cryptominer command
+			// TODO: update worker bid-rate
 		})
 
 		dockerAuthConfig := types.AuthConfig{
