@@ -107,7 +107,7 @@ var Cmd = &cobra.Command{
 					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 				}); err != nil {
 				log.Printf("Update error: %v", err)
-				os.Exit(1)
+				return
 			}
 
 			currExec, err := os.Executable()

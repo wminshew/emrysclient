@@ -146,19 +146,6 @@ var Cmd = &cobra.Command{
 			Host:   h,
 		}
 
-		go func() {
-			for {
-				if err := token.Monitor(ctx, client, u, &authToken, refreshAt); err != nil {
-					log.Printf("Token: refresh error: %v", err)
-				}
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-			}
-		}()
-
 		if err := version.CheckRun(ctx, client, u); err != nil {
 			log.Printf("Run: version error: %v", err)
 			log.Printf("Please execute emrys update")
@@ -189,14 +176,11 @@ var Cmd = &cobra.Command{
 			Disk:         viper.GetString("user.disk"),
 			Pcie:         viper.GetString("user.pcie"),
 		}
-		authToken = "test"
-		log.Println(authToken)
-		log.Println(j.authToken)
-		os.Exit(0)
 		if err := j.validate(); err != nil {
 			log.Printf("Run: invalid job requirements: %v", err)
 			return
 		}
+
 		if err := j.send(ctx, u); err != nil {
 			log.Printf("Run: error sending job requirements: %v", err)
 			return
@@ -207,6 +191,18 @@ var Cmd = &cobra.Command{
 				if err := j.cancel(u); err != nil {
 					log.Printf("Run: error canceling job: %v", err)
 					return
+				}
+			}
+		}()
+		go func() {
+			for {
+				if err := token.Monitor(ctx, client, u, &j.authToken, refreshAt); err != nil {
+					log.Printf("Token: refresh error: %v", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
 				}
 			}
 		}()
