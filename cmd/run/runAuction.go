@@ -21,7 +21,7 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 	u.Path = p
 	operation := func() error {
 		bodyBuf := &bytes.Buffer{}
-		if err := json.NewEncoder(bodyBuf).Encode(j); err != nil {
+		if err := json.NewEncoder(bodyBuf).Encode(j.specs); err != nil {
 			return backoff.Permanent(err)
 		}
 		log.Printf("%+v", bodyBuf)

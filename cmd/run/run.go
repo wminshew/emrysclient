@@ -5,6 +5,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrysclient/cmd/version"
 	"github.com/wminshew/emrysclient/pkg/token"
 	"log"
@@ -170,11 +171,13 @@ var Cmd = &cobra.Command{
 			main:         viper.GetString("user.main"),
 			data:         viper.GetString("user.data"),
 			output:       viper.GetString("user.output"),
-			Rate:         viper.GetFloat64("user.rate"),
-			GPU:          viper.GetString("user.gpu"),
-			RAM:          viper.GetString("user.ram"),
-			Disk:         viper.GetString("user.disk"),
-			Pcie:         viper.GetString("user.pcie"),
+			ramStr:       viper.GetString("user.ram"),
+			diskStr:      viper.GetString("user.disk"),
+			pcieStr:      viper.GetString("user.pcie"),
+			specs: &job.Specs{
+				Rate: viper.GetFloat64("user.rate"),
+				GPU:  viper.GetString("user.gpu"),
+			},
 		}
 		if err := j.validate(); err != nil {
 			log.Printf("Run: invalid job requirements: %v", err)

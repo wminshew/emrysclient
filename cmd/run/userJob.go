@@ -6,6 +6,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/dustin/go-humanize"
 	"github.com/wminshew/emrys/pkg/check"
+	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrys/pkg/validate"
 	"io/ioutil"
 	"log"
@@ -14,10 +15,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 )
 
-// TODO: move to emrys/pkg so server can re-use code
 type userJob struct {
 	id           string
 	authToken    string
@@ -28,15 +29,18 @@ type userJob struct {
 	main         string
 	data         string
 	output       string
-	Rate         float64 `json:"rate,omitempty"`
-	GPU          string  `json:"gpu,omitempty"`
-	RAM          string  `json:"ram,omitempty"`
-	Disk         string  `json:"disk,omitempty"`
-	Pcie         string  `json:"pcie,omitempty"`
+	ramStr       string
+	diskStr      string
+	pcieStr      string
+	specs        *job.Specs
 }
 
 const (
 	pciePattern = "^(16|8|4|2|1)x?$"
+)
+
+var (
+	pcieRegexp = regexp.MustCompile(pciePattern)
 )
 
 func (j *userJob) send(ctx context.Context, u url.URL) error {
@@ -155,21 +159,28 @@ func (j *userJob) validate() error {
 			"of execution. If this is your intended workflow, please ignore this warning.\n",
 			j.main, j.output, j.output)
 	}
-	if j.Rate < 0 {
+	if j.specs.Rate < 0 {
 		return fmt.Errorf("can't use negative maximum job rate")
 	}
 	// TODO: validate gpu
 	// if _, ok := emrys.AcceptedGPUs[j.GPU]; !ok {
 	// 	return fmt.Errorf("minimum gpu not recognized. Please check documentation")
 	// }
-	if _, err := humanize.ParseBytes(j.RAM); err != nil {
+	// TODO: is it odd to have this in a fcn named validate?
+	var err error
+	if j.specs.RAM, err = humanize.ParseBytes(j.ramStr); err != nil {
 		return fmt.Errorf("failed to parse ram: %v", err)
 	}
-	if _, err := humanize.ParseBytes(j.Disk); err != nil {
+	if j.specs.Disk, err = humanize.ParseBytes(j.diskStr); err != nil {
 		return fmt.Errorf("failed to parse disk: %v", err)
 	}
-	pcieRegexp := regexp.MustCompile(pciePattern)
-	if !pcieRegexp.MatchString(j.Pcie) {
+	// if !pcieRegexp.MatchString(j.pcieStr) {
+	pcieStr := pcieRegexp.FindString(j.pcieStr)
+	if pcieStr == "" {
+		return fmt.Errorf("failed to parse pcie: please use a valid number of lanes followed " +
+			"by an optional 'x' (i.e. 8, 8x, 16, 16x etc)")
+	}
+	if j.specs.Pcie, err = strconv.Atoi(pcieStr); err != nil {
 		return fmt.Errorf("failed to parse pcie: please use a valid number of lanes followed " +
 			"by an optional 'x' (i.e. 8, 8x, 16, 16x etc)")
 	}
