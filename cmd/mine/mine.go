@@ -114,7 +114,6 @@ var Cmd = &cobra.Command{
 		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Mine: error getting authToken: %v", err)
-			// TODO: test to see if you end up with stray processes on returning here; may have to close(stop) or something similar
 			return
 		}
 		claims := &jwt.StandardClaims{}
