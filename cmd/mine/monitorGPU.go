@@ -35,13 +35,20 @@ const (
 	maxFan                      = 85
 )
 
-func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL, authToken string) {
+func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http.Client, u url.URL, authToken string) {
+	defer func() {
+		select {
+		case <-ctx.Done():
+		default:
+			cancelFunc()
+		}
+	}()
 	dStr := strconv.Itoa(int(w.device))
 
 	dev, err := gonvml.DeviceHandleByIndex(w.device)
 	if err != nil {
 		log.Printf("Device %s: DeviceHandleByIndex() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 
 	go w.userGPULog(ctx)
@@ -49,12 +56,12 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 	// initialize
 	if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
 		log.Printf("Device %s: SetPersistenceMode() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 
 	if err := dev.SetComputeMode(nvmlComputeExclusiveProcess); err != nil {
 		log.Printf("Device %s: SetComputeMode() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 
 	// init snapshot
@@ -64,82 +71,87 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 	minorNumber, err := dev.MinorNumber()
 	if err != nil {
 		log.Printf("device %s: MinorNumber() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.MinorNumber = minorNumber
 
 	uuidStr, err := dev.UUID()
 	if err != nil {
 		log.Printf("device %s: UUID() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.ID, err = uuid.FromString(uuidStr[4:]) // strip off "gpu-" prepend
 	if err != nil {
 		log.Printf("device %s: error converting device uuid to uuid.uuid: %v", dStr, err)
-		panic(err)
+		return
 	}
 
 	name, err := dev.Name()
 	if err != nil {
 		log.Printf("device %s: Name() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.Name = name
-	w.gpu = name
+	var ok bool
+	if w.gpu, ok = job.ValidateGPU(name); !ok {
+		log.Printf("device %s: this device is not currently supported by the emrys network. "+
+			"Please contact support@emrys.io if you think there has been a mistake.", dStr)
+		return
+	}
 
 	brand, err := dev.Brand()
 	if err != nil {
 		log.Printf("Device %s: Brand() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.Brand = brand
 
 	defaultPowerLimit, err := dev.DefaultPowerLimit()
 	if err != nil {
 		log.Printf("Device %s: DefaultPowerLimit() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.DefaultPowerLimit = defaultPowerLimit
 
 	totalMemory, _, err := dev.MemoryInfo()
 	if err != nil {
 		log.Printf("Device %s: MemoryInfo() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.TotalMemory = totalMemory
 
 	grMaxClock, err := dev.GrMaxClock()
 	if err != nil {
 		log.Printf("Device %s: GrMaxClock() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.GrMaxClock = grMaxClock
 
 	smMaxClock, err := dev.SMMaxClock()
 	if err != nil {
 		log.Printf("Device %s: SMMaxClock() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.SMMaxClock = smMaxClock
 
 	memMaxClock, err := dev.MemMaxClock()
 	if err != nil {
 		log.Printf("Device %s: MemMaxClock() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.MemMaxClock = memMaxClock
 
 	pcieMaxGeneration, err := dev.PcieMaxGeneration()
 	if err != nil {
 		log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.PcieMaxGeneration = pcieMaxGeneration
 
 	pcieMaxWidth, err := dev.PcieMaxWidth()
 	if err != nil {
 		log.Printf("Device %s: PcieGeneration() error: %v", dStr, err)
-		panic(err)
+		return
 	}
 	initD.PcieMaxWidth = pcieMaxWidth
 	w.pcie = int(pcieMaxWidth)

@@ -171,15 +171,15 @@ var Cmd = &cobra.Command{
 			main:         viper.GetString("user.main"),
 			data:         viper.GetString("user.data"),
 			output:       viper.GetString("user.output"),
+			gpuRaw:       viper.GetString("user.gpu"),
 			ramStr:       viper.GetString("user.ram"),
 			diskStr:      viper.GetString("user.disk"),
 			pcieStr:      viper.GetString("user.pcie"),
 			specs: &job.Specs{
 				Rate: viper.GetFloat64("user.rate"),
-				GPU:  viper.GetString("user.gpu"),
 			},
 		}
-		if err := j.validate(); err != nil {
+		if err := j.validateAndTransform(); err != nil {
 			log.Printf("Run: invalid job requirements: %v", err)
 			return
 		}

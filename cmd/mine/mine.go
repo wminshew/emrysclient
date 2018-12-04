@@ -294,6 +294,7 @@ var Cmd = &cobra.Command{
 			ram, err := humanize.ParseBytes(ramStr)
 			if err != nil {
 				log.Printf("Invaid ram entry %s: %v", ramStr, err)
+				return
 			}
 
 			var diskStr string
@@ -305,6 +306,7 @@ var Cmd = &cobra.Command{
 			disk, err := humanize.ParseBytes(diskStr)
 			if err != nil {
 				log.Printf("Invaid disk entry %s: %v", diskStr, err)
+				return
 			}
 
 			cm := &cryptoMiner{
@@ -322,7 +324,7 @@ var Cmd = &cobra.Command{
 				miner:   cm,
 			}
 
-			go w.monitorGPU(ctx, client, u, authToken)
+			go w.monitorGPU(ctx, cancel, client, u, authToken)
 			w.miner.init(ctx)
 			defer w.miner.stop()
 
