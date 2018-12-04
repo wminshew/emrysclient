@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/dustin/go-humanize"
 	"github.com/fsnotify/fsnotify"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/cobra"
@@ -33,6 +34,7 @@ import (
 
 const (
 	maxBackoffRetries = 5
+	post              = "POST"
 )
 
 type pollResponse struct {
@@ -57,18 +59,26 @@ var (
 
 func init() {
 	Cmd.Flags().StringP("config", "c", ".emrys", "Path to config file (don't include extension)")
-	Cmd.Flags().StringSliceP("bid-rates", "b", []string{}, "Per device bid rates ($/hr) for mining jobs (required; may set 1 value for all devices, or 1 value per device)")
 	Cmd.Flags().StringSliceP("devices", "d", []string{}, "Cuda devices to mine with on emrys. If blank, program will mine with all detected devices.")
+	Cmd.Flags().StringSliceP("bid-rates", "b", []string{}, "Per device bid rates ($/hr) for mining jobs (required; may set 1 value for all devices, or 1 value per device)")
+	Cmd.Flags().StringSlice("ram", []string{"8gb"}, "Per device RAM allocation for mining jobs (defaults to 8gb; may set 1 value for all devices, or 1 value per device)")
+	Cmd.Flags().StringSlice("disk", []string{"25gb"}, "Per device disk allocation for mining jobs (defaults to 25gb; may set 1 value for all devices, or 1 value per device)")
 	Cmd.Flags().StringP("mining-command", "m", "", "Mining command to execute between emrys jobs. Must use $DEVICE flag so emrys can toggle mining-per-device correctly between jobs.")
 	Cmd.Flags().SortFlags = false
 	if err := func() error {
 		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
 			return err
 		}
+		if err := viper.BindPFlag("miner.devices", Cmd.Flags().Lookup("devices")); err != nil {
+			return err
+		}
 		if err := viper.BindPFlag("miner.bid-rates", Cmd.Flags().Lookup("bid-rates")); err != nil {
 			return err
 		}
-		if err := viper.BindPFlag("miner.devices", Cmd.Flags().Lookup("devices")); err != nil {
+		if err := viper.BindPFlag("miner.ram", Cmd.Flags().Lookup("ram")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("miner.disk", Cmd.Flags().Lookup("disk")); err != nil {
 			return err
 		}
 		if err := viper.BindPFlag("miner.mining-command", Cmd.Flags().Lookup("mining-command")); err != nil {
@@ -230,6 +240,22 @@ var Cmd = &cobra.Command{
 				len(devices), len(bidRatesStr))
 			return
 		}
+
+		ramStrs := viper.GetStringSlice("miner.ram")
+		if len(ramStrs) != 1 && len(ramStrs) != len(devices) {
+			log.Printf("Mismatch between number of devices (%d) and ram allocations (%d). Either set a single ram allocation for each device, or one for each device.\n",
+				len(devices), len(ramStrs))
+			return
+		}
+		// validate
+		diskStrs := viper.GetStringSlice("miner.disk")
+		if len(diskStrs) != 1 && len(diskStrs) != len(devices) {
+			log.Printf("Mismatch between number of devices (%d) and disk allocations (%d). Either set a single disk allocation for each device, or one for each device.\n",
+				len(devices), len(diskStrs))
+			return
+		}
+		// validate
+
 		workers := []*worker{}
 		for i, d := range devices {
 			dev, err := gonvml.DeviceHandleByIndex(d)
@@ -247,6 +273,7 @@ var Cmd = &cobra.Command{
 				log.Printf("Device %d: error converting device uuid to uuid.UUID: %v", d, err)
 				return
 			}
+
 			var brStr string
 			if len(bidRatesStr) == 1 {
 				brStr = bidRatesStr[0]
@@ -259,6 +286,28 @@ var Cmd = &cobra.Command{
 				return
 			}
 
+			var ramStr string
+			if len(ramStrs) == 1 {
+				ramStr = ramStrs[0]
+			} else {
+				ramStr = ramStrs[i]
+			}
+			ram, err := humanize.ParseBytes(ramStr)
+			if err != nil {
+				log.Printf("Invaid ram entry %s: %v", ramStr, err)
+			}
+
+			var diskStr string
+			if len(diskStrs) == 1 {
+				diskStr = diskStrs[0]
+			} else {
+				diskStr = diskStrs[i]
+			}
+			disk, err := humanize.ParseBytes(diskStr)
+			if err != nil {
+				log.Printf("Invaid disk entry %s: %v", diskStr, err)
+			}
+
 			cm := &cryptoMiner{
 				command: miningCmdStr,
 				device:  d,
@@ -269,6 +318,8 @@ var Cmd = &cobra.Command{
 				busy:    false,
 				jID:     "",
 				bidRate: br,
+				ram:     ram,
+				disk:    disk,
 				miner:   cm,
 			}
 

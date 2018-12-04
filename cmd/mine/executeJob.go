@@ -181,7 +181,6 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 
 	maxUploadRetries := uint64(10)
 	body := make([]byte, 4096)
-	m := "POST"
 	p := path.Join("job", jID, "log")
 	u.Path = p
 	var n int
@@ -191,9 +190,9 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			return
 		}
 		operation := func() error {
-			req, err := http.NewRequest(m, u.String(), bytes.NewReader(body[:n]))
+			req, err := http.NewRequest(post, u.String(), bytes.NewReader(body[:n]))
 			if err != nil {
-				return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+				return err
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 			req = req.WithContext(ctx)
@@ -230,9 +229,9 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 
 	operation := func() error {
 		// POST with empty body signifies log upload complete
-		req, err := http.NewRequest(m, u.String(), nil)
+		req, err := http.NewRequest(post, u.String(), nil)
 		if err != nil {
-			return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+			return err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 
@@ -285,12 +284,11 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 			}
 		}()
 
-		m = "POST"
 		p = path.Join("job", jID, "data")
 		u.Path = p
-		req, err := http.NewRequest(m, u.String(), pr)
+		req, err := http.NewRequest(post, u.String(), pr)
 		if err != nil {
-			return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+			return err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 		req = req.WithContext(ctx)

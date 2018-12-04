@@ -44,7 +44,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		panic(err)
 	}
 
-	go userGPULog(ctx, dStr, dev)
+	go w.userGPULog(ctx)
 
 	// initialize
 	if err := dev.SetPersistenceMode(nvmlFeatureEnabled); err != nil {
@@ -85,6 +85,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		panic(err)
 	}
 	initD.Name = name
+	w.gpu = name
 
 	brand, err := dev.Brand()
 	if err != nil {
@@ -141,8 +142,8 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 		panic(err)
 	}
 	initD.PcieMaxWidth = pcieMaxWidth
+	w.pcie = int(pcieMaxWidth)
 
-	m := "POST"
 	p := path.Join("miner", "device_snapshot")
 	u.Path = p
 	operation := func() error {
@@ -151,7 +152,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			return err
 		}
 
-		req, err := http.NewRequest(m, u.String(), body)
+		req, err := http.NewRequest(post, u.String(), body)
 		if err != nil {
 			return err
 		}
@@ -301,12 +302,14 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 			log.Printf("Device %s: Temperature() error: %v", dStr, err)
 		}
 		d.Temperature = temperature
+		w.temperature = temperature
 
 		fanSpeed, err := dev.FanSpeed()
 		if err != nil {
 			log.Printf("Device %s: FanSpeed() error: %v", dStr, err)
 		}
 		d.FanSpeed = fanSpeed
+		w.fanSpeed = fanSpeed
 
 		operation := func() error {
 			body := &bytes.Buffer{}
@@ -314,7 +317,7 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 				return err
 			}
 
-			req, err := http.NewRequest(m, u.String(), body)
+			req, err := http.NewRequest(post, u.String(), body)
 			if err != nil {
 				return err
 			}
@@ -354,30 +357,23 @@ func (w *worker) monitorGPU(ctx context.Context, client *http.Client, u url.URL,
 }
 
 // userGPULog regularly logs temperature to user; updates fan accordingly
-func userGPULog(ctx context.Context, dStr string, dev gonvml.Device) {
+func (w *worker) userGPULog(ctx context.Context) {
+	dStr := strconv.Itoa(int(w.device))
+	time.Sleep(meanGPUPeriod)
 	for {
-		temperature, err := dev.Temperature()
-		if err != nil {
-			log.Printf("Device %s: Temperature() error: %v", dStr, err)
-		}
-		fanSpeed, err := dev.FanSpeed()
-		if err != nil {
-			log.Printf("Device %s: FanSpeed() error: %v", dStr, err)
-		}
-
-		log.Printf("Device %s: temperature: %v; fan: %v", dStr, temperature, fanSpeed)
+		log.Printf("Device %s: temperature: %v; fan: %v", dStr, w.temperature, w.fanSpeed)
 
 		// TODO: add logic to set GPUFanControlState=1; maybe some of that other stuff too..?
-		fs := int(fanSpeed)
+		fs := int(w.fanSpeed)
 		var newFanSpeed int
-		if temperature > maxTemp {
+		if w.temperature > maxTemp {
 			newFanSpeed = maxFan
-		} else if temperature > targetTemp {
+		} else if w.temperature > targetTemp {
 			newFanSpeed = fs + incFan
 			if newFanSpeed > maxFan {
 				newFanSpeed = maxFan
 			}
-		} else if temperature > minTemp {
+		} else if w.temperature > minTemp {
 			newFanSpeed = fs - incFan
 			if newFanSpeed < minFan {
 				newFanSpeed = minFan

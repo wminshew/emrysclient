@@ -26,12 +26,17 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 	dStr := strconv.Itoa(int(w.device))
 
 	b := &job.Bid{
-		Rate:     w.bidRate,
 		DeviceID: w.uuid,
+		Specs: &job.Specs{
+			Rate: w.bidRate,
+			GPU:  w.gpu,
+			RAM:  w.ram,
+			Disk: w.disk,
+			Pcie: w.pcie,
+		},
 	}
 
-	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.Rate)
-	m := "POST"
+	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.Specs.Rate)
 	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
 	winner := false
@@ -41,7 +46,7 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 			return err
 		}
 
-		req, err := http.NewRequest(m, u.String(), body)
+		req, err := http.NewRequest(post, u.String(), body)
 		if err != nil {
 			return err
 		}
