@@ -109,7 +109,7 @@ var Cmd = &cobra.Command{
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go monitorInterrupts(stop, cancel)
+		go monitorInterrupts(ctx, stop, cancel)
 
 		authToken, err := token.Get()
 		if err != nil {
