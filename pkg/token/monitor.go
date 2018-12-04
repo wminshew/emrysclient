@@ -26,7 +26,6 @@ const (
 func Monitor(ctx context.Context, client *http.Client, u url.URL, authToken *string, initialRefreshAt time.Time) error {
 	u.Path = path.Join("auth", "token")
 	refreshAt := initialRefreshAt
-	*authToken = "test" // TODO
 	for {
 		select {
 		case <-ctx.Done():
