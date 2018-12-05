@@ -25,6 +25,10 @@ import (
 	"time"
 )
 
+const (
+	pidsLimit = 100
+)
+
 func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client *http.Client, u url.URL, mID, jID, authToken, dockerAuthStr string) {
 	w.busy = true
 	w.jID = jID
@@ -149,6 +153,11 @@ func (w *worker) executeJob(ctx context.Context, dClient *docker.Client, client 
 		},
 		// ReadonlyRootfs: true, // TODO
 		Runtime: "nvidia",
+		Resources: container.Resources{
+			DiskQuota:         int64(w.disk),
+			MemoryReservation: int64(w.ram),
+			PidsLimit:         pidsLimit,
+		},
 		SecurityOpt: []string{
 			"no-new-privileges",
 		},

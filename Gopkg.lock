@@ -262,7 +262,7 @@
     "pkg/jsonmessage",
     "pkg/validate"
   ]
-  revision = "3a38181697a613683b2149edb7f6c301d84f94a8"
+  revision = "a3ff1d468432f4da889a773abf6973805abb77f5"
 
 [[projects]]
   branch = "master"
