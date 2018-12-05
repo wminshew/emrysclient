@@ -25,7 +25,10 @@ import (
 	"time"
 )
 
-const maxBackoffRetries = 5
+const (
+	maxBackoffRetries = 5
+	post              = "POST"
+)
 
 func init() {
 	Cmd.Flags().Int("save", 7, "Days until login token expires.")
@@ -69,7 +72,7 @@ var Cmd = &cobra.Command{
 				return err
 			}
 
-			req, err := http.NewRequest("POST", u.String(), bodyBuf)
+			req, err := http.NewRequest(post, u.String(), bodyBuf)
 			if err != nil {
 				return err
 			}
