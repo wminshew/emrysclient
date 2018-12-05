@@ -24,7 +24,6 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 		if err := json.NewEncoder(bodyBuf).Encode(j.specs); err != nil {
 			return backoff.Permanent(err)
 		}
-		log.Printf("%+v", bodyBuf)
 
 		req, err := http.NewRequest(post, u.String(), bodyBuf)
 		if err != nil {
