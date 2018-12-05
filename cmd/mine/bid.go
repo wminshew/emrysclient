@@ -64,7 +64,7 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
 		} else if resp.StatusCode == http.StatusPaymentRequired {
-			log.Printf("Device %s: bid too high, not selected\n", dStr)
+			log.Printf("Device %s: bid not selected\n", dStr)
 		} else if resp.StatusCode == http.StatusBadGateway {
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
