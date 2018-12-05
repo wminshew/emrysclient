@@ -52,8 +52,8 @@ var Cmd = &cobra.Command{
 			panic(err)
 		}
 
-		log.Printf("Gotten latest versions\n")
 		if version.UserVer.LT(latestUserVer) || version.MinerVer.LT(latestMinerVer) {
+			log.Printf("Downloading latest client...\n")
 			currUser, err := user.Current()
 			if err != nil {
 				log.Printf("Error getting current user: %v", err)
@@ -132,7 +132,7 @@ var Cmd = &cobra.Command{
 			log.Printf("  User version -> %s\n", latestUserVer.String())
 			log.Printf("  Miner version -> %s\n", latestMinerVer.String())
 		} else {
-			log.Printf("up to date!")
+			log.Printf("Up to date!\n")
 		}
 	},
 }
