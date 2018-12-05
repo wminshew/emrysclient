@@ -174,8 +174,7 @@ func (j *userJob) validateAndTransform() error {
 	if j.specs.Disk, err = humanize.ParseBytes(j.diskStr); err != nil {
 		return fmt.Errorf("error parsing disk: %v", err)
 	}
-	// if !pcieRegexp.MatchString(j.pcieStr) {
-	pcieStr := pcieRegexp.FindString(j.pcieStr)
+	pcieStr := pcieRegexp.FindStringSubmatch(j.pcieStr)[1]
 	if pcieStr == "" {
 		return fmt.Errorf("error parsing pcie: please use a valid number of lanes followed " +
 			"by an optional 'x' (i.e. 8, 8x, 16, 16x etc)")
