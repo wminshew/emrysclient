@@ -371,7 +371,10 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http
 // userGPULog regularly logs temperature to user; updates fan accordingly
 func (w *worker) userGPULog(ctx context.Context) {
 	dStr := strconv.Itoa(int(w.device))
-	time.Sleep(meanGPUPeriod)
+	for w.temperature == 0 {
+		time.Sleep(1)
+	}
+	time.Sleep(1)
 	for {
 		log.Printf("Device %s: temperature: %v; fan: %v", dStr, w.temperature, w.fanSpeed)
 
