@@ -367,9 +367,9 @@ var Cmd = &cobra.Command{
 		q.Set("since_time", fmt.Sprintf("%d", sinceTime))
 		u.RawQuery = q.Encode()
 
-		pr := pollResponse{}
 		log.Printf("Connecting to emrys for jobs...\n")
 		for {
+			pr := pollResponse{}
 			if terminate {
 				log.Printf("Mining job search canceled.\n")
 				return
