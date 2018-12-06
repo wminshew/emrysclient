@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, jID, authToken, jobDir string) {
+func (w *worker) downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL, jobDir string) {
 	defer wg.Done()
 	m := "GET"
-	p := path.Join("miner", "job", jID)
+	p := path.Join("miner", "job", w.jID)
 	u.Host = "data.emrys.io"
 	u.Path = p
 	req, err := http.NewRequest(m, u.String(), nil)
@@ -27,12 +27,12 @@ func downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, c
 		errCh <- err
 		return
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 	req = req.WithContext(ctx)
 
 	log.Printf("Data: downloading...\n")
 	operation := func() error {
-		resp, err := client.Do(req)
+		resp, err := w.client.Do(req)
 		if err != nil {
 			return err
 		}

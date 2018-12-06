@@ -35,7 +35,7 @@ const (
 	maxFan                      = 85
 )
 
-func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http.Client, u url.URL, authToken string) {
+func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 	defer func() {
 		select {
 		case <-ctx.Done():
@@ -168,10 +168,10 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 		req = req.WithContext(ctx)
 
-		resp, err := client.Do(req)
+		resp, err := w.client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -333,7 +333,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http
 			if err != nil {
 				return err
 			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 			if w.busy {
 				q := req.URL.Query()
 				q.Set("jID", w.jID)
@@ -341,7 +341,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http
 			}
 			req = req.WithContext(ctx)
 
-			resp, err := client.Do(req)
+			resp, err := w.client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -363,6 +363,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), client *http
 				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
 			log.Printf("Device %s: error monitoring gpu: %v", dStr, err)
+			// TODO not sure if this should exit?
 			return
 		}
 	}

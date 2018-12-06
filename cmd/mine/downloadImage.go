@@ -2,8 +2,9 @@ package mine
 
 import (
 	"context"
-	"docker.io/go-docker"
 	"docker.io/go-docker/api/types"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/wminshew/emrys/pkg/check"
@@ -20,11 +21,22 @@ import (
 	"time"
 )
 
-func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, client *http.Client, u url.URL, dClient *docker.Client, refStr, jID, authToken, dockerAuthStr string) {
+func (w *worker) downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL, refStr string) {
 	defer wg.Done()
 	log.Printf("Image: downloading...\n")
+
+	dockerAuthConfig := types.AuthConfig{
+		RegistryToken: *w.authToken,
+	}
+	dockerAuthJSON, err := json.Marshal(dockerAuthConfig)
+	if err != nil {
+		log.Printf("Mine: error marshaling docker auth config: %v", err)
+		return
+	}
+	dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
+
 	operation := func() error {
-		pullResp, err := dClient.ImagePull(ctx, refStr, types.ImagePullOptions{
+		pullResp, err := w.dClient.ImagePull(ctx, refStr, types.ImagePullOptions{
 			RegistryAuth: dockerAuthStr,
 		})
 		if err != nil {
@@ -63,7 +75,7 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		return
 	}
 
-	p := path.Join("image", "downloaded", jID)
+	p := path.Join("image", "downloaded", w.jID)
 	u.Path = p
 	req, err := http.NewRequest(post, u.String(), nil)
 	if err != nil {
@@ -71,11 +83,11 @@ func downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, 
 		errCh <- err
 		return
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 	req = req.WithContext(ctx)
 
 	operation = func() error {
-		resp, err := client.Do(req)
+		resp, err := w.client.Do(req)
 		if err != nil {
 			return err
 		}

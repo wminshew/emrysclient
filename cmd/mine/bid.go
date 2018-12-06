@@ -3,7 +3,6 @@ package mine
 import (
 	"bytes"
 	"context"
-	"docker.io/go-docker"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
@@ -18,7 +17,7 @@ import (
 	"time"
 )
 
-func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.Client, u url.URL, mID, authToken, dockerAuthStr string, msg *job.Message) {
+func (w *worker) bid(ctx context.Context, u url.URL, msg *job.Message) {
 	bidsOut++
 	defer func() { bidsOut-- }()
 	u.RawQuery = ""
@@ -50,10 +49,10 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 		req = req.WithContext(ctx)
 
-		resp, err := client.Do(req)
+		resp, err := w.client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -86,6 +85,7 @@ func (w *worker) bid(ctx context.Context, dClient *docker.Client, client *http.C
 
 	if winner {
 		log.Printf("Device %s: you won job %v!\n", dStr, jID)
-		go w.executeJob(ctx, dClient, client, u, mID, jID, authToken, dockerAuthStr)
+		w.jID = jID
+		go w.executeJob(ctx, u)
 	}
 }

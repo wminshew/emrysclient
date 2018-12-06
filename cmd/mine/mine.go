@@ -314,17 +314,21 @@ var Cmd = &cobra.Command{
 				device:  d,
 			}
 			w := &worker{
-				device:  d,
-				uuid:    dUUID,
-				busy:    false,
-				jID:     "",
-				bidRate: br,
-				ram:     ram,
-				disk:    disk,
-				miner:   cm,
+				mID:       mID,
+				client:    client,
+				dClient:   dClient,
+				authToken: &authToken,
+				device:    d,
+				uuid:      dUUID,
+				busy:      false,
+				jID:       "",
+				bidRate:   br,
+				ram:       ram,
+				disk:      disk,
+				miner:     cm,
 			}
 
-			go w.monitorGPU(ctx, cancel, client, u, authToken)
+			go w.monitorGPU(ctx, cancel, u)
 			w.miner.init(ctx)
 			defer w.miner.stop()
 
@@ -432,7 +436,7 @@ var Cmd = &cobra.Command{
 					for _, worker := range workers {
 						w := worker
 						if !w.busy {
-							go w.bid(ctx, dClient, client, u, mID, authToken, dockerAuthStr, msg)
+							go w.bid(ctx, u, msg)
 						}
 					}
 				}

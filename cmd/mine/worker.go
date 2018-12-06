@@ -1,10 +1,16 @@
 package mine
 
 import (
+	"docker.io/go-docker"
 	"github.com/satori/go.uuid"
+	"net/http"
 )
 
 type worker struct {
+	mID         string
+	client      *http.Client
+	dClient     *docker.Client
+	authToken   *string
 	device      uint
 	uuid        uuid.UUID
 	busy        bool
