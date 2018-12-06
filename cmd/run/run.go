@@ -114,7 +114,6 @@ var Cmd = &cobra.Command{
 			log.Printf("Run: please login again.\n")
 			return
 		}
-		uID := claims.Subject
 		exp := claims.ExpiresAt
 		refreshAt := time.Unix(exp, 0).Add(token.RefreshBuffer)
 		if refreshAt.Before(time.Now()) {
@@ -164,7 +163,6 @@ var Cmd = &cobra.Command{
 
 		j := &userJob{
 			client:       client,
-			userID:       uID,
 			authToken:    authToken,
 			project:      viper.GetString("user.project"),
 			requirements: viper.GetString("user.requirements"),

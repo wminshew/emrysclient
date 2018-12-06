@@ -19,7 +19,7 @@ import (
 
 func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
 	defer wg.Done()
-	p := path.Join("image", j.userID, j.project, j.id)
+	p := path.Join("image", j.project, j.id)
 	u.Path = p
 	operation := func() error {
 		log.Printf("Image: packing request...\n")

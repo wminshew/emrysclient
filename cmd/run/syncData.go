@@ -95,7 +95,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 	}
 
 	h := "data.emrys.io"
-	p := path.Join("user", j.userID, "project", j.project, "job", j.id)
+	p := path.Join("user", "project", j.project, "job", j.id)
 	u.Host = h
 	u.Path = p
 

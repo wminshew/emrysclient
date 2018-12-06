@@ -23,7 +23,6 @@ type userJob struct {
 	id           string
 	authToken    string
 	client       *http.Client
-	userID       string
 	project      string
 	requirements string
 	main         string
@@ -46,7 +45,7 @@ var (
 
 func (j *userJob) send(ctx context.Context, u url.URL) error {
 	log.Printf("Sending job requirements...\n")
-	p := path.Join("user", j.userID, "project", j.project, "job")
+	p := path.Join("user", "project", j.project, "job")
 	u.Path = p
 	operation := func() error {
 		req, err := http.NewRequest(post, u.String(), nil)
@@ -86,7 +85,7 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 
 func (j *userJob) cancel(u url.URL) error {
 	log.Printf("Canceling job...\n")
-	p := path.Join("user", j.userID, "project", j.project, "job", j.id, "cancel")
+	p := path.Join("user", "project", j.project, "job", j.id, "cancel")
 	u.Path = p
 	ctx := context.Background()
 	operation := func() error {
