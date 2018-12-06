@@ -372,7 +372,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 // userGPULog regularly logs temperature to user; updates fan accordingly
 func (w *worker) userGPULog(ctx context.Context) {
 	dStr := strconv.Itoa(int(w.device))
-	for w.temperature == 0 {
+	for w.temperature == 0 || w.fanSpeed == 0 {
 		time.Sleep(1)
 	}
 	time.Sleep(1)
