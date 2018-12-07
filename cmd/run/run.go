@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,6 +23,7 @@ import (
 
 const (
 	maxBackoffRetries = 5
+	buffer            = 1 * time.Second
 	post              = "POST"
 	get               = "GET"
 )
@@ -241,21 +243,12 @@ var Cmd = &cobra.Command{
 			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
 		}
-		if os.Geteuid() == 0 {
-			if err = os.Chown(j.output, uid, gid); err != nil {
-				log.Printf("Run: error changing ownership: %v", err)
-			}
-			if err = os.Chown(outputDir, uid, gid); err != nil {
-				log.Printf("Run: error changing ownership: %v", err)
-			}
-		}
 
 		log.Printf("Executing job %s...\n", j.id)
 		if err := j.streamOutputLog(ctx, u); err != nil {
 			log.Printf("Output log: error: %v", err)
 			return
 		}
-		buffer := 1 * time.Second
 		time.Sleep(buffer)
 		if err := j.downloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
@@ -263,6 +256,25 @@ var Cmd = &cobra.Command{
 		}
 
 		completed = true
+
+		if os.Geteuid() == 0 {
+			if err = os.Chown(j.output, uid, gid); err != nil {
+				log.Printf("Run: error changing ownership: %v", err)
+			}
+
+			if err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if err = os.Chown(path, uid, gid); err != nil {
+					return fmt.Errorf("changing ownership: %v", err)
+				}
+
+				return nil
+			}); err != nil {
+				log.Printf("Run: error walking output directory: %v", err)
+			}
+		}
 
 		log.Printf("Complete!\n")
 	},

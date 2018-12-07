@@ -11,10 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
@@ -24,23 +22,6 @@ func (j *userJob) downloadOutputData(ctx context.Context, u url.URL) error {
 	outputDir := filepath.Join(j.output, j.id, "data")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("making output directory %v: %v", outputDir, err)
-	}
-	if os.Geteuid() == 0 {
-		sudoUser, err := user.Lookup(os.Getenv("SUDO_USER"))
-		if err != nil {
-			return fmt.Errorf("getting current sudo user: %v", err)
-		}
-		var uid, gid int
-		if uid, err = strconv.Atoi(sudoUser.Uid); err != nil {
-			return fmt.Errorf("converting uid to int: %v", err)
-		}
-		if gid, err = strconv.Atoi(sudoUser.Gid); err != nil {
-			return fmt.Errorf("converting gid to int: %v", err)
-		}
-
-		if err = os.Chown(outputDir, uid, gid); err != nil {
-			return fmt.Errorf("changing ownership: %v", err)
-		}
 	}
 
 	p := path.Join("job", j.id, "data")
