@@ -22,6 +22,7 @@ func (w *worker) bid(ctx context.Context, u url.URL, msg *job.Message) {
 	defer func() { bidsOut-- }()
 	u.RawQuery = ""
 	jID := msg.Job.ID.String()
+	// TODO: pull notebook flag from msg.Job.Notebook
 	dStr := strconv.Itoa(int(w.device))
 
 	b := &job.Bid{
@@ -62,6 +63,10 @@ func (w *worker) bid(ctx context.Context, u url.URL, msg *job.Message) {
 			return backoff.Permanent(fmt.Errorf("already busy with job %s", w.jID))
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
+			w.sshKey = resp.Header.Get("X-SSH-Key")
+			if w.sshKey != "" {
+				w.notebook = true
+			}
 		} else if resp.StatusCode == http.StatusPaymentRequired {
 			log.Printf("Device %s: bid not selected\n", dStr)
 		} else if resp.StatusCode == http.StatusBadGateway {

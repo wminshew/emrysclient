@@ -14,6 +14,8 @@ type worker struct {
 	device      uint
 	uuid        uuid.UUID
 	busy        bool
+	sshKey      string
+	notebook    bool
 	temperature uint
 	fanSpeed    uint
 	jID         string

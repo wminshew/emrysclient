@@ -246,14 +246,13 @@ var Cmd = &cobra.Command{
 				len(devices), len(ramStrs))
 			return
 		}
-		// validate
+
 		diskStrs := viper.GetStringSlice("miner.disk")
 		if len(diskStrs) != 1 && len(diskStrs) != len(devices) {
 			log.Printf("Mismatch between number of devices (%d) and disk allocations (%d). Either set a single disk allocation for each device, or one for each device.\n",
 				len(devices), len(diskStrs))
 			return
 		}
-		// validate
 
 		workers := []*worker{}
 		for i, d := range devices {
