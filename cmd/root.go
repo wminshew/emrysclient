@@ -31,6 +31,7 @@ func init() {
 	rootCmd.AddCommand(version.Cmd)
 	rootCmd.AddCommand(login.Cmd)
 	rootCmd.AddCommand(run.Cmd)
+	rootCmd.AddCommand(run.NotebookCmd)
 	rootCmd.AddCommand(mine.Cmd)
 	rootCmd.AddCommand(update.Cmd)
 }

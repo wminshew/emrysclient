@@ -80,13 +80,65 @@ func init() {
 		log.Printf("Run: error binding pflag: %v", err)
 		panic(err)
 	}
+
+	NotebookCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
+	NotebookCmd.Flags().String("project", "", "User project (required)")
+	NotebookCmd.Flags().String("requirements", "", "Path to requirements file (required)")
+	// NotebookCmd.Flags().String("main", "", "Path to main execution file (required)")
+	NotebookCmd.Flags().String("data", "", "Path to the data directory")
+	NotebookCmd.Flags().String("output", "", "Path to save the output directory (required)")
+	NotebookCmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
+	NotebookCmd.Flags().String("gpu", "k80", "Minimum acceptable gpu for job. Defaults to k80")
+	NotebookCmd.Flags().String("ram", "8gb", "Minimum acceptable gb of available ram for job. Defaults to 8gb")
+	NotebookCmd.Flags().String("disk", "25gb", "Minimum acceptable gb of disk space for job. Defaults to 25gb")
+	NotebookCmd.Flags().String("pcie", "8x", "Minimum acceptable gpu pci-e for job. Defaults to 8x")
+	NotebookCmd.Flags().SortFlags = false
+	if err := func() error {
+		if err := viper.BindPFlag("config", NotebookCmd.Flags().Lookup("config")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.project", NotebookCmd.Flags().Lookup("project")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.requirements", NotebookCmd.Flags().Lookup("requirements")); err != nil {
+			return err
+		}
+		// if err := viper.BindPFlag("user.main", NotebookCmd.Flags().Lookup("main")); err != nil {
+		// 	return err
+		// }
+		if err := viper.BindPFlag("user.data", NotebookCmd.Flags().Lookup("data")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.output", NotebookCmd.Flags().Lookup("output")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.rate", NotebookCmd.Flags().Lookup("rate")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.gpu", NotebookCmd.Flags().Lookup("gpu")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.ram", NotebookCmd.Flags().Lookup("ram")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.disk", NotebookCmd.Flags().Lookup("disk")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.pcie", NotebookCmd.Flags().Lookup("pcie")); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		log.Printf("Notebook: error binding pflag: %v", err)
+		panic(err)
+	}
 }
 
-// Cmd exports login subcommand to root
+// Cmd exports run subcommand to root
 var Cmd = &cobra.Command{
 	Use:   "run",
 	Short: "Dispatch a deep learning job",
-	Long: "Syncs the appropriate maining files & data " +
+	Long: "Syncs the appropriate execution files & data " +
 		"with the central server, then locates the cheapest " +
 		"spare GPU cycles on the internet to execute your job" +
 		"\n\nReport bugs to support@emrys.io",
@@ -180,19 +232,19 @@ var Cmd = &cobra.Command{
 			},
 		}
 		if err := j.validateAndTransform(); err != nil {
-			log.Printf("Run: invalid job requirements: %v", err)
+			log.Printf("Run: invalid requirements: %v", err)
 			return
 		}
 
 		if err := j.send(ctx, u); err != nil {
-			log.Printf("Run: error sending job requirements: %v", err)
+			log.Printf("Run: error sending requirements: %v", err)
 			return
 		}
 		completed := false
 		defer func() {
 			if !completed {
 				if err := j.cancel(u); err != nil {
-					log.Printf("Run: error canceling job: %v", err)
+					log.Printf("Run: error canceling: %v", err)
 					return
 				}
 			}

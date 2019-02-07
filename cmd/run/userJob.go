@@ -26,6 +26,8 @@ type userJob struct {
 	project      string
 	requirements string
 	main         string
+	notebook     bool
+	sshKey       string
 	data         string
 	output       string
 	gpuRaw       string
@@ -44,9 +46,15 @@ var (
 )
 
 func (j *userJob) send(ctx context.Context, u url.URL) error {
-	log.Printf("Sending job requirements...\n")
+	log.Printf("Sending requirements...\n")
 	p := path.Join("user", "project", j.project, "job")
 	u.Path = p
+	if j.notebook {
+		q := u.Query()
+		q.Set("notebook", "1")
+		u.RawQuery = q.Encode()
+	}
+
 	operation := func() error {
 		req, err := http.NewRequest(post, u.String(), nil)
 		if err != nil {
@@ -68,25 +76,34 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 		}
 
 		j.id = resp.Header.Get("X-Job-ID")
+		if j.notebook {
+			j.sshKey = resp.Header.Get("X-SSH-Key")
+		}
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error sending job requirements: %v", err)
+			log.Printf("Error sending requirements: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err
 	}
 
-	log.Printf("Beginning job %s...\n", j.id)
+	log.Printf("Beginning %s...\n", j.id)
 	return nil
 }
 
 func (j *userJob) cancel(u url.URL) error {
-	log.Printf("Canceling job...\n")
+	log.Printf("Canceling...\n")
 	p := path.Join("user", "project", j.project, "job", j.id, "cancel")
 	u.Path = p
+	if j.notebook {
+		q := u.Query()
+		q.Set("notebook", "1")
+		u.RawQuery = q.Encode()
+	}
+
 	ctx := context.Background()
 	operation := func() error {
 		req, err := http.NewRequest(post, u.String(), nil)
@@ -114,7 +131,7 @@ func (j *userJob) cancel(u url.URL) error {
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Error canceling job: %v", err)
+			log.Printf("Error canceling: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
 		}); err != nil {
 		return err
@@ -132,8 +149,10 @@ func (j *userJob) validateAndTransform() error {
 	if !projectRegexp.MatchString(j.project) {
 		return fmt.Errorf("project (%s) must satisfy regex constraints: %s", j.project, projectRegexp)
 	}
-	if j.main == "" {
+	if j.main == "" && j.notebook == false {
 		return fmt.Errorf("must specify a main execution file in config or with flag")
+	} else if j.notebook && j.main != "" && filepath.Ext(j.main) != ".ipynb" {
+		return fmt.Errorf("must leave main blank or use a .ipynb file in config or with flag with notebooks")
 	}
 	if j.requirements == "" {
 		return fmt.Errorf("must specify a requirements file in config or with flag")
@@ -160,7 +179,7 @@ func (j *userJob) validateAndTransform() error {
 			j.main, j.output, j.output)
 	}
 	if j.specs.Rate < 0 {
-		return fmt.Errorf("can't use negative maximum job rate")
+		return fmt.Errorf("can't use negative maximum rate")
 	}
 	var ok bool
 	if j.specs.GPU, ok = job.ValidateGPU(j.gpuRaw); !ok {

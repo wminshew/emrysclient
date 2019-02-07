@@ -21,6 +21,12 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 	defer wg.Done()
 	p := path.Join("image", j.project, j.id)
 	u.Path = p
+	if j.notebook {
+		q := u.Query()
+		q.Set("notebook", "1")
+		u.RawQuery = q.Encode()
+	}
+
 	operation := func() error {
 		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
