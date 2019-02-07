@@ -19,6 +19,12 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 	log.Printf("Searching for cheapest compute meeting your requirements...\n")
 	p := path.Join("auction", j.id)
 	u.Path = p
+	if j.notebook {
+		q := u.Query()
+		q.Set("notebook", "1")
+		u.RawQuery = q.Encode()
+	}
+
 	operation := func() error {
 		bodyBuf := &bytes.Buffer{}
 		if err := json.NewEncoder(bodyBuf).Encode(j.specs); err != nil {
