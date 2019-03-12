@@ -175,7 +175,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		Image:        imgRefStr,
 		Tty:          true,
 	}, &container.HostConfig{
-		AutoRemove: true,
+		// AutoRemove: true,
 		Binds: []string{
 			fmt.Sprintf("%s:%s:rw", hostDataDir, dockerDataDir),
 			fmt.Sprintf("%s:%s:rw", hostOutputDir, dockerOutputDir),
@@ -242,18 +242,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			}
 		}()
 	}
-	// 	log.Printf("Printing logs...\n")
-	// 	body := make([]byte, 4096)
-	// 	var n int
-	// 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
-	// 		if err := checkContextCanceled(ctx); err != nil {
-	// 			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-	// 			return
-	// 		}
-	// 		log.Printf("%s", string(body[:n]))
-	// 	}
-	//
-	// } else {
+
 	maxUploadRetries := uint64(10)
 	body := make([]byte, 4096)
 	p := path.Join("job", w.jID, "log")
