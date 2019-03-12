@@ -255,7 +255,7 @@ var Cmd = &cobra.Command{
 		}
 
 		workers := []*worker{}
-		nextOpenPort := 8889 // TODO
+		nextOpenPort := 8889
 		for i, d := range devices {
 			dev, err := gonvml.DeviceHandleByIndex(d)
 			if err != nil {
