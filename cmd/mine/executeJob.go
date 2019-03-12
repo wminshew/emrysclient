@@ -87,6 +87,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, w.jID)
 	go w.downloadImage(ctx, &wg, errCh, u, imgRefStr)
 	defer func() {
+		log.Printf("Device %s: Removing image...\n", dStr)
 		if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,
 		}); err != nil {
@@ -210,6 +211,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		return
 	}
 	defer func() {
+		log.Printf("Device %s: Removing container...\n", dStr)
 		if err := w.dClient.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
 			Force: true,
 		}); err != nil {
@@ -243,6 +245,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		}()
 	}
 
+	log.Printf("Device %s: Uploading log...\n", dStr)
 	maxUploadRetries := uint64(10)
 	body := make([]byte, 4096)
 	p := path.Join("job", w.jID, "log")
@@ -285,103 +288,105 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
 			return
 		}
-		// }
-		if err != nil && err != io.EOF {
-			log.Printf("Device %s: error reading log buffer: %v", dStr, err)
-			return
+	}
+	if err != nil && err != io.EOF {
+		log.Printf("Device %s: error reading log buffer: %v", dStr, err)
+		return
+	}
+	log.Printf("Device %s: %v", dStr, err)
+
+	log.Printf("Device %s: Log uploaded!\n", dStr)
+	operation := func() error {
+		// POST with empty body signifies log upload complete
+		req, err := http.NewRequest(post, u.String(), nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+
+		resp, err := w.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server: %v", string(b))
 		}
 
-		operation = func() error {
-			// POST with empty body signifies log upload complete
-			req, err := http.NewRequest(post, u.String(), nil)
-			if err != nil {
-				return err
-			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
-
-			resp, err := w.client.Do(req)
-			if err != nil {
-				return err
-			}
-			defer check.Err(resp.Body.Close)
-
-			if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server: temporary error")
-			} else if resp.StatusCode >= 300 {
-				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server: %v", string(b))
-			}
-
-			return nil
-		}
-		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
-			func(err error, t time.Duration) {
-				log.Printf("Device %s: error uploading output: %v", dStr, err)
-				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
-			}); err != nil {
+		return nil
+	}
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
-			return
-		}
+			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Device %s: error uploading output: %v", dStr, err)
+		return
+	}
 
-		if err := checkContextCanceled(ctx); err != nil {
-			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-			return
-		}
-		operation = func() error {
-			pr, pw := io.Pipe()
-			go func() {
-				defer check.Err(pw.Close)
-				files, err := ioutil.ReadDir(hostOutputDir)
-				outputFiles := make([]string, 0, len(files))
-				if err != nil {
-					log.Printf("Device %s: error uploading output: reading files in output directory %v: %v\n", dStr, hostOutputDir, err)
-					return
-				}
-				for _, file := range files {
-					outputFile := filepath.Join(hostOutputDir, file.Name())
-					outputFiles = append(outputFiles, outputFile)
-				}
-				if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
-					log.Printf("Device %s: error uploading output: packing output directory %v: %v\n", dStr, hostOutputDir, err)
-					return
-				}
-			}()
-
-			p = path.Join("job", w.jID, "data")
-			u.Path = p
-			req, err := http.NewRequest(post, u.String(), pr)
+	if err := checkContextCanceled(ctx); err != nil {
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+		return
+	}
+	operation = func() error {
+		pr, pw := io.Pipe()
+		go func() {
+			defer check.Err(pw.Close)
+			files, err := ioutil.ReadDir(hostOutputDir)
+			outputFiles := make([]string, 0, len(files))
 			if err != nil {
-				return err
+				log.Printf("Device %s: error uploading output: reading files in output directory %v: %v\n", dStr, hostOutputDir, err)
+				return
 			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
-			req = req.WithContext(ctx)
-
-			log.Printf("Device %s: Uploading output...\n", dStr)
-			resp, err := w.client.Do(req)
-			if err != nil {
-				return err
+			for _, file := range files {
+				outputFile := filepath.Join(hostOutputDir, file.Name())
+				outputFiles = append(outputFiles, outputFile)
 			}
-			defer check.Err(resp.Body.Close)
-
-			if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server: temporary error")
-			} else if resp.StatusCode >= 300 {
-				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server: %v", string(b))
+			if err = archiver.TarGz.Write(pw, outputFiles); err != nil {
+				log.Printf("Device %s: error uploading output: packing output directory %v: %v\n", dStr, hostOutputDir, err)
+				return
 			}
+		}()
 
-			return nil
+		log.Printf("Device %s: Uploading data...\n", dStr)
+		p = path.Join("job", w.jID, "data")
+		u.Path = p
+		req, err := http.NewRequest(post, u.String(), pr)
+		if err != nil {
+			return err
 		}
-		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
-			func(err error, t time.Duration) {
-				log.Printf("Device %s: error uploading output: %v", dStr, err)
-				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
-			}); err != nil {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+		req = req.WithContext(ctx)
+
+		log.Printf("Device %s: Uploading output...\n", dStr)
+		resp, err := w.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("server: %v", string(b))
+		}
+
+		return nil
+	}
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
-			return
-		}
+			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+		}); err != nil {
+		log.Printf("Device %s: error uploading output: %v", dStr, err)
+		return
 	}
 
 	log.Printf("Device %s: Job completed!\n", dStr)
