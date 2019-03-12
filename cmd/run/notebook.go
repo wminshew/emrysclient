@@ -198,6 +198,7 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 
+		// TODO: hmm
 		log.Printf("Executing notebook %s...\n", j.id)
 		// if err := j.streamOutputLog(ctx, u); err != nil {
 		// 	log.Printf("Output log: error: %v", err)
