@@ -230,12 +230,20 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	defer check.Err(out.Close)
 
 	if w.notebook {
-		// TODO: user/server still want to see logs...?
-		log.Printf("Device %s: Forwarding port...\n", dStr)
-		if err = w.sshRemoteForward(ctx, sshKeyFile); err != nil {
-			log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
-			return
-		}
+		go func() {
+			log.Printf("Device %s: Forwarding port...\n", dStr)
+			sshCmd := w.sshRemoteForward(ctx, sshKeyFile)
+			if err = sshCmd.Start(); err != nil {
+				log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
+				return
+			}
+			defer func() {
+				if err := sshCmd.Process.Kill(); err != nil {
+					log.Printf("Device %s: error killing remote forward process: %v", dStr, err)
+					return
+				}
+			}()
+		}()
 
 		log.Printf("Printing logs...\n")
 		body := make([]byte, 4096)
@@ -248,7 +256,6 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			log.Printf("%s", string(body[:n]))
 		}
 
-		// TODO: have some way to cancel
 	} else {
 		maxUploadRetries := uint64(10)
 		body := make([]byte, 4096)
