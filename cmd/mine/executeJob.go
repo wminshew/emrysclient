@@ -71,13 +71,12 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error saving ssh-key: %v", dStr, err)
 		return
 	}
-	// TODO: add back
-	// defer func() {
-	// 	if err := os.Remove(sshKeyFile); err != nil {
-	// 		log.Printf("Notebook: error removing ssh key: %v", err)
-	// 		return
-	// 	}
-	// }()
+	defer func() {
+		if err := os.Remove(sshKeyFile); err != nil {
+			log.Printf("Notebook: error removing ssh key: %v", err)
+			return
+		}
+	}()
 
 	errCh := make(chan error, 2)
 	var wg sync.WaitGroup
@@ -87,17 +86,16 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	repo := "miner"
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, w.jID)
 	go w.downloadImage(ctx, &wg, errCh, u, imgRefStr)
-	// TODO: add back
-	// defer func() {
-	// 	if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
-	// 		Force: true,
-	// 	}); err != nil {
-	// 		log.Printf("Device %s: error removing job image %v: %v", dStr, w.jID, err)
-	// 	}
-	// 	if _, err := w.dClient.BuildCachePrune(ctx); err != nil {
-	// 		log.Printf("Device %s: error pruning build cache: %v", dStr, err)
-	// 	}
-	// }()
+	defer func() {
+		if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
+			Force: true,
+		}); err != nil {
+			log.Printf("Device %s: error removing job image %v: %v", dStr, w.jID, err)
+		}
+		if _, err := w.dClient.BuildCachePrune(ctx); err != nil {
+			log.Printf("Device %s: error pruning build cache: %v", dStr, err)
+		}
+	}()
 
 	go w.downloadData(ctx, &wg, errCh, u, jobDir)
 
@@ -153,8 +151,9 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error setting NVIDIA_VISIBLE_DEVICES=%s: %v", dStr, dStr, err)
 		return
 	}
-	// unsetting env at end of job could potentially interfere with another gpu's job I think?
+	// TODO: unsetting env at end of job could potentially interfere with another gpu's job I think?
 	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
+
 	var exposedPorts nat.PortSet
 	var portBindings nat.PortMap
 	if w.notebook {
@@ -210,14 +209,14 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error starting container: %v", dStr, err)
 		return
 	}
-	// TODO: add back
-	// defer func() {
-	// 	if err := w.dClient.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
-	// 		Force: true,
-	// 	}); err != nil {
-	// 		log.Printf("Device %s: error removing job container %v: %v", dStr, w.jID, err)
-	// 	}
-	// }()
+	defer func() {
+		if err := w.dClient.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
+			Force: true,
+		}); err != nil {
+			log.Printf("Device %s: error removing job container %v: %v", dStr, w.jID, err)
+		}
+	}()
+
 	out, err := w.dClient.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
@@ -242,68 +241,68 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 				return
 			}
 		}()
-
-		log.Printf("Printing logs...\n")
-		body := make([]byte, 4096)
-		var n int
-		for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
-			if err := checkContextCanceled(ctx); err != nil {
-				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-				return
-			}
-			log.Printf("%s", string(body[:n]))
+	}
+	// 	log.Printf("Printing logs...\n")
+	// 	body := make([]byte, 4096)
+	// 	var n int
+	// 	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
+	// 		if err := checkContextCanceled(ctx); err != nil {
+	// 			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+	// 			return
+	// 		}
+	// 		log.Printf("%s", string(body[:n]))
+	// 	}
+	//
+	// } else {
+	maxUploadRetries := uint64(10)
+	body := make([]byte, 4096)
+	p := path.Join("job", w.jID, "log")
+	u.Path = p
+	var n int
+	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
+		if err := checkContextCanceled(ctx); err != nil {
+			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+			return
 		}
-
-	} else {
-		maxUploadRetries := uint64(10)
-		body := make([]byte, 4096)
-		p := path.Join("job", w.jID, "log")
-		u.Path = p
-		var n int
-		for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
-			if err := checkContextCanceled(ctx); err != nil {
-				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-				return
+		operation := func() error {
+			req, err := http.NewRequest(post, u.String(), bytes.NewReader(body[:n]))
+			if err != nil {
+				return err
 			}
-			operation := func() error {
-				req, err := http.NewRequest(post, u.String(), bytes.NewReader(body[:n]))
-				if err != nil {
-					return err
-				}
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
-				req = req.WithContext(ctx)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+			req = req.WithContext(ctx)
 
-				resp, err := w.client.Do(req)
-				if err != nil {
-					return err
-				}
-				defer check.Err(resp.Body.Close)
-
-				if resp.StatusCode == http.StatusBadGateway {
-					return fmt.Errorf("server: temporary error")
-				} else if resp.StatusCode >= 300 {
-					b, _ := ioutil.ReadAll(resp.Body)
-					return fmt.Errorf("server: %v", string(b))
-				}
-
-				return nil
+			resp, err := w.client.Do(req)
+			if err != nil {
+				return err
 			}
-			if err := backoff.RetryNotify(operation,
-				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
-				func(err error, t time.Duration) {
-					log.Printf("Device %s: error uploading output: %v", dStr, err)
-					log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
-				}); err != nil {
+			defer check.Err(resp.Body.Close)
+
+			if resp.StatusCode == http.StatusBadGateway {
+				return fmt.Errorf("server: temporary error")
+			} else if resp.StatusCode >= 300 {
+				b, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("server: %v", string(b))
+			}
+
+			return nil
+		}
+		if err := backoff.RetryNotify(operation,
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+			func(err error, t time.Duration) {
 				log.Printf("Device %s: error uploading output: %v", dStr, err)
-				return
-			}
+				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+			}); err != nil {
+			log.Printf("Device %s: error uploading output: %v", dStr, err)
+			return
 		}
+		// }
 		if err != nil && err != io.EOF {
 			log.Printf("Device %s: error reading log buffer: %v", dStr, err)
 			return
 		}
 
-		operation := func() error {
+		operation = func() error {
 			// POST with empty body signifies log upload complete
 			req, err := http.NewRequest(post, u.String(), nil)
 			if err != nil {
