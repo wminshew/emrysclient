@@ -230,19 +230,17 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	defer check.Err(out.Close)
 
 	if w.notebook {
-		go func() {
-			log.Printf("Device %s: Forwarding port...\n", dStr)
-			sshCmd := w.sshRemoteForward(ctx, sshKeyFile)
-			if err = sshCmd.Start(); err != nil {
-				log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
+		log.Printf("Device %s: Forwarding port...\n", dStr)
+		sshCmd := w.sshRemoteForward(ctx, sshKeyFile)
+		if err = sshCmd.Start(); err != nil {
+			log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
+			return
+		}
+		defer func() {
+			if err := sshCmd.Process.Kill(); err != nil {
+				log.Printf("Device %s: error killing remote forward process: %v", dStr, err)
 				return
 			}
-			defer func() {
-				if err := sshCmd.Process.Kill(); err != nil {
-					log.Printf("Device %s: error killing remote forward process: %v", dStr, err)
-					return
-				}
-			}()
 		}()
 
 		log.Printf("Printing logs...\n")
