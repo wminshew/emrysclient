@@ -255,6 +255,7 @@ var Cmd = &cobra.Command{
 		}
 
 		workers := []*worker{}
+		nextOpenPort := 8889 // TODO
 		for i, d := range devices {
 			dev, err := gonvml.DeviceHandleByIndex(d)
 			if err != nil {
@@ -312,6 +313,7 @@ var Cmd = &cobra.Command{
 				command: miningCmdStr,
 				device:  d,
 			}
+			// TODO: add a specific port for each worker
 			w := &worker{
 				mID:       mID,
 				client:    client,
@@ -325,7 +327,9 @@ var Cmd = &cobra.Command{
 				ram:       ram,
 				disk:      disk,
 				miner:     cm,
+				port:      fmt.Sprintf("%d", nextOpenPort),
 			}
+			nextOpenPort++
 
 			go w.monitorGPU(ctx, cancel, u)
 			w.miner.init(ctx)

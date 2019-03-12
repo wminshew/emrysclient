@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	pidsLimit = 100
+	pidsLimit = 200
 )
 
 func (w *worker) executeJob(ctx context.Context, u url.URL) {
@@ -34,7 +34,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	defer func() {
 		w.busy = false
 		w.jID = ""
-		w.sshKey = ""
+		w.sshKey = []byte{}
 		w.notebook = false
 	}()
 	jobsInProcess++
@@ -71,6 +71,13 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error saving ssh-key: %v", dStr, err)
 		return
 	}
+	// TODO: add back
+	// defer func() {
+	// 	if err := os.Remove(sshKeyFile); err != nil {
+	// 		log.Printf("Notebook: error removing ssh key: %v", err)
+	// 		return
+	// 	}
+	// }()
 
 	errCh := make(chan error, 2)
 	var wg sync.WaitGroup
@@ -80,16 +87,17 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	repo := "miner"
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, w.jID)
 	go w.downloadImage(ctx, &wg, errCh, u, imgRefStr)
-	defer func() {
-		if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
-			Force: true,
-		}); err != nil {
-			log.Printf("Device %s: error removing job image %v: %v", dStr, w.jID, err)
-		}
-		if _, err := w.dClient.BuildCachePrune(ctx); err != nil {
-			log.Printf("Device %s: error pruning build cache: %v", dStr, err)
-		}
-	}()
+	// TODO: add back
+	// defer func() {
+	// 	if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
+	// 		Force: true,
+	// 	}); err != nil {
+	// 		log.Printf("Device %s: error removing job image %v: %v", dStr, w.jID, err)
+	// 	}
+	// 	if _, err := w.dClient.BuildCachePrune(ctx); err != nil {
+	// 		log.Printf("Device %s: error pruning build cache: %v", dStr, err)
+	// 	}
+	// }()
 
 	go w.downloadData(ctx, &wg, errCh, u, jobDir)
 
@@ -145,8 +153,8 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error setting NVIDIA_VISIBLE_DEVICES=%s: %v", dStr, dStr, err)
 		return
 	}
+	// unsetting env at end of job could potentially interfere with another gpu's job I think?
 	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
-	// var exposedPorts nat.PortSet{}
 	var exposedPorts nat.PortSet
 	var portBindings nat.PortMap
 	if w.notebook {
@@ -156,8 +164,9 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		portBindings = nat.PortMap{
 			"8888/tcp": []nat.PortBinding{
 				nat.PortBinding{
-					HostIP:   "127.0.0.1",
-					HostPort: "8889",
+					// HostIP:   "127.0.0.1",
+					HostIP:   "0.0.0.0",
+					HostPort: w.port,
 				},
 			},
 		}
@@ -201,25 +210,46 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error starting container: %v", dStr, err)
 		return
 	}
+	// TODO: add back
+	// defer func() {
+	// 	if err := w.dClient.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
+	// 		Force: true,
+	// 	}); err != nil {
+	// 		log.Printf("Device %s: error removing job container %v: %v", dStr, w.jID, err)
+	// 	}
+	// }()
+	out, err := w.dClient.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
+		Follow:     true,
+		ShowStdout: true,
+		ShowStderr: true,
+	})
+	if err != nil {
+		log.Printf("Device %s: error logging container: %v", dStr, err)
+		return
+	}
+	defer check.Err(out.Close)
 
 	if w.notebook {
+		// TODO: user/server still want to see logs...?
+		log.Printf("Device %s: Forwarding port...\n", dStr)
 		if err = w.sshRemoteForward(ctx, sshKeyFile); err != nil {
 			log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
 			return
 		}
+
+		log.Printf("Printing logs...\n")
+		body := make([]byte, 4096)
+		var n int
+		for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
+			if err := checkContextCanceled(ctx); err != nil {
+				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+				return
+			}
+			log.Printf("%s", string(body[:n]))
+		}
+
 		// TODO: have some way to cancel
 	} else {
-		out, err := w.dClient.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
-			Follow:     true,
-			ShowStdout: true,
-			ShowStderr: true,
-		})
-		if err != nil {
-			log.Printf("Device %s: error logging container: %v", dStr, err)
-			return
-		}
-		defer check.Err(out.Close)
-
 		maxUploadRetries := uint64(10)
 		body := make([]byte, 4096)
 		p := path.Join("job", w.jID, "log")

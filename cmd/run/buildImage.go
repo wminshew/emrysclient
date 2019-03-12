@@ -31,7 +31,11 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
 		go func() {
-			if err := archiver.TarGz.Write(w, []string{j.main, j.requirements}); err != nil {
+			dockerContext := []string{j.requirements}
+			if j.notebook && j.main != "" {
+				dockerContext = append(dockerContext, j.main)
+			}
+			if err := archiver.TarGz.Write(w, dockerContext); err != nil {
 				log.Printf("Image: error: tar-gzipping docker context files: %v", err)
 				return
 			}

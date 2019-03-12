@@ -109,6 +109,7 @@ var NotebookCmd = &cobra.Command{
 			authToken:    authToken,
 			project:      viper.GetString("user.project"),
 			requirements: viper.GetString("user.requirements"),
+			main:         viper.GetString("user.main"),
 			notebook:     true,
 			data:         viper.GetString("user.data"),
 			output:       viper.GetString("user.output"),
@@ -151,17 +152,17 @@ var NotebookCmd = &cobra.Command{
 			}
 		}()
 
-		var sshKeyFile string
-		if sshKeyFile, err = j.saveSSHKey(); err != nil {
+		sshKeyFile, err := j.saveSSHKey()
+		if err != nil {
 			log.Printf("Notebook: error saving key: %v", err)
 			return
 		}
-		defer func() {
-			if err := os.Remove(sshKeyFile); err != nil {
-				log.Printf("Notebook: error removing ssh key: %v", err)
-				return
-			}
-		}()
+		// defer func() {
+		// 	if err := os.Remove(sshKeyFile); err != nil {
+		// 		log.Printf("Notebook: error removing ssh key: %v", err)
+		// 		return
+		// 	}
+		// }()
 
 		if err := checkContextCanceled(ctx); err != nil {
 			return

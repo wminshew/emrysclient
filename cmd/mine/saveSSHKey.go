@@ -26,7 +26,7 @@ func (w *worker) saveSSHKey() (string, error) {
 		return "", fmt.Errorf("making directory %s: %v", dir, err)
 	}
 	p := path.Join(dir, fmt.Sprintf("%s-ssh-key-miner", w.jID))
-	if err := ioutil.WriteFile(p, []byte(w.sshKey), 0600); err != nil {
+	if err := ioutil.WriteFile(p, w.sshKey, 0600); err != nil {
 		return "", fmt.Errorf("writing ssh-key to disk at %s: %v", p, err)
 	}
 	return p, nil

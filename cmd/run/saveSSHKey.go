@@ -9,6 +9,7 @@ import (
 )
 
 // saveSSHKey saves the job's ssh-key to disk
+// TODO: is it possible to use ssh w/o saving key locally?
 func (j *userJob) saveSSHKey() (string, error) {
 	u, err := user.Current()
 	if err != nil {
@@ -26,7 +27,7 @@ func (j *userJob) saveSSHKey() (string, error) {
 		return "", fmt.Errorf("making directory %s: %v", dir, err)
 	}
 	p := path.Join(dir, fmt.Sprintf("%s-ssh-key-user", j.id))
-	if err := ioutil.WriteFile(p, []byte(j.sshKey), 0600); err != nil {
+	if err := ioutil.WriteFile(p, j.sshKey, 0600); err != nil {
 		return "", fmt.Errorf("writing ssh-key to disk at %s: %v", p, err)
 	}
 	return p, nil

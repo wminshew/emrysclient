@@ -27,7 +27,7 @@ type userJob struct {
 	requirements string
 	main         string
 	notebook     bool
-	sshKey       string
+	sshKey       []byte
 	data         string
 	output       string
 	gpuRaw       string
@@ -77,7 +77,11 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 
 		j.id = resp.Header.Get("X-Job-ID")
 		if j.notebook {
-			j.sshKey = resp.Header.Get("X-SSH-Key")
+			sshKeyBytes, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return backoff.Permanent(fmt.Errorf("reading response: %v", err))
+			}
+			j.sshKey = sshKeyBytes
 		}
 		return nil
 	}
@@ -171,7 +175,7 @@ func (j *userJob) validateAndTransform() error {
 			return fmt.Errorf("main (%v) and data (%v) must be in the same directory", j.main, j.data)
 		}
 	}
-	if filepath.Dir(j.main) != filepath.Dir(j.output) {
+	if j.main != "" && filepath.Dir(j.main) != filepath.Dir(j.output) {
 		log.Printf("warning! Main (%v) will still only be able to save locally to "+
 			"./output when executing, even though output (%v) has been set to a different "+
 			"directory. Local output to ./output will be saved to your output (%v) at the end "+

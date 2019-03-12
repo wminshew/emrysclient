@@ -63,8 +63,12 @@ func (w *worker) bid(ctx context.Context, u url.URL, msg *job.Message) {
 			return backoff.Permanent(fmt.Errorf("already busy with job %s", w.jID))
 		} else if resp.StatusCode == http.StatusOK {
 			winner = true
-			w.sshKey = resp.Header.Get("X-SSH-Key")
-			if w.sshKey != "" {
+			sshKeyBytes, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return backoff.Permanent(fmt.Errorf("reading response: %v", err))
+			}
+			if len(sshKeyBytes) > 0 {
+				w.sshKey = sshKeyBytes
 				w.notebook = true
 			}
 		} else if resp.StatusCode == http.StatusPaymentRequired {

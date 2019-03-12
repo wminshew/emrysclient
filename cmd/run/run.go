@@ -84,7 +84,7 @@ func init() {
 	NotebookCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
 	NotebookCmd.Flags().String("project", "", "User project (required)")
 	NotebookCmd.Flags().String("requirements", "", "Path to requirements file (required)")
-	// NotebookCmd.Flags().String("main", "", "Path to main execution file (required)")
+	NotebookCmd.Flags().String("main", "", "Path to main execution file")
 	NotebookCmd.Flags().String("data", "", "Path to the data directory")
 	NotebookCmd.Flags().String("output", "", "Path to save the output directory (required)")
 	NotebookCmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
@@ -103,9 +103,9 @@ func init() {
 		if err := viper.BindPFlag("user.requirements", NotebookCmd.Flags().Lookup("requirements")); err != nil {
 			return err
 		}
-		// if err := viper.BindPFlag("user.main", NotebookCmd.Flags().Lookup("main")); err != nil {
-		// 	return err
-		// }
+		if err := viper.BindPFlag("user.main", NotebookCmd.Flags().Lookup("main")); err != nil {
+			return err
+		}
 		if err := viper.BindPFlag("user.data", NotebookCmd.Flags().Lookup("data")); err != nil {
 			return err
 		}
@@ -240,6 +240,7 @@ var Cmd = &cobra.Command{
 			log.Printf("Run: error sending requirements: %v", err)
 			return
 		}
+		// TODO: defer deleting the sshkey file
 		completed := false
 		defer func() {
 			if !completed {
