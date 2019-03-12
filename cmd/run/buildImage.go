@@ -32,7 +32,7 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 		r, w := io.Pipe()
 		go func() {
 			dockerContext := []string{j.requirements}
-			if j.notebook && j.main != "" {
+			if !j.notebook || j.main != "" {
 				dockerContext = append(dockerContext, j.main)
 			}
 			if err := archiver.TarGz.Write(w, dockerContext); err != nil {
