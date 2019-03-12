@@ -198,14 +198,20 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 
-		// TODO: hmm
 		log.Printf("Executing notebook %s...\n", j.id)
-		// if err := j.streamOutputLog(ctx, u); err != nil {
-		// 	log.Printf("Output log: error: %v", err)
-		// 	return
-		// }
-		if err := j.sshLocalForward(ctx, sshKeyFile); err != nil {
-			log.Printf("ssh: error: %v", err)
+		sshCmd := j.sshLocalForward(ctx, sshKeyFile)
+		if err := sshCmd.Start(); err != nil {
+			log.Printf("Notebook: error local forwarding requests: %v", err)
+			return
+		}
+		defer func() {
+			if err := sshCmd.Process.Kill(); err != nil {
+				log.Printf("Notebook: error killing local forwarding process: %v", err)
+				return
+			}
+		}()
+		if err := j.streamOutputLog(ctx, u); err != nil {
+			log.Printf("Output log: error: %v", err)
 			return
 		}
 		time.Sleep(buffer)

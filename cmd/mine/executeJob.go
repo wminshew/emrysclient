@@ -239,7 +239,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		}
 		defer func() {
 			if err := sshCmd.Process.Kill(); err != nil {
-				log.Printf("Device %s: error killing remote forward process: %v", dStr, err)
+				log.Printf("Device %s: error killing remote forwarding process: %v", dStr, err)
 				return
 			}
 		}()
