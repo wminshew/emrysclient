@@ -39,6 +39,7 @@ type userJob struct {
 
 const (
 	pciePattern = "^(16|8|4|2|1)x?$"
+	maxRetries  = 10
 )
 
 var (
@@ -100,13 +101,9 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 
 func (j *userJob) cancel(u url.URL) error {
 	log.Printf("Canceling...\n")
-	p := path.Join("user", "project", j.project, "job", j.id, "cancel")
+
+	p := path.Join("job", j.id, "cancel")
 	u.Path = p
-	if j.notebook {
-		q := u.Query()
-		q.Set("notebook", "1")
-		u.RawQuery = q.Encode()
-	}
 
 	ctx := context.Background()
 	operation := func() error {
@@ -133,7 +130,47 @@ func (j *userJob) cancel(u url.URL) error {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 10), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+		func(err error, t time.Duration) {
+			log.Printf("Error canceling: %v", err)
+			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
+		}); err != nil {
+		return err
+	}
+
+	p = path.Join("user", "project", j.project, "job", j.id, "cancel")
+	u.Path = p
+	if j.notebook {
+		q := u.Query()
+		q.Set("notebook", "1")
+		u.RawQuery = q.Encode()
+	}
+
+	operation = func() error {
+		req, err := http.NewRequest(post, u.String(), nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+		req = req.WithContext(ctx)
+
+		resp, err := j.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer check.Err(resp.Body.Close)
+
+		if resp.StatusCode == http.StatusBadGateway {
+			return fmt.Errorf("server: temporary error")
+		} else if resp.StatusCode >= 300 {
+			b, _ := ioutil.ReadAll(resp.Body)
+			return backoff.Permanent(fmt.Errorf("server: %v", string(b)))
+		}
+
+		return nil
+	}
+	if err := backoff.RetryNotify(operation,
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error canceling: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
