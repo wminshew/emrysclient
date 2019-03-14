@@ -160,6 +160,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	imgRefStr := fmt.Sprintf("%s/%s/%s:latest", registry, repo, w.jID)
 	go w.downloadImage(ctx, &wg, errCh, u, imgRefStr)
 	defer func() {
+		ctx := context.Background()
 		log.Printf("Device %s: Removing image...\n", dStr)
 		if _, err := w.dClient.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,
@@ -289,6 +290,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		return
 	}
 	defer func() {
+		ctx := context.Background()
 		log.Printf("Device %s: Removing container...\n", dStr)
 		if err := w.dClient.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
 			Force: true,
