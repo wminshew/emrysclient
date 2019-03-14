@@ -1,7 +1,6 @@
 package mine
 
 import (
-	"bytes"
 	"context"
 	"docker.io/go-docker/api/types"
 	"docker.io/go-docker/api/types/container"
@@ -21,6 +20,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -326,59 +326,73 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	}
 
 	log.Printf("Device %s: Uploading log...\n", dStr)
-	body := make([]byte, 4096)
+	logStrCh := make(chan string)
+	logErrCh := make(chan error)
+	go func() {
+		body := make([]byte, 4096)
+		for {
+			n, err := out.Read(body)
+			if err != nil {
+				logErrCh <- err
+				return
+			}
+			logStrCh <- string(body[:n])
+		}
+	}()
+
 	p := path.Join("job", w.jID, "log")
 	u.Path = p
-	var n int
-	for n, err = out.Read(body); err == nil; n, err = out.Read(body) {
-		if err := checkContextCanceled(ctx); err != nil {
-			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-			return
-		}
+loop:
+	for {
 		select {
 		case <-jobCanceled:
 			log.Printf("Device %s: job canceled by user\n", dStr)
 			return
-		default:
-		}
-		operation := func() error {
-			req, err := http.NewRequest(post, u.String(), bytes.NewReader(body[:n]))
-			if err != nil {
-				return err
+		case err := <-logErrCh:
+			if err != io.EOF {
+				log.Printf("Device %s: error reading container logs: %v", dStr, err)
+				return
 			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
-			req = req.WithContext(ctx)
-
-			resp, err := w.client.Do(req)
-			if err != nil {
-				return err
+			break loop
+		case logStr := <-logStrCh:
+			if err := checkContextCanceled(ctx); err != nil {
+				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+				return
 			}
-			defer check.Err(resp.Body.Close)
+			operation := func() error {
+				req, err := http.NewRequest(post, u.String(), strings.NewReader(logStr))
+				if err != nil {
+					return err
+				}
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+				req = req.WithContext(ctx)
 
-			if resp.StatusCode == http.StatusBadGateway {
-				return fmt.Errorf("server: temporary error")
-			} else if resp.StatusCode >= 300 {
-				b, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("server: %v", string(b))
+				resp, err := w.client.Do(req)
+				if err != nil {
+					return err
+				}
+				defer check.Err(resp.Body.Close)
+
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
+					b, _ := ioutil.ReadAll(resp.Body)
+					return fmt.Errorf("server: %v", string(b))
+				}
+
+				return nil
 			}
-
-			return nil
-		}
-		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
-			func(err error, t time.Duration) {
+			if err := backoff.RetryNotify(operation,
+				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+				func(err error, t time.Duration) {
+					log.Printf("Device %s: error uploading output: %v", dStr, err)
+					log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+				}); err != nil {
 				log.Printf("Device %s: error uploading output: %v", dStr, err)
-				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
-			}); err != nil {
-			log.Printf("Device %s: error uploading output: %v", dStr, err)
-			return
+				return
+			}
 		}
 	}
-	if err != nil && err != io.EOF {
-		log.Printf("Device %s: error reading log buffer: %v", dStr, err)
-		return
-	}
-	log.Printf("Device %s: %v", dStr, err)
 
 	log.Printf("Device %s: Log uploaded!\n", dStr)
 	operation := func() error {
