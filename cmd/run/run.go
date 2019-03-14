@@ -240,7 +240,7 @@ var Cmd = &cobra.Command{
 			log.Printf("Run: error sending requirements: %v", err)
 			return
 		}
-		// TODO: defer deleting the sshkey file
+
 		completed := false
 		defer func() {
 			if !completed {

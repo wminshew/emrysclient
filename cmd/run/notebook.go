@@ -157,12 +157,12 @@ var NotebookCmd = &cobra.Command{
 			log.Printf("Notebook: error saving key: %v", err)
 			return
 		}
-		// defer func() {
-		// 	if err := os.Remove(sshKeyFile); err != nil {
-		// 		log.Printf("Notebook: error removing ssh key: %v", err)
-		// 		return
-		// 	}
-		// }()
+		defer func() {
+			if err := os.Remove(sshKeyFile); err != nil {
+				log.Printf("Notebook: error removing ssh key: %v", err)
+				return
+			}
+		}()
 
 		if err := checkContextCanceled(ctx); err != nil {
 			return
