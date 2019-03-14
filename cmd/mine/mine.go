@@ -37,6 +37,7 @@ const (
 	post              = "POST"
 )
 
+// TODO: overlap w/ user.streamOutputLog
 type pollResponse struct {
 	Events    []pollEvent `json:"events"`
 	Timestamp int64       `json:"timestamp"`

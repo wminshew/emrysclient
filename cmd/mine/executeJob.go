@@ -5,6 +5,7 @@ import (
 	"context"
 	"docker.io/go-docker/api/types"
 	"docker.io/go-docker/api/types/container"
+	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/docker/go-connections/nat"
@@ -26,8 +27,12 @@ import (
 )
 
 const (
-	pidsLimit = 200
+	pidsLimit  = 200
+	get        = "GET"
+	maxRetries = 10
 )
+
+var maxTimeout = 60 * 10 // job server has a 10 minute timeout
 
 func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	w.busy = true
@@ -46,6 +51,74 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	}
 	w.miner.stop()
 	defer w.miner.start()
+
+	jobCanceled := make(chan struct{})
+	go func(u url.URL) {
+		// poll to check if job is canceled
+		p := path.Join("job", w.jID, "cancel")
+		u.Path = p
+		q := u.Query()
+		q.Set("timeout", fmt.Sprintf("%d", maxTimeout))
+		buffer := int64(10)
+		sinceTime := (time.Now().Unix() - buffer) * 1000
+		q.Set("since_time", fmt.Sprintf("%d", sinceTime))
+		u.RawQuery = q.Encode()
+		for {
+			if err := checkContextCanceled(ctx); err != nil {
+				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+				return
+			}
+			pr := pollResponse{}
+			operation := func() error {
+				req, err := http.NewRequest(get, u.String(), nil)
+				if err != nil {
+					return err
+				}
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+				req = req.WithContext(ctx)
+
+				resp, err := w.client.Do(req)
+				if err != nil {
+					return err
+				}
+				defer check.Err(resp.Body.Close)
+
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
+					b, _ := ioutil.ReadAll(resp.Body)
+					return fmt.Errorf("server: %v", string(b))
+				}
+
+				if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+					return fmt.Errorf("decoding response: %v", err)
+				}
+
+				return nil
+			}
+			if err := backoff.RetryNotify(operation,
+				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+				func(err error, t time.Duration) {
+					log.Printf("Device %s: error polling job canceled: %v", dStr, err)
+					log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+				}); err != nil {
+				log.Printf("Device %s: error polling job canceled: %v", dStr, err)
+			}
+
+			if len(pr.Events) > 0 {
+				jobCanceled <- struct{}{}
+				return
+			}
+
+			if pr.Timestamp > sinceTime {
+				sinceTime = pr.Timestamp
+			}
+
+			q = u.Query()
+			q.Set("since_time", fmt.Sprintf("%d", sinceTime))
+			u.RawQuery = q.Encode()
+		}
+	}(u)
 
 	currUser, err := user.Current()
 	if err != nil {
@@ -114,6 +187,12 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
 	}
+	select {
+	case <-jobCanceled:
+		log.Printf("Device %s: job canceled by user\n", dStr)
+		return
+	default:
+	}
 
 	fileInfos, err := ioutil.ReadDir(jobDir)
 	if err != nil {
@@ -164,7 +243,6 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		portBindings = nat.PortMap{
 			"8888/tcp": []nat.PortBinding{
 				nat.PortBinding{
-					// HostIP:   "127.0.0.1",
 					HostIP:   "0.0.0.0",
 					HostPort: w.port,
 				},
@@ -246,7 +324,6 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	}
 
 	log.Printf("Device %s: Uploading log...\n", dStr)
-	maxUploadRetries := uint64(10)
 	body := make([]byte, 4096)
 	p := path.Join("job", w.jID, "log")
 	u.Path = p
@@ -255,6 +332,12 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		if err := checkContextCanceled(ctx); err != nil {
 			log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 			return
+		}
+		select {
+		case <-jobCanceled:
+			log.Printf("Device %s: job canceled by user\n", dStr)
+			return
+		default:
 		}
 		operation := func() error {
 			req, err := http.NewRequest(post, u.String(), bytes.NewReader(body[:n]))
@@ -280,7 +363,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Device %s: error uploading output: %v", dStr, err)
 				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
@@ -320,7 +403,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
 			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
@@ -380,7 +463,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxUploadRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Device %s: error uploading output: %v", dStr, err)
 			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
