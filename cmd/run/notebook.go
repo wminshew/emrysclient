@@ -34,11 +34,14 @@ var NotebookCmd = &cobra.Command{
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
+		waitForUpload := false
 		go func() {
 			<-stop
 			log.Printf("Cancellation request received: please wait for notebook to successfully cancel\n")
 			log.Printf("Warning: failure to successfully cancel notebook may result in undesirable charges\n")
-			cancel()
+			if !waitForUpload {
+				cancel()
+			}
 		}()
 
 		authToken, err := token.Get()
@@ -131,8 +134,10 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 		completed := false
+		jobCanceled := false
 		defer func() {
 			if !completed {
+				jobCanceled = true
 				if err := j.cancel(u); err != nil {
 					log.Printf("Notebook: error canceling: %v", err)
 					return
@@ -199,6 +204,7 @@ var NotebookCmd = &cobra.Command{
 		}
 
 		log.Printf("Executing notebook %s...\n", j.id)
+		waitForUpload = true
 		sshCmd := j.sshLocalForward(ctx, sshKeyFile)
 		if err := sshCmd.Start(); err != nil {
 			log.Printf("Notebook: error local forwarding requests: %v", err)
@@ -241,6 +247,10 @@ var NotebookCmd = &cobra.Command{
 			}
 		}
 
-		log.Printf("Complete!\n")
+		if jobCanceled {
+			log.Printf("Canceled\n")
+		} else {
+			log.Printf("Complete!\n")
+		}
 	},
 }

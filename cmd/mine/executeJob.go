@@ -340,14 +340,18 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		}
 	}()
 
+	var operation func() error
+	jCanceled := false
 	p := path.Join("job", w.jID, "log")
 	u.Path = p
 loop:
 	for {
 		select {
 		case <-jobCanceled:
-			log.Printf("Device %s: job canceled by user\n", dStr)
-			return
+			log.Printf("Device %s: job canceled by user...\n", dStr)
+			jCanceled = true
+			goto DataUpload
+			// return
 		case err := <-logErrCh:
 			if err != io.EOF {
 				log.Printf("Device %s: error reading container logs: %v", dStr, err)
@@ -395,7 +399,7 @@ loop:
 	}
 
 	log.Printf("Device %s: Log uploaded!\n", dStr)
-	operation := func() error {
+	operation = func() error {
 		// POST with empty body signifies log upload complete
 		req, err := http.NewRequest(post, u.String(), nil)
 		if err != nil {
@@ -428,9 +432,18 @@ loop:
 		return
 	}
 
+DataUpload:
 	if err := checkContextCanceled(ctx); err != nil {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
+	}
+	log.Printf("Device %s: Uploading data...\n", dStr)
+	p = path.Join("job", w.jID, "data")
+	u.Path = p
+	if jCanceled {
+		q := u.Query()
+		q.Set("jobcanceled", "1")
+		u.RawQuery = q.Encode()
 	}
 	operation = func() error {
 		pr, pw := io.Pipe()
@@ -452,9 +465,6 @@ loop:
 			}
 		}()
 
-		log.Printf("Device %s: Uploading data...\n", dStr)
-		p = path.Join("job", w.jID, "data")
-		u.Path = p
 		req, err := http.NewRequest(post, u.String(), pr)
 		if err != nil {
 			return err
