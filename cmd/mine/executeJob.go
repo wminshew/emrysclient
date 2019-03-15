@@ -350,8 +350,40 @@ loop:
 		case <-jobCanceled:
 			log.Printf("Device %s: job canceled by user...\n", dStr)
 			jCanceled = true
-			goto DataUpload
-			// return
+			operation := func() error {
+				req, err := http.NewRequest(post, u.String(), strings.NewReader("JOB CANCELED BY USER.\n"))
+				if err != nil {
+					return err
+				}
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
+				req = req.WithContext(ctx)
+
+				resp, err := w.client.Do(req)
+				if err != nil {
+					return err
+				}
+				defer check.Err(resp.Body.Close)
+
+				if resp.StatusCode == http.StatusBadGateway {
+					return fmt.Errorf("server: temporary error")
+				} else if resp.StatusCode >= 300 {
+					b, _ := ioutil.ReadAll(resp.Body)
+					return fmt.Errorf("server: %v", string(b))
+				}
+
+				return nil
+			}
+			if err := backoff.RetryNotify(operation,
+				backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+				func(err error, t time.Duration) {
+					log.Printf("Device %s: error uploading output: %v", dStr, err)
+					log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+				}); err != nil {
+				log.Printf("Device %s: error uploading output: %v", dStr, err)
+				return
+			}
+
+			goto FinishLogAndUploadData
 		case err := <-logErrCh:
 			if err != io.EOF {
 				log.Printf("Device %s: error reading container logs: %v", dStr, err)
@@ -398,7 +430,7 @@ loop:
 		}
 	}
 
-	log.Printf("Device %s: Log uploaded!\n", dStr)
+FinishLogAndUploadData:
 	operation = func() error {
 		// POST with empty body signifies log upload complete
 		req, err := http.NewRequest(post, u.String(), nil)
@@ -431,8 +463,8 @@ loop:
 		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return
 	}
+	log.Printf("Device %s: Log uploaded!\n", dStr)
 
-DataUpload:
 	if err := checkContextCanceled(ctx); err != nil {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
