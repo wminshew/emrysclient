@@ -31,19 +31,6 @@ var NotebookCmd = &cobra.Command{
 		"spare GPU cycles on the internet to begin a jupyter notebook" +
 		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt)
-		ctx, cancel := context.WithCancel(context.Background())
-		waitForUpload := false
-		go func() {
-			<-stop
-			log.Printf("Cancellation request received: please wait for notebook to successfully cancel\n")
-			log.Printf("Warning: failure to successfully cancel notebook may result in undesirable charges\n")
-			if !waitForUpload {
-				cancel()
-			}
-		}()
-
 		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Notebook: error retrieving authToken: %v", err)
@@ -83,20 +70,6 @@ var NotebookCmd = &cobra.Command{
 			}
 		}
 
-		client := &http.Client{}
-		s := "https"
-		h := "api.emrys.io"
-		u := url.URL{
-			Scheme: s,
-			Host:   h,
-		}
-
-		if err := version.CheckRun(ctx, client, u); err != nil {
-			log.Printf("Notebook: version error: %v", err)
-			log.Printf("Please execute emrys update")
-			return
-		}
-
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath("$HOME")
 		viper.AddConfigPath("$HOME/.config/emrys")
@@ -104,6 +77,14 @@ var NotebookCmd = &cobra.Command{
 		if err := viper.ReadInConfig(); err != nil {
 			log.Printf("Notebook: error reading config file: %v", err)
 			return
+		}
+
+		client := &http.Client{}
+		s := "https"
+		h := "api.emrys.io"
+		u := url.URL{
+			Scheme: s,
+			Host:   h,
 		}
 
 		// TODO: move to pkg/job; rename job.Spec to something else
@@ -129,21 +110,36 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 
-		if err := j.send(ctx, u); err != nil {
-			log.Printf("Notebook: error sending requirements: %v", err)
-			return
-		}
-		completed := false
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt)
+		ctx, cancel := context.WithCancel(context.Background())
 		jobCanceled := false
-		defer func() {
-			if !completed {
-				jobCanceled = true
+		auctionComplete := false
+		go func() {
+			<-stop
+			jobCanceled = true
+			log.Printf("Cancellation request received: please wait for notebook to successfully cancel\n")
+			log.Printf("Warning: failure to successfully cancel notebook may result in undesirable charges\n")
+			if auctionComplete {
+				// j.cancel returns when job successfully canceled
 				if err := j.cancel(u); err != nil {
 					log.Printf("Notebook: error canceling: %v", err)
 					return
 				}
 			}
+			cancel()
 		}()
+
+		if err := version.CheckRun(ctx, client, u); err != nil {
+			log.Printf("Notebook: version error: %v", err)
+			log.Printf("Please execute emrys update")
+			return
+		}
+
+		if err := j.send(ctx, u); err != nil {
+			log.Printf("Notebook: error sending requirements: %v", err)
+			return
+		}
 		go func() {
 			for {
 				if err := token.Monitor(ctx, client, u, &j.authToken, refreshAt); err != nil {
@@ -185,16 +181,17 @@ var NotebookCmd = &cobra.Command{
 		select {
 		case <-ctx.Done():
 			return
-		case <-done:
 		case <-errCh:
 			return
+		case <-done:
 		}
 
 		if err := j.runAuction(ctx, u); err != nil {
 			return // already logged
 		}
+		auctionComplete = true
 
-		if err := checkContextCanceled(ctx); err != nil {
+		if jobCanceled {
 			return
 		}
 		outputDir := filepath.Join(j.output, j.id)
@@ -204,7 +201,6 @@ var NotebookCmd = &cobra.Command{
 		}
 
 		log.Printf("Executing notebook %s...\n", j.id)
-		waitForUpload = true
 		sshCmd := j.sshLocalForward(ctx, sshKeyFile)
 		if err := sshCmd.Start(); err != nil {
 			log.Printf("Notebook: error local forwarding requests: %v", err)
@@ -225,8 +221,6 @@ var NotebookCmd = &cobra.Command{
 			log.Printf("Output data: error: %v", err)
 			return
 		}
-
-		completed = true
 
 		if os.Geteuid() == 0 {
 			if err = os.Chown(j.output, uid, gid); err != nil {

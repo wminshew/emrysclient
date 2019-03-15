@@ -143,19 +143,6 @@ var Cmd = &cobra.Command{
 		"spare GPU cycles on the internet to execute your job" +
 		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt)
-		ctx, cancel := context.WithCancel(context.Background())
-		waitForUpload := false
-		go func() {
-			<-stop
-			log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
-			log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
-			if !waitForUpload {
-				cancel()
-			}
-		}()
-
 		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Run: error retrieving authToken: %v", err)
@@ -195,20 +182,6 @@ var Cmd = &cobra.Command{
 			}
 		}
 
-		client := &http.Client{}
-		s := "https"
-		h := "api.emrys.io"
-		u := url.URL{
-			Scheme: s,
-			Host:   h,
-		}
-
-		if err := version.CheckRun(ctx, client, u); err != nil {
-			log.Printf("Run: version error: %v", err)
-			log.Printf("Please execute emrys update")
-			return
-		}
-
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath("$HOME")
 		viper.AddConfigPath("$HOME/.config/emrys")
@@ -216,6 +189,14 @@ var Cmd = &cobra.Command{
 		if err := viper.ReadInConfig(); err != nil {
 			log.Printf("Run: error reading config file: %v", err)
 			return
+		}
+
+		client := &http.Client{}
+		s := "https"
+		h := "api.emrys.io"
+		u := url.URL{
+			Scheme: s,
+			Host:   h,
 		}
 
 		j := &userJob{
@@ -239,22 +220,36 @@ var Cmd = &cobra.Command{
 			return
 		}
 
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt)
+		ctx, cancel := context.WithCancel(context.Background())
+		jobCanceled := false
+		auctionComplete := false
+		go func() {
+			<-stop
+			log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
+			log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
+			if auctionComplete {
+				// j.cancel returns when job successfully canceled
+				if err := j.cancel(u); err != nil {
+					log.Printf("Notebook: error canceling: %v", err)
+					return
+				}
+			}
+			cancel()
+		}()
+
+		if err := version.CheckRun(ctx, client, u); err != nil {
+			log.Printf("Run: version error: %v", err)
+			log.Printf("Please execute emrys update")
+			return
+		}
+
 		if err := j.send(ctx, u); err != nil {
 			log.Printf("Run: error sending requirements: %v", err)
 			return
 		}
 
-		completed := false
-		jobCanceled := false
-		defer func() {
-			if !completed {
-				jobCanceled = true
-				if err := j.cancel(u); err != nil {
-					log.Printf("Run: error canceling: %v", err)
-					return
-				}
-			}
-		}()
 		go func() {
 			for {
 				if err := token.Monitor(ctx, client, u, &j.authToken, refreshAt); err != nil {
@@ -292,8 +287,9 @@ var Cmd = &cobra.Command{
 		if err := j.runAuction(ctx, u); err != nil {
 			return // already logged
 		}
+		auctionComplete = true
 
-		if err := checkContextCanceled(ctx); err != nil {
+		if jobCanceled {
 			return
 		}
 		outputDir := filepath.Join(j.output, j.id)
@@ -312,8 +308,6 @@ var Cmd = &cobra.Command{
 			log.Printf("Output data: error: %v", err)
 			return
 		}
-
-		completed = true
 
 		if os.Geteuid() == 0 {
 			if err = os.Chown(j.output, uid, gid); err != nil {
