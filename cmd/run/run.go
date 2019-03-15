@@ -146,11 +146,14 @@ var Cmd = &cobra.Command{
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
+		waitForUpload := false
 		go func() {
 			<-stop
 			log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
 			log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
-			cancel()
+			if !waitForUpload {
+				cancel()
+			}
 		}()
 
 		authToken, err := token.Get()
@@ -242,8 +245,10 @@ var Cmd = &cobra.Command{
 		}
 
 		completed := false
+		jobCanceled := false
 		defer func() {
 			if !completed {
+				jobCanceled = true
 				if err := j.cancel(u); err != nil {
 					log.Printf("Run: error canceling: %v", err)
 					return
@@ -329,7 +334,11 @@ var Cmd = &cobra.Command{
 			}
 		}
 
-		log.Printf("Complete!\n")
+		if jobCanceled {
+			log.Printf("Canceled\n")
+		} else {
+			log.Printf("Complete!\n")
+		}
 	},
 }
 
