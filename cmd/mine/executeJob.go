@@ -504,7 +504,6 @@ FinishLogAndUploadData:
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", *w.authToken))
 		req = req.WithContext(ctx)
 
-		log.Printf("Device %s: Uploading output...\n", dStr)
 		resp, err := w.client.Do(req)
 		if err != nil {
 			return err
