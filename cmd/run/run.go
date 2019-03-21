@@ -239,13 +239,12 @@ var Cmd = &cobra.Command{
 				jobCanceled = true
 				log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
 				log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
-				if auctionComplete {
-					// j.cancel returns when job successfully canceled
-					if err := j.cancel(u); err != nil {
-						log.Printf("Notebook: error canceling: %v", err)
-						return
-					}
-				} else {
+				// j.cancel returns when job successfully canceled
+				if err := j.cancel(u); err != nil {
+					log.Printf("Notebook: error canceling: %v", err)
+					return
+				}
+				if !auctionComplete {
 					cancel()
 				}
 			case <-ctx.Done():
