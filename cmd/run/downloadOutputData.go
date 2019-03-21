@@ -63,5 +63,7 @@ func (j *userJob) downloadOutputData(ctx context.Context, u url.URL) error {
 		}); err != nil {
 		return fmt.Errorf("%s", err)
 	}
+
+	log.Printf("Output data: downloaded!\n")
 	return nil
 }

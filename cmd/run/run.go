@@ -223,20 +223,34 @@ var Cmd = &cobra.Command{
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
+		defer func() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				cancel()
+			}
+		}()
 		jobCanceled := false
 		auctionComplete := false
 		go func() {
-			<-stop
-			log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
-			log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
-			if auctionComplete {
-				// j.cancel returns when job successfully canceled
-				if err := j.cancel(u); err != nil {
-					log.Printf("Notebook: error canceling: %v", err)
-					return
+			select {
+			case <-stop:
+				jobCanceled = true
+				log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
+				log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
+				if auctionComplete {
+					// j.cancel returns when job successfully canceled
+					if err := j.cancel(u); err != nil {
+						log.Printf("Notebook: error canceling: %v", err)
+						return
+					}
+				} else {
+					cancel()
 				}
+			case <-ctx.Done():
+				return
 			}
-			cancel()
 		}()
 
 		if err := version.CheckRun(ctx, client, u); err != nil {
@@ -304,6 +318,7 @@ var Cmd = &cobra.Command{
 			return
 		}
 		// TODO: replace w/ longpoll asking when output data has posted?
+		// think this currently streams though so probably not
 		time.Sleep(buffer)
 		if err := j.downloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
@@ -329,9 +344,7 @@ var Cmd = &cobra.Command{
 			}
 		}
 
-		if jobCanceled {
-			log.Printf("Canceled\n")
-		} else {
+		if !jobCanceled {
 			log.Printf("Complete!\n")
 		}
 	},
