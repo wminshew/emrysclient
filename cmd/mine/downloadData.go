@@ -54,7 +54,7 @@ func (w *worker) downloadData(ctx context.Context, wg *sync.WaitGroup, errCh cha
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Data: error: %v", err)
 			log.Printf("Data: retrying in %s seconds\n", t.Round(time.Second).String())

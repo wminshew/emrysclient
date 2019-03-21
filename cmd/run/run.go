@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	maxBackoffRetries = 5
+	maxRetries = 5
 	buffer            = 1 * time.Second
 	post              = "POST"
 	get               = "GET"

@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	maxBackoffRetries = 5
+	maxRetries = 5
 	post              = "POST"
 )
 
@@ -102,7 +102,7 @@ var Cmd = &cobra.Command{
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Login error: %v", err)
 				log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

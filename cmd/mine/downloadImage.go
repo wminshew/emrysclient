@@ -65,7 +65,7 @@ func (w *worker) downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh ch
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: downloading error: %v", err)
 			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())
@@ -103,7 +103,7 @@ func (w *worker) downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh ch
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Image: error: %v", err)
 			log.Printf("Image: retrying in %s seconds\n", t.Round(time.Second).String())

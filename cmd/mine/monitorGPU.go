@@ -187,7 +187,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Monitor error: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
@@ -357,7 +357,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 			return nil
 		}
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Device %s: error monitoring gpu: %v", dStr, err)
 				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())

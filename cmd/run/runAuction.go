@@ -55,7 +55,7 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 
 		return nil
 	}
-	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+	if err := backoff.RetryNotify(operation, backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Search: error: %v", err)
 			log.Printf("Search: retrying in %s seconds\n", t.Round(time.Second).String())

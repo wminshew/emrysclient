@@ -87,7 +87,7 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 		return nil
 	}
 	if err := backoff.RetryNotify(operation,
-		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxBackoffRetries), ctx),
+		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
 		func(err error, t time.Duration) {
 			log.Printf("Error sending requirements: %v", err)
 			log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())

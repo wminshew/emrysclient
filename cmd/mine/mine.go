@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	maxBackoffRetries = 5
+	maxRetries = 5
 	post              = "POST"
 )
 
