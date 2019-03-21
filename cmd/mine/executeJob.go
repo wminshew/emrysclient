@@ -115,7 +115,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			}
 
 			if len(pr.Events) > 0 {
-				jobCanceled <- struct{}{} // should I be closing it instead?
+				close(jobCanceled)
 				return
 			}
 
