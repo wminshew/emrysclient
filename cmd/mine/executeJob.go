@@ -54,7 +54,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 
 	jobFinished := make(chan struct{})
 	defer func() {
-		jobFinished <- struct{}{} // should I be closing it instead?
+		close(jobFinished)
 	}()
 	jobCanceled := make(chan struct{})
 	go func(u url.URL) {
