@@ -52,6 +52,10 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 	w.miner.stop()
 	defer w.miner.start()
 
+	jobFinished := make(chan struct{})
+	defer func() {
+		jobFinished <- struct{}{}
+	}()
 	jobCanceled := make(chan struct{})
 	go func(u url.URL) {
 		// poll to check if job is canceled
@@ -67,6 +71,11 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			if err := checkContextCanceled(ctx); err != nil {
 				log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 				return
+			}
+			select {
+			case <-jobFinished:
+				return
+			default:
 			}
 			pr := pollResponse{}
 			operation := func() error {
