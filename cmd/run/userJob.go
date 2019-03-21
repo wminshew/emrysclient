@@ -39,7 +39,6 @@ type userJob struct {
 
 const (
 	pciePattern = "^(16|8|4|2|1)x?$"
-	maxRetries  = 10
 )
 
 var (

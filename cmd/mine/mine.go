@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	maxRetries = 5
-	post              = "POST"
+	maxRetries = 10
+	post       = "POST"
 )
 
 // TODO: overlap w/ user.streamOutputLog

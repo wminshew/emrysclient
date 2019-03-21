@@ -27,9 +27,8 @@ import (
 )
 
 const (
-	pidsLimit  = 200
-	get        = "GET"
-	maxRetries = 10
+	pidsLimit = 200
+	get       = "GET"
 )
 
 var maxTimeout = 60 * 10 // job server has a 10 minute timeout

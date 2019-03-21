@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	maxRetries = 5
-	buffer            = 1 * time.Second
-	post              = "POST"
-	get               = "GET"
+	maxRetries = 10
+	buffer     = 1 * time.Second
+	post       = "POST"
+	get        = "GET"
 )
 
 func init() {
