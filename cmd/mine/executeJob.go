@@ -54,7 +54,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 
 	jobFinished := make(chan struct{})
 	defer func() {
-		jobFinished <- struct{}{}
+		jobFinished <- struct{}{} // should I be closing it instead?
 	}()
 	jobCanceled := make(chan struct{})
 	go func(u url.URL) {
@@ -115,7 +115,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			}
 
 			if len(pr.Events) > 0 {
-				jobCanceled <- struct{}{}
+				jobCanceled <- struct{}{} // should I be closing it instead?
 				return
 			}
 
