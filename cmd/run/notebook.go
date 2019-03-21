@@ -129,7 +129,6 @@ var NotebookCmd = &cobra.Command{
 				jobCanceled = true
 				log.Printf("Cancellation request received: please wait for notebook to successfully cancel\n")
 				log.Printf("Warning: failure to successfully cancel notebook may result in undesirable charges\n")
-				// j.cancel returns when job successfully canceled
 				if err := j.cancel(u); err != nil {
 					log.Printf("Run: error canceling: %v", err)
 					return
@@ -194,11 +193,19 @@ var NotebookCmd = &cobra.Command{
 		case <-ctx.Done():
 			return
 		case <-errCh:
+			if err := j.cancel(u); err != nil {
+				log.Printf("Run: error canceling: %v", err)
+				return
+			}
 			return
 		case <-done:
 		}
 
 		if err := j.runAuction(ctx, u); err != nil {
+			if err := j.cancel(u); err != nil {
+				log.Printf("Run: error canceling: %v", err)
+				return
+			}
 			return // already logged
 		}
 		auctionComplete = true

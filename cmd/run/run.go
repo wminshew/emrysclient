@@ -292,12 +292,20 @@ var Cmd = &cobra.Command{
 		select {
 		case <-ctx.Done():
 			return
-		case <-done:
 		case <-errCh:
+			if err := j.cancel(u); err != nil {
+				log.Printf("Run: error canceling: %v", err)
+				return
+			}
 			return
+		case <-done:
 		}
 
 		if err := j.runAuction(ctx, u); err != nil {
+			if err := j.cancel(u); err != nil {
+				log.Printf("Run: error canceling: %v", err)
+				return
+			}
 			return // already logged
 		}
 		auctionComplete = true
