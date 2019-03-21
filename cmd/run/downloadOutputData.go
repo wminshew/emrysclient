@@ -27,7 +27,7 @@ func (j *userJob) downloadOutputData(ctx context.Context, u url.URL) error {
 	p := path.Join("job", j.id, "data")
 	u.Path = p
 	operation := func() error {
-		req, err := http.NewRequest(get, u.String(), nil)
+		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return err
 		}

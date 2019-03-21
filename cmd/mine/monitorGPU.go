@@ -164,7 +164,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 			return err
 		}
 
-		req, err := http.NewRequest(post, u.String(), body)
+		req, err := http.NewRequest(http.MethodPost, u.String(), body)
 		if err != nil {
 			return err
 		}
@@ -329,7 +329,7 @@ func (w *worker) monitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 				return err
 			}
 
-			req, err := http.NewRequest(post, u.String(), body)
+			req, err := http.NewRequest(http.MethodPost, u.String(), body)
 			if err != nil {
 				return err
 			}

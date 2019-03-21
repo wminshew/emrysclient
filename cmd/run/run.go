@@ -24,8 +24,6 @@ import (
 const (
 	maxRetries = 10
 	buffer     = 1 * time.Second
-	post       = "POST"
-	get        = "GET"
 )
 
 func init() {

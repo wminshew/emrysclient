@@ -61,7 +61,7 @@ pollLoop:
 
 		pr := pollResponse{}
 		operation := func() error {
-			req, err := http.NewRequest(get, u.String(), nil)
+			req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 			if err != nil {
 				return err
 			}

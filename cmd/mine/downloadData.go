@@ -17,11 +17,10 @@ import (
 
 func (w *worker) downloadData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL, jobDir string) {
 	defer wg.Done()
-	m := "GET"
 	p := path.Join("miner", "job", w.jID)
 	u.Host = "data.emrys.io"
 	u.Path = p
-	req, err := http.NewRequest(m, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		log.Printf("Data: error: creating request: %v", err)
 		errCh <- err

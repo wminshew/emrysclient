@@ -31,7 +31,7 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 			return backoff.Permanent(err)
 		}
 
-		req, err := http.NewRequest(post, u.String(), bodyBuf)
+		req, err := http.NewRequest(http.MethodPost, u.String(), bodyBuf)
 		if err != nil {
 			return err
 		}

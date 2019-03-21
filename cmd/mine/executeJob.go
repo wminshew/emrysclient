@@ -28,7 +28,6 @@ import (
 
 const (
 	pidsLimit = 200
-	get       = "GET"
 )
 
 var maxTimeout = 60 * 10 // job server has a 10 minute timeout
@@ -78,7 +77,7 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 			}
 			pr := pollResponse{}
 			operation := func() error {
-				req, err := http.NewRequest(get, u.String(), nil)
+				req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 				if err != nil {
 					return err
 				}
@@ -359,7 +358,7 @@ loop:
 			log.Printf("Device %s: job canceled by user...\n", dStr)
 			jCanceled = true
 			operation := func() error {
-				req, err := http.NewRequest(post, u.String(), strings.NewReader("JOB CANCELED BY USER.\n"))
+				req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader("JOB CANCELED BY USER.\n"))
 				if err != nil {
 					return err
 				}
@@ -404,7 +403,7 @@ loop:
 				return
 			}
 			operation := func() error {
-				req, err := http.NewRequest(post, u.String(), strings.NewReader(logStr))
+				req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(logStr))
 				if err != nil {
 					return err
 				}
@@ -441,7 +440,7 @@ loop:
 FinishLogAndUploadData:
 	operation = func() error {
 		// POST with empty body signifies log upload complete
-		req, err := http.NewRequest(post, u.String(), nil)
+		req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 		if err != nil {
 			return err
 		}
@@ -505,7 +504,7 @@ FinishLogAndUploadData:
 			}
 		}()
 
-		req, err := http.NewRequest(post, u.String(), pr)
+		req, err := http.NewRequest(http.MethodPost, u.String(), pr)
 		if err != nil {
 			return err
 		}

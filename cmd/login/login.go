@@ -26,8 +26,7 @@ import (
 )
 
 const (
-	maxRetries = 5
-	post              = "POST"
+	maxRetries = 10
 )
 
 func init() {
@@ -72,7 +71,7 @@ var Cmd = &cobra.Command{
 				return err
 			}
 
-			req, err := http.NewRequest(post, u.String(), bodyBuf)
+			req, err := http.NewRequest(http.MethodPost, u.String(), bodyBuf)
 			if err != nil {
 				return err
 			}

@@ -33,7 +33,7 @@ func Monitor(ctx context.Context, client *http.Client, u url.URL, authToken *str
 		case <-time.After(time.Until(refreshAt)):
 			loginResp := creds.LoginResp{}
 			operation := func() error {
-				req, err := http.NewRequest("POST", u.String(), nil)
+				req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 				if err != nil {
 					return err
 				}

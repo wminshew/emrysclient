@@ -101,7 +101,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 
 	uploadList := []string{}
 	operation := func() error {
-		req, err := http.NewRequest(post, u.String(), bytes.NewReader(b))
+		req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(b))
 		if err != nil {
 			return err
 		}

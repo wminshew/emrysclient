@@ -44,7 +44,7 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 				return
 			}
 		}()
-		req, err := http.NewRequest(post, u.String(), r)
+		req, err := http.NewRequest(http.MethodPost, u.String(), r)
 		if err != nil {
 			return err
 		}

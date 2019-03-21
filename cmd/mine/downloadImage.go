@@ -77,7 +77,7 @@ func (w *worker) downloadImage(ctx context.Context, wg *sync.WaitGroup, errCh ch
 
 	p := path.Join("image", "downloaded", w.jID)
 	u.Path = p
-	req, err := http.NewRequest(post, u.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
 		log.Printf("Image: error: creating request: %v", err)
 		errCh <- err

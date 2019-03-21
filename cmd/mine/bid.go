@@ -46,7 +46,7 @@ func (w *worker) bid(ctx context.Context, u url.URL, msg *job.Message) {
 			return err
 		}
 
-		req, err := http.NewRequest(post, u.String(), body)
+		req, err := http.NewRequest(http.MethodPost, u.String(), body)
 		if err != nil {
 			return err
 		}

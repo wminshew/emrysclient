@@ -56,7 +56,7 @@ func (j *userJob) send(ctx context.Context, u url.URL) error {
 	}
 
 	operation := func() error {
-		req, err := http.NewRequest(post, u.String(), nil)
+		req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 		if err != nil {
 			return err
 		}
@@ -111,7 +111,7 @@ func (j *userJob) cancel(u url.URL) error {
 	}
 
 	operation := func() error {
-		req, err := http.NewRequest(post, u.String(), nil)
+		req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 		if err != nil {
 			return err
 		}
