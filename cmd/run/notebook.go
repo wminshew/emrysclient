@@ -87,7 +87,7 @@ var NotebookCmd = &cobra.Command{
 			Host:   h,
 		}
 
-		// TODO: move to pkg/job; rename job.Spec to something else
+		// TODO: move to pkg/job; rename job.[User]Spec or something
 		j := &userJob{
 			client:       client,
 			authToken:    authToken,
@@ -230,7 +230,7 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 		// TODO: replace w/ longpoll asking when output data has posted?
-		// think this currently streams though so probably not
+		// think this currently streams though so maybe not..
 		time.Sleep(buffer)
 		if err := j.downloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)

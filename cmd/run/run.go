@@ -317,8 +317,6 @@ var Cmd = &cobra.Command{
 			log.Printf("Output log: error: %v", err)
 			return
 		}
-		// TODO: replace w/ longpoll asking when output data has posted?
-		// think this currently streams though so probably not
 		time.Sleep(buffer)
 		if err := j.downloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
