@@ -262,7 +262,6 @@ func (w *worker) executeJob(ctx context.Context, u url.URL) {
 		Image:        imgRefStr,
 		Tty:          true,
 	}, &container.HostConfig{
-		// AutoRemove: true,
 		Binds: []string{
 			fmt.Sprintf("%s:%s:rw", hostDataDir, dockerDataDir),
 			fmt.Sprintf("%s:%s:rw", hostOutputDir, dockerOutputDir),
