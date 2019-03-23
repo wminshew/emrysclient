@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"context"
@@ -16,25 +16,26 @@ import (
 	"time"
 )
 
-func (j *userJob) downloadOutputData(ctx context.Context, u url.URL) error {
+// DownloadOutputData downloads the Job's output data
+func (j *Job) DownloadOutputData(ctx context.Context, u url.URL) error {
 	log.Printf("Output data: downloading...\n")
 
-	outputDir := filepath.Join(j.output, j.id, "data")
+	outputDir := filepath.Join(j.Output, j.ID, "data")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("making output directory %v: %v", outputDir, err)
 	}
 
-	p := path.Join("job", j.id, "data")
+	p := path.Join("job", j.ID, "data")
 	u.Path = p
 	operation := func() error {
 		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
 		req = req.WithContext(ctx)
 
-		resp, err := j.client.Do(req)
+		resp, err := j.Client.Do(req)
 		if err != nil {
 			return err
 		}

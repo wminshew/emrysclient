@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wminshew/emrysclient/cmd/login"
 	"github.com/wminshew/emrysclient/cmd/mine"
+	"github.com/wminshew/emrysclient/cmd/notebook"
 	"github.com/wminshew/emrysclient/cmd/run"
 	"github.com/wminshew/emrysclient/cmd/update"
 	"github.com/wminshew/emrysclient/cmd/version"
@@ -31,7 +32,7 @@ func init() {
 	rootCmd.AddCommand(version.Cmd)
 	rootCmd.AddCommand(login.Cmd)
 	rootCmd.AddCommand(run.Cmd)
-	rootCmd.AddCommand(run.NotebookCmd)
+	rootCmd.AddCommand(notebook.Cmd)
 	rootCmd.AddCommand(mine.Cmd)
 	rootCmd.AddCommand(update.Cmd)
 }

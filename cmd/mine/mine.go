@@ -17,7 +17,9 @@ import (
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrysclient/cmd/version"
+	"github.com/wminshew/emrysclient/pkg/poll"
 	"github.com/wminshew/emrysclient/pkg/token"
+	"github.com/wminshew/emrysclient/pkg/worker"
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
@@ -31,25 +33,6 @@ import (
 	"strings"
 	"time"
 )
-
-const (
-	maxRetries = 10
-)
-
-// TODO: overlap w/ user.streamOutputLog
-type pollResponse struct {
-	Events    []pollEvent `json:"events"`
-	Timestamp int64       `json:"timestamp"`
-}
-
-// source: https://github.com/jcuga/golongpoll/blob/master/go-client/glpclient/client.go
-type pollEvent struct {
-	// Timestamp is milliseconds since epoch to match javascripts Date.getTime()
-	Timestamp int64  `json:"timestamp"`
-	Category  string `json:"category"`
-	// Data can be anything that is able to passed to json.Marshal()
-	Data json.RawMessage `json:"data"`
-}
 
 var (
 	terminate     = false
@@ -254,7 +237,7 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		workers := []*worker{}
+		workers := []*worker.Worker{}
 		nextOpenPort := 8889
 		for i, d := range devices {
 			dev, err := gonvml.DeviceHandleByIndex(d)
@@ -309,31 +292,32 @@ var Cmd = &cobra.Command{
 				return
 			}
 
-			cm := &cryptoMiner{
-				command: miningCmdStr,
-				device:  d,
+			cm := &worker.CryptoMiner{
+				Command: miningCmdStr,
+				Device:  d,
 			}
-			// TODO: add a specific port for each worker
-			w := &worker{
-				mID:       mID,
-				client:    client,
-				dClient:   dClient,
-				authToken: &authToken,
-				device:    d,
-				uuid:      dUUID,
-				busy:      false,
-				jID:       "",
-				bidRate:   br,
-				ram:       ram,
-				disk:      disk,
-				miner:     cm,
-				port:      fmt.Sprintf("%d", nextOpenPort),
+			w := &worker.Worker{
+				MinerID:       mID,
+				Client:        client,
+				Docker:        dClient,
+				AuthToken:     &authToken,
+				BidsOut:       &bidsOut,
+				JobsInProcess: &jobsInProcess,
+				Device:        d,
+				UUID:          dUUID,
+				Busy:          false,
+				JobID:         "",
+				BidRate:       br,
+				RAM:           ram,
+				Disk:          disk,
+				Miner:         cm,
+				Port:          fmt.Sprintf("%d", nextOpenPort),
 			}
 			nextOpenPort++
 
-			go w.monitorGPU(ctx, cancel, u)
-			w.miner.init(ctx)
-			defer w.miner.stop()
+			go w.MonitorGPU(ctx, cancel, u)
+			w.Miner.Init(ctx)
+			defer w.Miner.Stop()
 
 			workers = append(workers, w)
 		}
@@ -372,7 +356,7 @@ var Cmd = &cobra.Command{
 
 		log.Printf("Connecting to emrys for jobs...\n")
 		for {
-			pr := pollResponse{}
+			pr := poll.Response{}
 			if terminate {
 				log.Printf("Mining job search canceled.\n")
 				return
@@ -438,8 +422,8 @@ var Cmd = &cobra.Command{
 					}
 					for _, worker := range workers {
 						w := worker
-						if !w.busy {
-							go w.bid(ctx, u, msg)
+						if !w.Busy {
+							go w.Bid(ctx, u, msg)
 						}
 					}
 				}

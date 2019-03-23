@@ -1,4 +1,4 @@
-package mine
+package job
 
 import (
 	"fmt"
@@ -8,8 +8,9 @@ import (
 	"path"
 )
 
-// saveSSHKey saves the job's ssh-key to disk
-func (w *worker) saveSSHKey() (string, error) {
+// SaveSSHKey saves the job's ssh-key to disk
+// TODO: is it possible to use ssh w/o saving key locally?
+func (j *Job) SaveSSHKey() (string, error) {
 	u, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("getting current user: %v", err)
@@ -25,8 +26,8 @@ func (w *worker) saveSSHKey() (string, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("making directory %s: %v", dir, err)
 	}
-	p := path.Join(dir, fmt.Sprintf("%s-ssh-key-miner", w.jID))
-	if err := ioutil.WriteFile(p, w.sshKey, 0600); err != nil {
+	p := path.Join(dir, fmt.Sprintf("%s-ssh-key-user", j.ID))
+	if err := ioutil.WriteFile(p, j.SSHKey, 0600); err != nil {
 		return "", fmt.Errorf("writing ssh-key to disk at %s: %v", p, err)
 	}
 	return p, nil

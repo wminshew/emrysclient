@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"bytes"
@@ -15,11 +15,12 @@ import (
 	"time"
 )
 
-func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
+// RunAuction runs an auction on ths server for a job
+func (j *Job) RunAuction(ctx context.Context, u url.URL) error {
 	log.Printf("Searching for cheapest compute meeting your requirements...\n")
-	p := path.Join("auction", j.id)
+	p := path.Join("auction", j.ID)
 	u.Path = p
-	if j.notebook {
+	if j.Notebook {
 		q := u.Query()
 		q.Set("notebook", "1")
 		u.RawQuery = q.Encode()
@@ -27,7 +28,7 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 
 	operation := func() error {
 		bodyBuf := &bytes.Buffer{}
-		if err := json.NewEncoder(bodyBuf).Encode(j.specs); err != nil {
+		if err := json.NewEncoder(bodyBuf).Encode(j.Specs); err != nil {
 			return backoff.Permanent(err)
 		}
 
@@ -36,9 +37,9 @@ func (j *userJob) runAuction(ctx context.Context, u url.URL) error {
 			return err
 		}
 		req = req.WithContext(ctx)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
 
-		resp, err := j.client.Do(req)
+		resp, err := j.Client.Do(req)
 		if err != nil {
 			return err
 		}

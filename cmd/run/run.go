@@ -6,8 +6,10 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/emrys/pkg/check"
+	specs "github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrysclient/cmd/version"
+	"github.com/wminshew/emrysclient/pkg/job"
 	"github.com/wminshew/emrysclient/pkg/token"
 	"log"
 	"net/http"
@@ -22,8 +24,8 @@ import (
 )
 
 const (
-	maxRetries = 10
-	buffer     = 1 * time.Second
+	// maxRetries = 10
+	buffer = 1 * time.Second
 )
 
 func init() {
@@ -76,58 +78,6 @@ func init() {
 		return nil
 	}(); err != nil {
 		log.Printf("Run: error binding pflag: %v", err)
-		panic(err)
-	}
-
-	NotebookCmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
-	NotebookCmd.Flags().String("project", "", "User project (required)")
-	NotebookCmd.Flags().String("requirements", "", "Path to requirements file (required)")
-	NotebookCmd.Flags().String("main", "", "Path to main execution file")
-	NotebookCmd.Flags().String("data", "", "Path to the data directory")
-	NotebookCmd.Flags().String("output", "", "Path to save the output directory (required)")
-	NotebookCmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
-	NotebookCmd.Flags().String("gpu", "k80", "Minimum acceptable gpu for job. Defaults to k80")
-	NotebookCmd.Flags().String("ram", "8gb", "Minimum acceptable gb of available ram for job. Defaults to 8gb")
-	NotebookCmd.Flags().String("disk", "25gb", "Minimum acceptable gb of disk space for job. Defaults to 25gb")
-	NotebookCmd.Flags().String("pcie", "8x", "Minimum acceptable gpu pci-e for job. Defaults to 8x")
-	NotebookCmd.Flags().SortFlags = false
-	if err := func() error {
-		if err := viper.BindPFlag("config", NotebookCmd.Flags().Lookup("config")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.project", NotebookCmd.Flags().Lookup("project")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.requirements", NotebookCmd.Flags().Lookup("requirements")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.main", NotebookCmd.Flags().Lookup("main")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.data", NotebookCmd.Flags().Lookup("data")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.output", NotebookCmd.Flags().Lookup("output")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.rate", NotebookCmd.Flags().Lookup("rate")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.gpu", NotebookCmd.Flags().Lookup("gpu")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.ram", NotebookCmd.Flags().Lookup("ram")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.disk", NotebookCmd.Flags().Lookup("disk")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.pcie", NotebookCmd.Flags().Lookup("pcie")); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		log.Printf("Notebook: error binding pflag: %v", err)
 		panic(err)
 	}
 }
@@ -197,23 +147,23 @@ var Cmd = &cobra.Command{
 			Host:   h,
 		}
 
-		j := &userJob{
-			client:       client,
-			authToken:    authToken,
-			project:      viper.GetString("user.project"),
-			requirements: viper.GetString("user.requirements"),
-			main:         viper.GetString("user.main"),
-			data:         viper.GetString("user.data"),
-			output:       viper.GetString("user.output"),
-			gpuRaw:       viper.GetString("user.gpu"),
-			ramStr:       viper.GetString("user.ram"),
-			diskStr:      viper.GetString("user.disk"),
-			pcieStr:      viper.GetString("user.pcie"),
-			specs: &job.Specs{
+		j := &job.Job{
+			Client:       client,
+			AuthToken:    authToken,
+			Project:      viper.GetString("user.project"),
+			Requirements: viper.GetString("user.requirements"),
+			Main:         viper.GetString("user.main"),
+			Data:         viper.GetString("user.data"),
+			Output:       viper.GetString("user.output"),
+			GPURaw:       viper.GetString("user.gpu"),
+			RAMStr:       viper.GetString("user.ram"),
+			DiskStr:      viper.GetString("user.disk"),
+			PCIEStr:      viper.GetString("user.pcie"),
+			Specs: &specs.Specs{
 				Rate: viper.GetFloat64("user.rate"),
 			},
 		}
-		if err := j.validateAndTransform(); err != nil {
+		if err := j.ValidateAndTransform(); err != nil {
 			log.Printf("Run: invalid requirements: %v", err)
 			return
 		}
@@ -238,7 +188,7 @@ var Cmd = &cobra.Command{
 				log.Printf("Cancellation request received: please wait for job to successfully cancel\n")
 				log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
 				// j.cancel returns when job successfully canceled
-				if err := j.cancel(u); err != nil {
+				if err := j.Cancel(u); err != nil {
 					log.Printf("Notebook: error canceling: %v", err)
 					return
 				}
@@ -256,14 +206,14 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		if err := j.send(ctx, u); err != nil {
+		if err := j.Send(ctx, u); err != nil {
 			log.Printf("Run: error sending requirements: %v", err)
 			return
 		}
 
 		go func() {
 			for {
-				if err := token.Monitor(ctx, client, u, &j.authToken, refreshAt); err != nil {
+				if err := token.Monitor(ctx, client, u, &j.AuthToken, refreshAt); err != nil {
 					log.Printf("Token: refresh error: %v", err)
 				}
 				select {
@@ -274,14 +224,14 @@ var Cmd = &cobra.Command{
 			}
 		}()
 
-		if err := checkContextCanceled(ctx); err != nil {
+		if err := check.ContextCanceled(ctx); err != nil {
 			return
 		}
 		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
-		go j.buildImage(ctx, &wg, errCh, u)
-		go j.syncData(ctx, &wg, errCh, u)
+		go j.BuildImage(ctx, &wg, errCh, u)
+		go j.SyncData(ctx, &wg, errCh, u)
 		done := make(chan struct{})
 		go func() {
 			wg.Wait()
@@ -291,7 +241,7 @@ var Cmd = &cobra.Command{
 		case <-ctx.Done():
 			return
 		case <-errCh:
-			if err := j.cancel(u); err != nil {
+			if err := j.Cancel(u); err != nil {
 				log.Printf("Run: error canceling: %v", err)
 				return
 			}
@@ -299,8 +249,8 @@ var Cmd = &cobra.Command{
 		case <-done:
 		}
 
-		if err := j.runAuction(ctx, u); err != nil {
-			if err := j.cancel(u); err != nil {
+		if err := j.RunAuction(ctx, u); err != nil {
+			if err := j.Cancel(u); err != nil {
 				log.Printf("Run: error canceling: %v", err)
 				return
 			}
@@ -311,25 +261,25 @@ var Cmd = &cobra.Command{
 		if jobCanceled {
 			return
 		}
-		outputDir := filepath.Join(j.output, j.id)
+		outputDir := filepath.Join(j.Output, j.ID)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
 			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
 		}
 
-		log.Printf("Executing job %s...\n", j.id)
-		if err := j.streamOutputLog(ctx, u); err != nil {
+		log.Printf("Executing job %s...\n", j.ID)
+		if err := j.StreamOutputLog(ctx, u); err != nil {
 			log.Printf("Output log: error: %v", err)
 			return
 		}
 		time.Sleep(buffer)
-		if err := j.downloadOutputData(ctx, u); err != nil {
+		if err := j.DownloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
 			return
 		}
 
 		if os.Geteuid() == 0 {
-			if err = os.Chown(j.output, uid, gid); err != nil {
+			if err = os.Chown(j.Output, uid, gid); err != nil {
 				log.Printf("Run: error changing ownership: %v", err)
 			}
 
@@ -351,13 +301,4 @@ var Cmd = &cobra.Command{
 			log.Printf("Complete!\n")
 		}
 	},
-}
-
-func checkContextCanceled(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return nil
-	}
 }

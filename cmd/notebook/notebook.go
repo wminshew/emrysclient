@@ -1,4 +1,4 @@
-package run
+package notebook
 
 import (
 	"context"
@@ -6,9 +6,10 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/emrys/pkg/check"
+	specs "github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrysclient/cmd/version"
-	// "github.com/wminshew/emrysclient/pkg/job"
+	"github.com/wminshew/emrysclient/pkg/job"
 	"github.com/wminshew/emrysclient/pkg/token"
 	"log"
 	"net/http"
@@ -22,8 +23,67 @@ import (
 	"time"
 )
 
-// NotebookCmd exports notebook subcommand to root
-var NotebookCmd = &cobra.Command{
+const (
+	// maxRetries = 10
+	buffer = 1 * time.Second
+)
+
+func init() {
+	Cmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
+	Cmd.Flags().String("project", "", "User project (required)")
+	Cmd.Flags().String("requirements", "", "Path to requirements file (required)")
+	Cmd.Flags().String("main", "", "Path to main execution file")
+	Cmd.Flags().String("data", "", "Path to the data directory")
+	Cmd.Flags().String("output", "", "Path to save the output directory (required)")
+	Cmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
+	Cmd.Flags().String("gpu", "k80", "Minimum acceptable gpu for job. Defaults to k80")
+	Cmd.Flags().String("ram", "8gb", "Minimum acceptable gb of available ram for job. Defaults to 8gb")
+	Cmd.Flags().String("disk", "25gb", "Minimum acceptable gb of disk space for job. Defaults to 25gb")
+	Cmd.Flags().String("pcie", "8x", "Minimum acceptable gpu pci-e for job. Defaults to 8x")
+	Cmd.Flags().SortFlags = false
+	if err := func() error {
+		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.project", Cmd.Flags().Lookup("project")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.requirements", Cmd.Flags().Lookup("requirements")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.main", Cmd.Flags().Lookup("main")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.data", Cmd.Flags().Lookup("data")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.output", Cmd.Flags().Lookup("output")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.rate", Cmd.Flags().Lookup("rate")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.gpu", Cmd.Flags().Lookup("gpu")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.ram", Cmd.Flags().Lookup("ram")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.disk", Cmd.Flags().Lookup("disk")); err != nil {
+			return err
+		}
+		if err := viper.BindPFlag("user.pcie", Cmd.Flags().Lookup("pcie")); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		log.Printf("Notebook: error binding pflag: %v", err)
+		panic(err)
+	}
+}
+
+// Cmd exports notebook subcommand to root
+var Cmd = &cobra.Command{
 	Use:   "notebook",
 	Short: "Create a local jupyter notebook executing on a remote gpu",
 	Long: "Syncs the appropriate requirements & data " +
@@ -87,25 +147,24 @@ var NotebookCmd = &cobra.Command{
 			Host:   h,
 		}
 
-		// TODO: move to pkg/job; rename job.[User]Spec or something
-		j := &userJob{
-			client:       client,
-			authToken:    authToken,
-			project:      viper.GetString("user.project"),
-			requirements: viper.GetString("user.requirements"),
-			main:         viper.GetString("user.main"),
-			notebook:     true,
-			data:         viper.GetString("user.data"),
-			output:       viper.GetString("user.output"),
-			gpuRaw:       viper.GetString("user.gpu"),
-			ramStr:       viper.GetString("user.ram"),
-			diskStr:      viper.GetString("user.disk"),
-			pcieStr:      viper.GetString("user.pcie"),
-			specs: &job.Specs{
+		j := &job.Job{
+			Client:       client,
+			AuthToken:    authToken,
+			Project:      viper.GetString("user.project"),
+			Requirements: viper.GetString("user.requirements"),
+			Main:         viper.GetString("user.main"),
+			Notebook:     true,
+			Data:         viper.GetString("user.data"),
+			Output:       viper.GetString("user.output"),
+			GPURaw:       viper.GetString("user.gpu"),
+			RAMStr:       viper.GetString("user.ram"),
+			DiskStr:      viper.GetString("user.disk"),
+			PCIEStr:      viper.GetString("user.pcie"),
+			Specs: &specs.Specs{
 				Rate: viper.GetFloat64("user.rate"),
 			},
 		}
-		if err := j.validateAndTransform(); err != nil {
+		if err := j.ValidateAndTransform(); err != nil {
 			log.Printf("Notebook: invalid requirements: %v", err)
 			return
 		}
@@ -129,7 +188,7 @@ var NotebookCmd = &cobra.Command{
 				jobCanceled = true
 				log.Printf("Cancellation request received: please wait for notebook to successfully cancel\n")
 				log.Printf("Warning: failure to successfully cancel notebook may result in undesirable charges\n")
-				if err := j.cancel(u); err != nil {
+				if err := j.Cancel(u); err != nil {
 					log.Printf("Run: error canceling: %v", err)
 					return
 				}
@@ -147,13 +206,13 @@ var NotebookCmd = &cobra.Command{
 			return
 		}
 
-		if err := j.send(ctx, u); err != nil {
+		if err := j.Send(ctx, u); err != nil {
 			log.Printf("Notebook: error sending requirements: %v", err)
 			return
 		}
 		go func() {
 			for {
-				if err := token.Monitor(ctx, client, u, &j.authToken, refreshAt); err != nil {
+				if err := token.Monitor(ctx, client, u, &j.AuthToken, refreshAt); err != nil {
 					log.Printf("Token: refresh error: %v", err)
 				}
 				select {
@@ -164,7 +223,7 @@ var NotebookCmd = &cobra.Command{
 			}
 		}()
 
-		sshKeyFile, err := j.saveSSHKey()
+		sshKeyFile, err := j.SaveSSHKey()
 		if err != nil {
 			log.Printf("Notebook: error saving key: %v", err)
 			return
@@ -176,14 +235,14 @@ var NotebookCmd = &cobra.Command{
 			}
 		}()
 
-		if err := checkContextCanceled(ctx); err != nil {
+		if err := check.ContextCanceled(ctx); err != nil {
 			return
 		}
 		errCh := make(chan error, 2)
 		var wg sync.WaitGroup
 		wg.Add(2)
-		go j.buildImage(ctx, &wg, errCh, u)
-		go j.syncData(ctx, &wg, errCh, u)
+		go j.BuildImage(ctx, &wg, errCh, u)
+		go j.SyncData(ctx, &wg, errCh, u)
 		done := make(chan struct{})
 		go func() {
 			wg.Wait()
@@ -193,7 +252,7 @@ var NotebookCmd = &cobra.Command{
 		case <-ctx.Done():
 			return
 		case <-errCh:
-			if err := j.cancel(u); err != nil {
+			if err := j.Cancel(u); err != nil {
 				log.Printf("Run: error canceling: %v", err)
 				return
 			}
@@ -201,8 +260,8 @@ var NotebookCmd = &cobra.Command{
 		case <-done:
 		}
 
-		if err := j.runAuction(ctx, u); err != nil {
-			if err := j.cancel(u); err != nil {
+		if err := j.RunAuction(ctx, u); err != nil {
+			if err := j.Cancel(u); err != nil {
 				log.Printf("Run: error canceling: %v", err)
 				return
 			}
@@ -213,14 +272,14 @@ var NotebookCmd = &cobra.Command{
 		if jobCanceled {
 			return
 		}
-		outputDir := filepath.Join(j.output, j.id)
+		outputDir := filepath.Join(j.Output, j.ID)
 		if err = os.MkdirAll(outputDir, 0755); err != nil {
 			log.Printf("Output data: error making output dir %v: %v", outputDir, err)
 			return
 		}
 
-		log.Printf("Executing notebook %s...\n", j.id)
-		sshCmd := j.sshLocalForward(ctx, sshKeyFile)
+		log.Printf("Executing notebook %s...\n", j.ID)
+		sshCmd := j.SSHLocalForward(ctx, sshKeyFile)
 		if err := sshCmd.Start(); err != nil {
 			log.Printf("Notebook: error local forwarding requests: %v", err)
 			return
@@ -231,20 +290,20 @@ var NotebookCmd = &cobra.Command{
 				return
 			}
 		}()
-		if err := j.streamOutputLog(ctx, u); err != nil {
+		if err := j.StreamOutputLog(ctx, u); err != nil {
 			log.Printf("Output log: error: %v", err)
 			return
 		}
 		// TODO: replace w/ longpoll asking when output data has posted?
 		// think this currently streams though so maybe not..
 		time.Sleep(buffer)
-		if err := j.downloadOutputData(ctx, u); err != nil {
+		if err := j.DownloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)
 			return
 		}
 
 		if os.Geteuid() == 0 {
-			if err = os.Chown(j.output, uid, gid); err != nil {
+			if err = os.Chown(j.Output, uid, gid); err != nil {
 				log.Printf("Notebook: error changing ownership: %v", err)
 			}
 

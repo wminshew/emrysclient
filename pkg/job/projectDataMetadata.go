@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-func (j *userJob) getProjectDataMetadata(dataJSON *map[string]job.FileMetadata) error {
+func (j *Job) getProjectDataMetadata(dataJSON *map[string]job.FileMetadata) error {
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("getting current user: %v", err)
@@ -24,7 +24,7 @@ func (j *userJob) getProjectDataMetadata(dataJSON *map[string]job.FileMetadata) 
 		}
 	}
 	configDir := path.Join(u.HomeDir, ".config", "emrys")
-	p := path.Join(configDir, "projects", j.project, ".data_sync_metadata")
+	p := path.Join(configDir, "projects", j.Project, ".data_sync_metadata")
 	if _, err = os.Stat(p); os.IsNotExist(err) {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (j *userJob) getProjectDataMetadata(dataJSON *map[string]job.FileMetadata) 
 	return nil
 }
 
-func (j *userJob) storeProjectDataMetadata(r io.Reader) error {
+func (j *Job) storeProjectDataMetadata(r io.Reader) error {
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("getting current user: %v", err)
@@ -74,7 +74,7 @@ func (j *userJob) storeProjectDataMetadata(r io.Reader) error {
 		return fmt.Errorf("changing ownership: %v", err)
 	}
 
-	projectDir := path.Join(projectsDir, j.project)
+	projectDir := path.Join(projectsDir, j.Project)
 	if err = os.MkdirAll(projectDir, 0755); err != nil {
 		return fmt.Errorf("making directory: %v", err)
 	}

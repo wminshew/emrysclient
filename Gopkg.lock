@@ -262,7 +262,7 @@
     "pkg/jsonmessage",
     "pkg/validate"
   ]
-  revision = "a3ff1d468432f4da889a773abf6973805abb77f5"
+  revision = "ed1a03e1d94215a2c1b157a4d78d49a11bbc381c"
 
 [[projects]]
   branch = "master"
@@ -318,6 +318,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bab87c320e4f08cbb895d884fbbc46c15bf51ed9ecf597e049384a25a773c0b9"
+  inputs-digest = "1ab074584473972d6a6f0ffde7f82418c17e8fc1346acd61db69085a805eb294"
   solver-name = "gps-cdcl"
   solver-version = 1

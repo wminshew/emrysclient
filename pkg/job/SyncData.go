@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"bytes"
@@ -23,21 +23,22 @@ import (
 	"time"
 )
 
-func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
+// SyncData syncs the data set with the server
+func (j *Job) SyncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
 	defer wg.Done()
 	log.Printf("Data: syncing...\n")
 
 	bodyBuf := &bytes.Buffer{}
 	var b []byte
 	if err := func() error {
-		if j.data != "" {
+		if j.Data != "" {
 			oldMetadata := make(map[string]job.FileMetadata)
 			if err := j.getProjectDataMetadata(&oldMetadata); err != nil {
 				return fmt.Errorf("retrieving data directory metadata: %v", err)
 			}
 
 			newMetadata := make(map[string]job.FileMetadata)
-			if err := filepath.Walk(j.data, func(path string, info os.FileInfo, err error) error {
+			if err := filepath.Walk(j.Data, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
@@ -45,7 +46,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 					return nil
 				}
 
-				rP, err := filepath.Rel(j.data, path)
+				rP, err := filepath.Rel(j.Data, path)
 				if err != nil {
 					return err
 				}
@@ -73,7 +74,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 				newMetadata[rP] = fileMd
 				return nil
 			}); err != nil {
-				return fmt.Errorf("walking data directory %s: %v", j.data, err)
+				return fmt.Errorf("walking data directory %s: %v", j.Data, err)
 			}
 
 			if err := json.NewEncoder(bodyBuf).Encode(newMetadata); err != nil {
@@ -95,7 +96,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 	}
 
 	h := "data.emrys.io"
-	p := path.Join("user", "project", j.project, "job", j.id)
+	p := path.Join("user", "project", j.Project, "job", j.ID)
 	u.Host = h
 	u.Path = p
 
@@ -105,10 +106,10 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
 		req = req.WithContext(ctx)
 
-		resp, err := j.client.Do(req)
+		resp, err := j.Client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -175,7 +176,7 @@ func (j *userJob) syncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<-
 	log.Printf("Data: synced!\n")
 }
 
-func (j *userJob) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
+func (j *Job) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
 	m := "PUT"
 	basePath := u.Path
 	for {
@@ -188,7 +189,7 @@ func (j *userJob) uploadWorker(ctx context.Context, u url.URL, done <-chan struc
 			operation := func() error {
 				log.Printf("Data: uploading: %v\n", relPath)
 
-				uploadFilepath := path.Join(j.data, relPath)
+				uploadFilepath := path.Join(j.Data, relPath)
 				f, err := os.Open(uploadFilepath)
 				if err != nil {
 					return fmt.Errorf("opening file %v: %v", uploadFilepath, err)
@@ -210,10 +211,10 @@ func (j *userJob) uploadWorker(ctx context.Context, u url.URL, done <-chan struc
 				if err != nil {
 					return fmt.Errorf("creating request: %v", err)
 				}
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
 				req = req.WithContext(ctx)
 
-				resp, err := j.client.Do(req)
+				resp, err := j.Client.Do(req)
 				if err != nil {
 					return err
 				}

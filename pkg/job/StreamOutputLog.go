@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"bytes"
@@ -34,10 +34,11 @@ type pollEvent struct {
 
 var maxTimeout = 60 * 2
 
-func (j *userJob) streamOutputLog(ctx context.Context, u url.URL) error {
+// StreamOutputLog streams the output of the Job from the server
+func (j *Job) StreamOutputLog(ctx context.Context, u url.URL) error {
 	log.Printf("Output log: streaming... (may take a minute to begin)\n")
 
-	outputLogPath := filepath.Join(j.output, j.id, "log")
+	outputLogPath := filepath.Join(j.Output, j.ID, "log")
 	f, err := os.OpenFile(outputLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Output log: error creating output log file %v: %v", outputLogPath, err)
@@ -45,7 +46,7 @@ func (j *userJob) streamOutputLog(ctx context.Context, u url.URL) error {
 	}
 	defer check.Err(f.Close)
 
-	p := path.Join("job", j.id, "log")
+	p := path.Join("job", j.ID, "log")
 	u.Path = p
 	q := u.Query()
 	q.Set("timeout", fmt.Sprintf("%d", maxTimeout))
@@ -55,7 +56,7 @@ func (j *userJob) streamOutputLog(ctx context.Context, u url.URL) error {
 	u.RawQuery = q.Encode()
 pollLoop:
 	for {
-		if err := checkContextCanceled(ctx); err != nil {
+		if err := check.ContextCanceled(ctx); err != nil {
 			return fmt.Errorf("job canceled")
 		}
 
@@ -65,10 +66,10 @@ pollLoop:
 			if err != nil {
 				return err
 			}
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
 			req = req.WithContext(ctx)
 
-			resp, err := j.client.Do(req)
+			resp, err := j.Client.Do(req)
 			if err != nil {
 				return err
 			}

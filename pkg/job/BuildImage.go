@@ -1,4 +1,4 @@
-package run
+package job
 
 import (
 	"context"
@@ -17,11 +17,12 @@ import (
 	"time"
 )
 
-func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
+// BuildImage sends information to the server to build the image
+func (j *Job) BuildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- error, u url.URL) {
 	defer wg.Done()
-	p := path.Join("image", j.project, j.id)
+	p := path.Join("image", j.Project, j.ID)
 	u.Path = p
-	if j.notebook {
+	if j.Notebook {
 		q := u.Query()
 		q.Set("notebook", "1")
 		u.RawQuery = q.Encode()
@@ -31,9 +32,9 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
 		go func() {
-			dockerContext := []string{j.requirements}
-			if !j.notebook || j.main != "" {
-				dockerContext = append(dockerContext, j.main)
+			dockerContext := []string{j.Requirements}
+			if !j.Notebook || j.Main != "" {
+				dockerContext = append(dockerContext, j.Main)
 			}
 			if err := archiver.TarGz.Write(w, dockerContext); err != nil {
 				log.Printf("Image: error: tar-gzipping docker context files: %v", err)
@@ -49,12 +50,12 @@ func (j *userJob) buildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan
 			return err
 		}
 		req = req.WithContext(ctx)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.authToken))
-		req.Header.Set("X-Main", filepath.Base(j.main))
-		req.Header.Set("X-Reqs", filepath.Base(j.requirements))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
+		req.Header.Set("X-Main", filepath.Base(j.Main))
+		req.Header.Set("X-Reqs", filepath.Base(j.Requirements))
 
 		log.Printf("Image: building...\n")
-		resp, err := j.client.Do(req)
+		resp, err := j.Client.Do(req)
 		if err != nil {
 			return err
 		}
