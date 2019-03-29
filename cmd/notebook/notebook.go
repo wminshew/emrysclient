@@ -294,8 +294,7 @@ var Cmd = &cobra.Command{
 			log.Printf("Output log: error: %v", err)
 			return
 		}
-		// TODO: replace w/ longpoll asking when output data has posted?
-		// think this currently streams though so maybe not..
+		// TODO: replace w/ longpoll checking when miner has started uploading output data
 		time.Sleep(buffer)
 		if err := j.DownloadOutputData(ctx, u); err != nil {
 			log.Printf("Output data: error: %v", err)

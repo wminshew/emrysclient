@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const maxRetries = 5
+const maxRetries = 10
 
 // Cmd exports version subcommand to root
 var Cmd = &cobra.Command{

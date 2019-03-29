@@ -22,7 +22,6 @@ func (j *Job) SaveSSHKey() (string, error) {
 		}
 	}
 	dir := path.Join(u.HomeDir, ".config", "emrys")
-	// TODO: should be able to remove this mkdir call
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("making directory %s: %v", dir, err)
 	}

@@ -364,7 +364,6 @@ func (w *Worker) MonitorGPU(ctx context.Context, cancelFunc func(), u url.URL) {
 				log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
 			}); err != nil {
 			log.Printf("Device %s: error monitoring gpu: %v", dStr, err)
-			// TODO not sure if this should exit?
 			return
 		}
 	}

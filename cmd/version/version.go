@@ -32,7 +32,7 @@ var MinerVer = semver.Version{
 }
 
 const (
-	maxRetries = 5
+	maxRetries = 10
 )
 
 // Cmd exports version subcommand to root

@@ -23,7 +23,6 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) {
 	defer func() { *w.BidsOut-- }()
 	u.RawQuery = ""
 	jID := msg.Job.ID.String()
-	// TODO: pull notebook flag from msg.Job.Notebook
 	dStr := strconv.Itoa(int(w.Device))
 
 	b := &job.Bid{
