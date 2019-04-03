@@ -276,6 +276,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL) {
 		Resources: container.Resources{
 			DiskQuota:         int64(w.Disk),
 			MemoryReservation: int64(w.RAM),
+			MemorySwap:        int64(w.RAM),
 			PidsLimit:         pidsLimit,
 		},
 		SecurityOpt: []string{
