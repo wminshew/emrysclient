@@ -77,8 +77,8 @@ var Cmd = &cobra.Command{
 				}
 			}()
 
-			u.Host = "www.emrys.io"
-			p = path.Join("download", fmt.Sprintf("emrys_u%s_m%s.tar.gz", latestUserVer.String(), latestMinerVer.String()))
+			u.Host = "storage.googleapis.com"
+			p = path.Join("emrys-public", "clients", fmt.Sprintf("emrys_u%s_m%s.tar.gz", latestUserVer.String(), latestMinerVer.String()))
 			u.Path = p
 			operation := func() error {
 				resp, err := client.Get(u.String())
