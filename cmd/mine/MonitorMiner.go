@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
+	"github.com/satori/go.uuid"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
@@ -67,6 +68,11 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 
 			for _, w := range workers {
 				wStats := &job.WorkerStats{}
+				if w.JobID != "" {
+					if wStats.JobID, err = uuid.FromString(w.JobID); err != nil {
+						return errors.Wrapf(err, "device %d: getting uuid from job ID", w.Device)
+					}
+				}
 
 				// get gpu stats
 				if wStats.GPUStats, err = w.GetGPUStats(ctx, stochPeriod); err != nil {
