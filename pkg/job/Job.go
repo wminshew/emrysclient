@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/dustin/go-humanize"
+	"github.com/pkg/errors"
+	"github.com/shirou/gopsutil/disk"
 	"github.com/wminshew/emrys/pkg/check"
 	specs "github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrys/pkg/validate"
@@ -39,8 +41,9 @@ type Job struct {
 }
 
 const (
-	pciePattern = "^(16|8|4|2|1)x?$"
-	maxRetries  = 10
+	pciePattern   = "^(16|8|4|2|1)x?$"
+	maxRetries    = 10
+	diskBufferStr = "5GB"
 )
 
 var (
@@ -201,6 +204,20 @@ func (j *Job) ValidateAndTransform() error {
 	}
 	if j.Specs.Disk, err = humanize.ParseBytes(j.DiskStr); err != nil {
 		return fmt.Errorf("error parsing disk: %v", err)
+	}
+	if j.Data != "" {
+		diskBuffer, err := humanize.ParseBytes(diskBufferStr)
+		if err != nil {
+			return fmt.Errorf("error parsing disk buffer: %v", err)
+		}
+
+		diskUsage, err := disk.Usage(path.Join(filepath.Dir(j.Data), j.Data))
+		if err != nil {
+			return errors.Wrapf(err, "getting data set size")
+		} else if diskUsage.Total > (j.Specs.Disk + diskBuffer) {
+			return fmt.Errorf("insufficient requested disk space (data set: %d "+
+				" + required disk buffer %d > requested disk space %d)", j.Specs.Disk, diskBuffer, diskUsage.Total)
+		}
 	}
 	pcieStr := pcieRegexp.FindStringSubmatch(j.PCIEStr)[1]
 	if pcieStr == "" {

@@ -11,7 +11,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dustin/go-humanize"
 	"github.com/fsnotify/fsnotify"
-	"github.com/satori/go.uuid"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wminshew/emrys/pkg/check"
@@ -38,6 +39,13 @@ var (
 	terminate     = false
 	jobsInProcess = 0
 	bidsOut       = 0
+)
+
+const (
+	maxRetries = 10
+	gpuPeriod  = 10 * time.Second
+	meanPeriod = 30 * time.Second
+	maxPeriod  = 90 * time.Second
 )
 
 func init() {
@@ -239,23 +247,8 @@ var Cmd = &cobra.Command{
 
 		workers := []*worker.Worker{}
 		nextOpenPort := 8889
+		var totalRAM, totalDisk uint64
 		for i, d := range devices {
-			dev, err := gonvml.DeviceHandleByIndex(d)
-			if err != nil {
-				log.Printf("Device %d: DeviceHandleByIndex() error: %v", d, err)
-				return
-			}
-			dUUIDStr, err := dev.UUID()
-			if err != nil {
-				log.Printf("Device %d: UUID() error: %v", d, err)
-				return
-			}
-			dUUID, err := uuid.FromString(dUUIDStr[4:]) // strip off "GPU-" prepend
-			if err != nil {
-				log.Printf("Device %d: error converting device uuid to uuid.UUID: %v", d, err)
-				return
-			}
-
 			var brStr string
 			if len(bidRatesStr) == 1 {
 				brStr = bidRatesStr[0]
@@ -304,7 +297,7 @@ var Cmd = &cobra.Command{
 				BidsOut:       &bidsOut,
 				JobsInProcess: &jobsInProcess,
 				Device:        d,
-				UUID:          dUUID,
+				Snapshot:      &job.DeviceSnapshot{},
 				Busy:          false,
 				JobID:         "",
 				BidRate:       br,
@@ -314,19 +307,50 @@ var Cmd = &cobra.Command{
 				Port:          fmt.Sprintf("%d", nextOpenPort),
 			}
 			nextOpenPort++
+			totalRAM += ram
+			totalDisk += disk
 
-			go w.MonitorGPU(ctx, cancel, u)
 			w.Miner.Init(ctx)
 			defer w.Miner.Stop()
 
+			if err := w.InitGPUMonitoring(); err != nil {
+				log.Printf("Mine: error initializing gpu monitoring: %v", err)
+				return
+			}
+
+			go w.UserGPULog(ctx, gpuPeriod)
+
 			workers = append(workers, w)
 		}
+
+		memStats, err := mem.VirtualMemoryWithContext(ctx)
+		if err != nil {
+			log.Printf("Mine: error getting memory stats: %v", err)
+			return
+		} else if totalRAM > memStats.Free {
+			log.Printf("Mine: insufficient available memory (requested for bidding: %d "+
+				"> system memory available %d)", totalRAM, memStats.Free)
+			return
+		}
+
+		diskUsage, err := disk.UsageWithContext(ctx, "/")
+		if err != nil {
+			log.Printf("Mine: error getting disk usage: %v", err)
+			return
+		} else if totalDisk > diskUsage.Free {
+			log.Printf("Mine: insufficient available disk space (requested for bidding: %d "+
+				"> system disk space available %d)", totalDisk, diskUsage.Free)
+			return
+		}
+
+		go MonitorMiner(ctx, client, dClient, &authToken, workers, cancel, u)
 
 		viper.WatchConfig()
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			log.Printf("Config file changed: %v %v\n", e.Op, e.Name)
 			// TODO: update cryptominer command
 			// TODO: update worker bid-rate
+			// TODO: check if system has sufficient ram / disk for new totalRAM/totalDisk? will be tricky
 		})
 
 		dockerAuthConfig := types.AuthConfig{
@@ -423,7 +447,11 @@ var Cmd = &cobra.Command{
 					for _, worker := range workers {
 						w := worker
 						if !w.Busy {
-							go w.Bid(ctx, u, msg)
+							go func() {
+								if err := w.Bid(ctx, u, msg); err != nil {
+									log.Printf("Mine: bid: %v", err)
+								}
+							}()
 						}
 					}
 				}

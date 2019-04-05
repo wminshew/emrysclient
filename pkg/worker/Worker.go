@@ -2,7 +2,8 @@ package worker
 
 import (
 	"docker.io/go-docker"
-	"github.com/satori/go.uuid"
+	"github.com/wminshew/emrys/pkg/job"
+	"github.com/wminshew/gonvml"
 	"net/http"
 )
 
@@ -19,18 +20,18 @@ type Worker struct {
 	BidsOut       *int
 	JobsInProcess *int
 	Device        uint
-	UUID          uuid.UUID
+	gonvmlDevice  gonvml.Device
+	Snapshot      *job.DeviceSnapshot
 	Busy          bool
 	sshKey        []byte
 	notebook      bool
 	Port          string
-	temperature   uint
-	fanSpeed      uint
 	JobID         string
+	ContainerID   string
+	DataDir       string
+	OutputDir     string
 	BidRate       float64
-	gpu           string
 	RAM           uint64
 	Disk          uint64
-	pcie          int
 	Miner         *CryptoMiner
 }

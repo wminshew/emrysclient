@@ -9,6 +9,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/docker/go-connections/nat"
 	"github.com/mholt/archiver"
+	"github.com/shirou/gopsutil/disk"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrysclient/pkg/poll"
 	"io"
@@ -33,7 +34,8 @@ const (
 
 var maxTimeout = 60 * 10 // job server has a 10 minute timeout
 
-func (w *Worker) executeJob(ctx context.Context, u url.URL) {
+func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
+	w.JobID = jID
 	w.Busy = true
 	defer func() {
 		w.Busy = false
@@ -218,8 +220,20 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL) {
 			return
 		}
 	}
+	w.DataDir = hostDataDir
+	defer func() { w.DataDir = "" }()
+
+	dataDirUsage, err := disk.Usage(w.DataDir)
+	if err != nil {
+		log.Printf("Device %s: error getting disk usage: data folder: %v", dStr, err)
+		return
+	}
+	sizeDataDir := dataDirUsage.Total
 
 	hostOutputDir := filepath.Join(jobDir, "output")
+	w.OutputDir = hostOutputDir
+	defer func() { w.OutputDir = "" }()
+
 	oldUMask := syscall.Umask(000)
 	if err = os.Chmod(hostDataDir, 0777); err != nil {
 		log.Printf("Device %s: error modifying data dir %v permissions: %v", dStr, hostDataDir, err)
@@ -274,7 +288,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL) {
 		// ReadonlyRootfs: true, // TODO
 		Runtime: "nvidia",
 		Resources: container.Resources{
-			DiskQuota:         int64(w.Disk),
+			DiskQuota:         int64(w.Disk - sizeDataDir),
 			MemoryReservation: int64(w.RAM),
 			MemorySwap:        int64(w.RAM),
 			PidsLimit:         pidsLimit,
@@ -287,6 +301,9 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL) {
 		log.Printf("Device %s: error creating container: %v", dStr, err)
 		return
 	}
+	w.ContainerID = c.ID
+	defer func() { w.ContainerID = "" }()
+
 	if err := check.ContextCanceled(ctx); err != nil {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return

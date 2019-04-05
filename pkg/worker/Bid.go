@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	"github.com/pkg/errors"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"io/ioutil"
@@ -13,30 +16,48 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 	"time"
 )
 
 // Bid submits a bid on behalf of the Worker for a given job
-func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) {
+func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) error {
 	*w.BidsOut++
 	defer func() { *w.BidsOut-- }()
 	u.RawQuery = ""
 	jID := msg.Job.ID.String()
-	dStr := strconv.Itoa(int(w.Device))
 
 	b := &job.Bid{
-		DeviceID: w.UUID,
+		DeviceID: w.Snapshot.ID,
 		Specs: &job.Specs{
 			Rate: w.BidRate,
-			GPU:  w.gpu,
+			GPU:  w.Snapshot.Name,
 			RAM:  w.RAM,
 			Disk: w.Disk,
-			Pcie: w.pcie,
+			Pcie: int(w.Snapshot.PcieMaxWidth),
 		},
 	}
 
-	log.Printf("Device %s: sending bid with rate: %v...\n", dStr, b.Specs.Rate)
+	// TODO: account for mem reserved for other in-process jobs
+	// have to check for busy workers (w.Busy), add reserved ram (w.RAM), and then delete already-allocated-to-job RAM [via docker]
+	memStats, err := mem.VirtualMemoryWithContext(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "device %d: getting memory stats", w.Device)
+	} else if w.RAM > memStats.Free {
+		return fmt.Errorf("device %d: insufficient available memory (requested for bidding: %d "+
+			"> system memory available %d)", w.Device, w.RAM, memStats.Free)
+	}
+
+	// TODO: account for disk reserved for other in-process jobs
+	// have to check for busy workers (w.Busy), add reserved disk (w.Disk), and then delete already-allocated-to-job Disk [via gopsutil, docker]
+	diskUsage, err := disk.UsageWithContext(ctx, "/")
+	if err != nil {
+		return errors.Wrapf(err, "getting disk usage")
+	} else if w.Disk > diskUsage.Free {
+		return fmt.Errorf("insufficient available disk space (requested for bidding: %d "+
+			"> system disk space available %d)", w.Disk, diskUsage.Free)
+	}
+
+	log.Printf("Mine: bid: device %d: sending bid with rate: %v...\n", w.Device, b.Specs.Rate)
 	p := path.Join("miner", "job", jID, "bid")
 	u.Path = p
 	winner := false
@@ -72,7 +93,7 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) {
 				w.notebook = true
 			}
 		} else if resp.StatusCode == http.StatusPaymentRequired {
-			log.Printf("Device %s: bid not selected\n", dStr)
+			log.Printf("Mine: bid: device %d: bid not selected\n", w.Device)
 		} else if resp.StatusCode == http.StatusBadGateway {
 			return fmt.Errorf("server: temporary error")
 		} else if resp.StatusCode >= 300 {
@@ -85,16 +106,15 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) {
 	if err := backoff.RetryNotify(operation,
 		backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3), ctx),
 		func(err error, t time.Duration) {
-			log.Printf("Device %s: bid error: %v", dStr, err)
-			log.Printf("Device %s: retrying in %s seconds\n", dStr, t.Round(time.Second).String())
+			log.Printf("Mine: bid: device %d: bid error: %v. Retrying in %s seconds\n", w.Device, err, t.Round(time.Second).String())
 		}); err != nil {
-		log.Printf("Device %s: bid error: %v", dStr, err)
-		return
+		return errors.Wrapf(err, "device %d: sending bid to server", w.Device)
 	}
 
 	if winner {
-		log.Printf("Device %s: you won job %v!\n", dStr, jID)
-		w.JobID = jID
-		go w.executeJob(ctx, u)
+		log.Printf("Mine: bid: device %d: you won job %v!\n", w.Device, jID)
+		go w.executeJob(ctx, u, jID)
 	}
+
+	return nil
 }
