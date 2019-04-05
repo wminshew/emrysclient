@@ -34,7 +34,7 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 	}()
 
 	stochPeriod := meanPeriod
-	p := path.Join("miner", "system_snapshot")
+	p := path.Join("miner", "stats")
 	u.Path = p
 	for {
 		operation := func() error {
