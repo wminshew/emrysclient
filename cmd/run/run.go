@@ -150,6 +150,7 @@ var Cmd = &cobra.Command{
 		j := &job.Job{
 			Client:       client,
 			AuthToken:    authToken,
+			Notebook:     false,
 			Project:      viper.GetString("user.project"),
 			Requirements: viper.GetString("user.requirements"),
 			Main:         viper.GetString("user.main"),
@@ -189,7 +190,7 @@ var Cmd = &cobra.Command{
 				log.Printf("Warning: failure to successfully cancel job may result in undesirable charges\n")
 				// j.cancel returns when job successfully canceled
 				if err := j.Cancel(u); err != nil {
-					log.Printf("Notebook: error canceling: %v", err)
+					log.Printf("Run: error canceling: %v", err)
 					return
 				}
 				if !auctionComplete {
@@ -214,7 +215,7 @@ var Cmd = &cobra.Command{
 		go func() {
 			for {
 				if err := token.Monitor(ctx, client, u, &j.AuthToken, refreshAt); err != nil {
-					log.Printf("Token: refresh error: %v", err)
+					log.Printf("Run: token: refresh error: %v", err)
 				}
 				select {
 				case <-ctx.Done():
