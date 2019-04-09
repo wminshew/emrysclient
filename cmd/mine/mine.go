@@ -327,9 +327,9 @@ var Cmd = &cobra.Command{
 		if err != nil {
 			log.Printf("Mine: error getting memory stats: %v", err)
 			return
-		} else if totalRAM > memStats.Free {
+		} else if totalRAM > memStats.Available {
 			log.Printf("Mine: insufficient available memory (requested for bidding: %s "+
-				"> system memory available %s)", humanize.Bytes(totalRAM), humanize.Bytes(memStats.Free))
+				"> system memory available %s)", humanize.Bytes(totalRAM), humanize.Bytes(memStats.Available))
 			return
 		}
 

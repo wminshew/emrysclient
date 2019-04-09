@@ -43,9 +43,9 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) error {
 	memStats, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "device %d: getting memory stats", w.Device)
-	} else if w.RAM > memStats.Free {
+	} else if w.RAM > memStats.Available {
 		return fmt.Errorf("device %d: insufficient available memory (requested for bidding: %s "+
-			"> system memory available %s)", w.Device, humanize.Bytes(w.RAM), humanize.Bytes(memStats.Free))
+			"> system memory available %s)", w.Device, humanize.Bytes(w.RAM), humanize.Bytes(memStats.Available))
 	}
 
 	// TODO: account for disk reserved for other in-process jobs
