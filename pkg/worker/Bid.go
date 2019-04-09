@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
@@ -13,6 +14,7 @@ import (
 	"github.com/wminshew/emrys/pkg/job"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"path"
@@ -43,18 +45,18 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) error {
 	if err != nil {
 		return errors.Wrapf(err, "device %d: getting memory stats", w.Device)
 	} else if w.RAM > memStats.Free {
-		return fmt.Errorf("device %d: insufficient available memory (requested for bidding: %d "+
-			"> system memory available %d)", w.Device, w.RAM, memStats.Free)
+		return fmt.Errorf("device %d: insufficient available memory (requested for bidding: %s "+
+			"> system memory available %s)", w.Device, humanize.BigBytes(big.NewInt(int64(w.RAM))), humanize.BigBytes(big.NewInt(int64(memStats.Free))))
 	}
 
 	// TODO: account for disk reserved for other in-process jobs
 	// have to check for busy workers (w.Busy), add reserved disk (w.Disk), and then delete already-allocated-to-job Disk [via gopsutil, docker]
 	diskUsage, err := disk.UsageWithContext(ctx, "/")
 	if err != nil {
-		return errors.Wrapf(err, "getting disk usage")
+		return errors.Wrapf(err, "device %d: getting disk usage", w.Device)
 	} else if w.Disk > diskUsage.Free {
-		return fmt.Errorf("insufficient available disk space (requested for bidding: %d "+
-			"> system disk space available %d)", w.Disk, diskUsage.Free)
+		return fmt.Errorf("device %d: insufficient available disk space (requested for bidding: %s "+
+			"> system disk space available %s)", w.Device, humanize.BigBytes(big.NewInt(int64(w.Disk))), humanize.BigBytes(big.NewInt(int64(diskUsage.Free))))
 	}
 
 	log.Printf("Mine: bid: device %d: sending bid with rate: %v...\n", w.Device, b.Specs.Rate)
