@@ -117,6 +117,12 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 						return errors.Wrap(err, "getting disk usage: output folder")
 					}
 					wStats.DockerDisk.SizeOutputDir = outputDirUsage.Total
+
+					// TODO: should be uint64, but keeping check consistent with server
+					if int64(w.Disk) < (wStats.DockerDisk.SizeRw + wStats.DockerDisk.SizeRootFs +
+						int64(wStats.DockerDisk.SizeDataDir) + int64(wStats.DockerDisk.SizeOutputDir)) {
+						w.DiskQuotaExceeded = true
+					}
 				}
 
 				stats.WorkerStats = append(stats.WorkerStats, wStats)

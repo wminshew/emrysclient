@@ -15,8 +15,6 @@ import (
 )
 
 const (
-	meanPeriod                  = 10 * time.Second
-	maxPeriod                   = 30 * time.Second
 	nvmlFeatureEnabled          = 1
 	nvmlComputeExclusiveProcess = 3
 	minTemp                     = 40

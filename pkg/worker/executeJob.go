@@ -193,16 +193,13 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	case <-done:
 	case <-errCh:
 		return
+	case <-jobCanceled:
+		log.Printf("Device %s: job canceled by user\n", dStr)
+		return
 	}
 	if err := check.ContextCanceled(ctx); err != nil {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
-	}
-	select {
-	case <-jobCanceled:
-		log.Printf("Device %s: job canceled by user\n", dStr)
-		return
-	default:
 	}
 
 	fileInfos, err := ioutil.ReadDir(jobDir)
@@ -376,7 +373,15 @@ loop:
 			log.Printf("Device %s: job canceled by user...\n", dStr)
 			jCanceled = true
 			operation := func() error {
-				req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader("JOB CANCELED BY USER.\n"))
+				var body *strings.Reader
+				if w.DiskQuotaExceeded {
+					defer func() { w.DiskQuotaExceeded = false }()
+					body = strings.NewReader("JOB CANCELED: USER EXCEEDED DISK QUOTA\n")
+				} else {
+					body = strings.NewReader("JOB CANCELED BY USER.\n")
+				}
+
+				req, err := http.NewRequest(http.MethodPost, u.String(), body)
 				if err != nil {
 					return err
 				}

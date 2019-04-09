@@ -13,25 +13,26 @@ const (
 
 // Worker represents a GPU Worker to bid on & execute jobs
 type Worker struct {
-	MinerID       string
-	Client        *http.Client
-	Docker        *docker.Client
-	AuthToken     *string
-	BidsOut       *int
-	JobsInProcess *int
-	Device        uint
-	gonvmlDevice  gonvml.Device
-	Snapshot      *job.DeviceSnapshot
-	Busy          bool
-	sshKey        []byte
-	notebook      bool
-	Port          string
-	JobID         string
-	ContainerID   string
-	DataDir       string
-	OutputDir     string
-	BidRate       float64
-	RAM           uint64
-	Disk          uint64
-	Miner         *CryptoMiner
+	MinerID           string
+	Client            *http.Client
+	Docker            *docker.Client
+	AuthToken         *string
+	BidsOut           *int
+	JobsInProcess     *int
+	Device            uint
+	gonvmlDevice      gonvml.Device
+	Snapshot          *job.DeviceSnapshot
+	Busy              bool
+	sshKey            []byte
+	notebook          bool
+	Port              string
+	JobID             string
+	ContainerID       string
+	DataDir           string
+	OutputDir         string
+	BidRate           float64
+	RAM               uint64
+	Disk              uint64
+	DiskQuotaExceeded bool
+	Miner             *CryptoMiner
 }
