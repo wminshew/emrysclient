@@ -228,6 +228,12 @@ func (w *Worker) GetGPUStats(ctx context.Context, period time.Duration) (*job.De
 
 // UserGPULog regularly logs temperature to user; updates fan accordingly
 func (w *Worker) UserGPULog(ctx context.Context, period time.Duration) {
+	controlFan := true
+	if err := w.updateFanControlState(ctx, 1); err != nil {
+		log.Printf("Mine: device %d: error setting GPUFanControlState=1; emrys will not update your fan speed: %v", w.Device, err)
+		controlFan = false
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -247,26 +253,27 @@ func (w *Worker) UserGPULog(ctx context.Context, period time.Duration) {
 
 		log.Printf("Mine: device %d: temperature: %v; fan: %v", w.Device, temp, fanSpeed)
 
-		// TODO: add logic to set GPUFanControlState=1; maybe some of that other stuff too..?
-		fs := int(fanSpeed)
-		var newFanSpeed int
-		if temp > maxTemp {
-			newFanSpeed = maxFan
-		} else if temp > targetTemp {
-			newFanSpeed = fs + incFan
-			if newFanSpeed > maxFan {
+		if controlFan {
+			fs := int(fanSpeed)
+			var newFanSpeed int
+			if temp > maxTemp {
 				newFanSpeed = maxFan
-			}
-		} else if temp > minTemp {
-			newFanSpeed = fs - incFan
-			if newFanSpeed < minFan {
+			} else if temp > targetTemp {
+				newFanSpeed = fs + incFan
+				if newFanSpeed > maxFan {
+					newFanSpeed = maxFan
+				}
+			} else if temp > minTemp {
+				newFanSpeed = fs - incFan
+				if newFanSpeed < minFan {
+					newFanSpeed = minFan
+				}
+			} else {
 				newFanSpeed = minFan
 			}
-		} else {
-			newFanSpeed = minFan
-		}
-		if err := w.updateFan(ctx, newFanSpeed); err != nil {
-			log.Printf("Mine: device %d: error updating fan speed: %v", w.Device, err)
+			if err := w.updateFan(ctx, newFanSpeed); err != nil {
+				log.Printf("Mine: device %d: error updating fan speed: %v", w.Device, err)
+			}
 		}
 	}
 }
@@ -274,7 +281,18 @@ func (w *Worker) UserGPULog(ctx context.Context, period time.Duration) {
 func (w *Worker) updateFan(ctx context.Context, newFanSpeed int) error {
 	// nvidia-settings -a '[fan:{w.Device}]/GPUTargetFanSpeed={newFanSpeed}'
 	cmdStr := "nvidia-settings"
-	args := append([]string{"-a"}, fmt.Sprintf("[fan:%s]/GPUTargetFanSpeed=%d", string(w.Device), newFanSpeed))
+	args := append([]string{"-a"}, fmt.Sprintf("[fan:%d]/GPUTargetFanSpeed=%d", w.Device, newFanSpeed))
+	cmd := exec.CommandContext(ctx, cmdStr, args...)
+	return cmd.Run()
+}
+
+func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState int) error {
+	if newFanControlState != 0 && newFanControlState != 1 {
+		return fmt.Errorf("improper new fan control state: %d", newFanControlState)
+	}
+	// nvidia-settings -a '[fan:{w.Device}]/GPUFanControlState={newFanControlState}'
+	cmdStr := "nvidia-settings"
+	args := append([]string{"-a"}, fmt.Sprintf("[fan:%d]/GPUFanControlState=%d", w.Device, newFanControlState))
 	cmd := exec.CommandContext(ctx, cmdStr, args...)
 	return cmd.Run()
 }
