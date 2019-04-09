@@ -290,9 +290,9 @@ func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState i
 	if newFanControlState != 0 && newFanControlState != 1 {
 		return fmt.Errorf("improper new fan control state: %d", newFanControlState)
 	}
-	// nvidia-settings -a '[fan:{w.Device}]/GPUFanControlState={newFanControlState}'
+	// nvidia-settings -a '[gpu:{w.Device}]/GPUFanControlState={newFanControlState}'
 	cmdStr := "nvidia-settings"
-	args := append([]string{"-a"}, fmt.Sprintf("[fan:%d]/GPUFanControlState=%d", w.Device, newFanControlState))
+	args := append([]string{"-a"}, fmt.Sprintf("[gpu:%d]/GPUFanControlState=%d", w.Device, newFanControlState))
 	cmd := exec.CommandContext(ctx, cmdStr, args...)
 	return cmd.Run()
 }
