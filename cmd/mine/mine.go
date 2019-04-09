@@ -24,7 +24,6 @@ import (
 	"github.com/wminshew/gonvml"
 	"io/ioutil"
 	"log"
-	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -330,8 +329,7 @@ var Cmd = &cobra.Command{
 			return
 		} else if totalRAM > memStats.Free {
 			log.Printf("Mine: insufficient available memory (requested for bidding: %s "+
-				"> system memory available %s)", humanize.BigBytes(big.NewInt(int64(totalRAM))),
-				humanize.BigBytes(big.NewInt(int64(memStats.Free))))
+				"> system memory available %s)", humanize.Bytes(totalRAM), humanize.Bytes(memStats.Free))
 			return
 		}
 
@@ -341,8 +339,7 @@ var Cmd = &cobra.Command{
 			return
 		} else if totalDisk > diskUsage.Free {
 			log.Printf("Mine: insufficient available disk space (requested for bidding: %s "+
-				"> system disk space available %s)", humanize.BigBytes(big.NewInt(int64(totalDisk))),
-				humanize.BigBytes(big.NewInt(int64(diskUsage.Free))))
+				"> system disk space available %s)", humanize.Bytes(totalDisk), humanize.Bytes(diskUsage.Free))
 			return
 		}
 

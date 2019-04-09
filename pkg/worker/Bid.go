@@ -14,7 +14,6 @@ import (
 	"github.com/wminshew/emrys/pkg/job"
 	"io/ioutil"
 	"log"
-	"math/big"
 	"net/http"
 	"net/url"
 	"path"
@@ -46,7 +45,7 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) error {
 		return errors.Wrapf(err, "device %d: getting memory stats", w.Device)
 	} else if w.RAM > memStats.Free {
 		return fmt.Errorf("device %d: insufficient available memory (requested for bidding: %s "+
-			"> system memory available %s)", w.Device, humanize.BigBytes(big.NewInt(int64(w.RAM))), humanize.BigBytes(big.NewInt(int64(memStats.Free))))
+			"> system memory available %s)", w.Device, humanize.Bytes(w.RAM), humanize.Bytes(memStats.Free))
 	}
 
 	// TODO: account for disk reserved for other in-process jobs
@@ -56,7 +55,7 @@ func (w *Worker) Bid(ctx context.Context, u url.URL, msg *job.Message) error {
 		return errors.Wrapf(err, "device %d: getting disk usage", w.Device)
 	} else if w.Disk > diskUsage.Free {
 		return fmt.Errorf("device %d: insufficient available disk space (requested for bidding: %s "+
-			"> system disk space available %s)", w.Device, humanize.BigBytes(big.NewInt(int64(w.Disk))), humanize.BigBytes(big.NewInt(int64(diskUsage.Free))))
+			"> system disk space available %s)", w.Device, humanize.Bytes(w.Disk), humanize.Bytes(diskUsage.Free))
 	}
 
 	log.Printf("Mine: bid: device %d: sending bid with rate: %v...\n", w.Device, b.Specs.Rate)

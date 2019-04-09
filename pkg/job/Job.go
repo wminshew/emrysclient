@@ -12,7 +12,6 @@ import (
 	"github.com/wminshew/emrys/pkg/validate"
 	"io/ioutil"
 	"log"
-	"math/big"
 	"net/http"
 	"net/url"
 	"path"
@@ -217,9 +216,8 @@ func (j *Job) ValidateAndTransform() error {
 			return errors.Wrapf(err, "getting data set size")
 		} else if diskUsage.Total > (j.Specs.Disk + diskBuffer) {
 			return fmt.Errorf("insufficient requested disk space (data set: %s "+
-				" + required disk buffer %s > requested disk space %s)", humanize.BigBytes(big.NewInt(int64(j.Specs.Disk))),
-				humanize.BigBytes(big.NewInt(int64(diskBuffer))),
-				humanize.BigBytes(big.NewInt(int64(diskUsage.Total))))
+				" + required disk buffer %s > requested disk space %s)", humanize.Bytes(j.Specs.Disk),
+				humanize.Bytes(diskBuffer), humanize.Bytes(diskUsage.Total))
 		}
 	}
 	pcieStr := pcieRegexp.FindStringSubmatch(j.PCIEStr)[1]
