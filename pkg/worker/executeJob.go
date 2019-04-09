@@ -285,10 +285,10 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		// ReadonlyRootfs: true, // TODO
 		Runtime: "nvidia",
 		Resources: container.Resources{
-			DiskQuota:         int64(w.Disk - sizeDataDir),
-			MemoryReservation: int64(w.RAM),
-			MemorySwap:        int64(w.RAM),
-			PidsLimit:         pidsLimit,
+			DiskQuota:  int64(w.Disk - sizeDataDir),
+			Memory:     int64(w.RAM),
+			MemorySwap: int64(w.RAM),
+			PidsLimit:  pidsLimit,
 		},
 		SecurityOpt: []string{
 			"no-new-privileges",
