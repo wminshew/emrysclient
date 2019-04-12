@@ -112,5 +112,7 @@ var Cmd = &cobra.Command{
 			log.Printf("Feedback: error sending requirements: %v", err)
 			return
 		}
+
+		log.Printf("Feedback: received! Thank you for contributing\n")
 	},
 }
