@@ -49,7 +49,7 @@ func (w *Worker) InitGPUMonitoring() error {
 	var ok bool
 	if w.Snapshot.Name, ok = job.ValidateGPU(name); !ok {
 		return errors.Wrapf(err, "device %d: this device is not currently supported by the emrys network. "+
-			"Please contact support@emrys.io if you think there has been a mistake.", w.Device)
+			"Please check https://docs.emrys.io/docs/suppliers/valid_gpus and contact support@emrys.io if you think there has been a mistake.", w.Device)
 	}
 
 	w.Snapshot.MinorNumber, err = w.gonvmlDevice.MinorNumber()
