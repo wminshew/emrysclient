@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/wminshew/emrysclient/cmd/feedback"
 	"github.com/wminshew/emrysclient/cmd/login"
 	"github.com/wminshew/emrysclient/cmd/mine"
 	"github.com/wminshew/emrysclient/cmd/notebook"
@@ -35,6 +36,7 @@ func init() {
 	rootCmd.AddCommand(notebook.Cmd)
 	rootCmd.AddCommand(mine.Cmd)
 	rootCmd.AddCommand(update.Cmd)
+	rootCmd.AddCommand(feedback.Cmd)
 }
 
 // Execute the root command
