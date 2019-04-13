@@ -91,6 +91,11 @@ var Cmd = &cobra.Command{
 		"spare GPU cycles on the internet to execute your job" +
 		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
+		if os.Geteuid() != 0 {
+			log.Printf("Insufficient privileges. Are you root?\n")
+			return
+		}
+
 		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Run: error retrieving authToken: %v", err)
