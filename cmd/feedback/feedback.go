@@ -38,7 +38,7 @@ func init() {
 
 // Cmd exports feedback subcommand to root
 var Cmd = &cobra.Command{
-	Use:   "version",
+	Use:   "feedback",
 	Short: "Send feedback to emrys",
 	Long:  "Send feedback to emrys",
 	Run: func(cmd *cobra.Command, args []string) {
