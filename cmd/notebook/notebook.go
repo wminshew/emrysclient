@@ -90,6 +90,7 @@ var Cmd = &cobra.Command{
 		"spare GPU cycles on the internet to begin a jupyter notebook" +
 		"\n\nReport bugs to support@emrys.io",
 	Run: func(cmd *cobra.Command, args []string) {
+		// TODO: use fcn that returns error; wrap with Notebook: etc
 		if os.Geteuid() != 0 {
 			log.Printf("Insufficient privileges. Are you root?\n")
 			return
