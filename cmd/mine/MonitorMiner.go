@@ -15,6 +15,7 @@ import (
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrysclient/pkg/worker"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -87,7 +88,7 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 					}
 					defer check.Err(containerStats.Body.Close)
 
-					if err := json.NewDecoder(containerStats.Body).Decode(&wStats.DockerStats); err != nil {
+					if err := json.NewDecoder(containerStats.Body).Decode(&wStats.DockerStats); err != nil && err != io.EOF {
 						return errors.Wrapf(err, "device %d: decoding container stats", w.Device)
 					}
 
