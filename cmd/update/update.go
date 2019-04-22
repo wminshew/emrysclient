@@ -42,14 +42,16 @@ var Cmd = &cobra.Command{
 		u.Path = p
 		latestUserVer, err := version.GetServerVersion(ctx, client, u)
 		if err != nil {
-			panic(err)
+			log.Printf("Update: error getting latest user version: %v", err)
+			return
 		}
 
 		p = path.Join("miner", "version")
 		u.Path = p
 		latestMinerVer, err := version.GetServerVersion(ctx, client, u)
 		if err != nil {
-			panic(err)
+			log.Printf("Update: error getting latest miner version: %v", err)
+			return
 		}
 
 		if version.UserVer.LT(latestUserVer) || version.MinerVer.LT(latestMinerVer) {
