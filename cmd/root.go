@@ -22,8 +22,10 @@ var rootCmd = &cobra.Command{
 		"& most cost effective.\n" +
 		"Emrys mine lets you earn money with idle GPUs by training " +
 		"user models." +
-		"\n\nLearn more at https://www.emrys.io, and please report" +
-		"bugs to support@emrys.io",
+		"\n\nLearn more at https://www.emrys.io, and please report " +
+		"bugs to support@emrys.io or with the feedback subcommand" +
+		"\nIf you have any questions, please visit our forum https://forum.emrys.io " +
+		"or slack channel https://emrysio.slack.com",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Use \"emrys --help\" for more information about subcommands.\n")
 	},
