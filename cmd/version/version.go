@@ -21,14 +21,14 @@ import (
 var UserVer = semver.Version{
 	Major: 0,
 	Minor: 6,
-	Patch: 3,
+	Patch: 4,
 }
 
 // MinerVer is the semver miner client version
 var MinerVer = semver.Version{
 	Major: 0,
 	Minor: 6,
-	Patch: 3,
+	Patch: 4,
 }
 
 const (
