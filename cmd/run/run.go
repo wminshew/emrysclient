@@ -89,7 +89,9 @@ var Cmd = &cobra.Command{
 	Long: "Syncs the appropriate execution files & data " +
 		"with the central server, then locates the cheapest " +
 		"spare GPU cycles on the internet to execute your job" +
-		"\n\nReport bugs to support@emrys.io",
+		"\n\nReport bugs to support@emrys.io or with the feedback subcommand" +
+		"\nIf you have any questions, please visit our forum https://forum.emrys.io " +
+		"or slack channel https://emrysio.slack.com",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: use fcn that returns error; wrap with Run: etc
 		if os.Geteuid() != 0 {
