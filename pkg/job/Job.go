@@ -197,7 +197,7 @@ func (j *Job) ValidateAndTransform() error {
 	var ok bool
 	if j.Specs.GPU, ok = specs.ValidateGPU(j.GPURaw); !ok {
 		return fmt.Errorf(`gpu not recognized. Please check https://docs.emrys.io/docs/suppliers/valid_gpus and 
-			contact support@emrys.io if you think there has been a mistake.`)
+			contact support@emrys.io if you think there has been a mistake`)
 	}
 	var err error
 	if j.Specs.RAM, err = humanize.ParseBytes(j.RAMStr); err != nil {
