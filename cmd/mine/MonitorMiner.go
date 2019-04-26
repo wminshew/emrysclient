@@ -21,7 +21,9 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"time"
 )
 
@@ -106,22 +108,22 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 					}
 
 					// size of data folder
-					dataDirUsage, err := disk.Usage(w.DataDir)
+					wStats.DockerDisk.SizeDataDir, err = getDirSize(w.DataDir)
 					if err != nil {
-						return errors.Wrap(err, "getting disk usage: data folder")
+						return errors.Wrap(err, "getting directory size: data folder")
 					}
-					wStats.DockerDisk.SizeDataDir = dataDirUsage.Total
+					log.Printf("docker disk: size data dir: %+v", wStats.DockerDisk.SizeDataDir) // TODO
 
 					// size of output folder
-					outputDirUsage, err := disk.Usage(w.OutputDir)
+					wStats.DockerDisk.SizeOutputDir, err = getDirSize(w.OutputDir)
 					if err != nil {
-						return errors.Wrap(err, "getting disk usage: output folder")
+						return errors.Wrap(err, "getting directory size: output folder")
 					}
-					wStats.DockerDisk.SizeOutputDir = outputDirUsage.Total
+					log.Printf("docker disk: size output dir: %+v", wStats.DockerDisk.SizeOutputDir) // TODO
 
 					// TODO: should be uint64, but keeping check consistent with server
 					if int64(w.Disk) < (wStats.DockerDisk.SizeRw + wStats.DockerDisk.SizeRootFs +
-						int64(wStats.DockerDisk.SizeDataDir) + int64(wStats.DockerDisk.SizeOutputDir)) {
+						wStats.DockerDisk.SizeDataDir + wStats.DockerDisk.SizeOutputDir) {
 						w.DiskQuotaExceeded = true
 					}
 				}
@@ -175,4 +177,20 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 			stochPeriod = maxPeriod
 		}
 	}
+}
+
+func getDirSize(dir string) (int64, error) {
+	var dirSize int64
+	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			dirSize += info.Size()
+		}
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return dirSize, nil
 }
