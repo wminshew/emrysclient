@@ -9,7 +9,6 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/docker/go-connections/nat"
 	"github.com/mholt/archiver"
-	"github.com/shirou/gopsutil/disk"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrysclient/pkg/poll"
 	"io"
@@ -212,7 +211,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		hostDataDir = filepath.Join(jobDir, fileInfos[0].Name())
 	} else {
 		hostDataDir = filepath.Join(jobDir, "data")
-		if _, err := os.Create(hostDataDir); err != nil {
+		if err := os.MkdirAll(hostDataDir, 0777); err != nil {
 			log.Printf("Device %s: error creating empty data dir %s: %v", dStr, hostDataDir, err)
 			return
 		}
@@ -220,12 +219,11 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	w.DataDir = hostDataDir
 	defer func() { w.DataDir = "" }()
 
-	dataDirUsage, err := disk.Usage(w.DataDir)
+	sizeDataDir, err := GetDirSize(w.DataDir) // TODO
 	if err != nil {
-		log.Printf("Device %s: error getting disk usage: data folder: %v", dStr, err)
+		log.Printf("Device %s: error getting directory size: data folder: %v", dStr, err)
 		return
 	}
-	sizeDataDir := dataDirUsage.Total
 
 	hostOutputDir := filepath.Join(jobDir, "output")
 	w.OutputDir = hostOutputDir
@@ -285,7 +283,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		// ReadonlyRootfs: true, // TODO
 		Runtime: "nvidia",
 		Resources: container.Resources{
-			DiskQuota:  int64(w.Disk - sizeDataDir),
+			DiskQuota:  int64(w.Disk) - sizeDataDir,
 			Memory:     int64(w.RAM),
 			MemorySwap: int64(w.RAM),
 			PidsLimit:  pidsLimit,

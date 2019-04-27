@@ -21,9 +21,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"time"
 )
 
@@ -108,14 +106,14 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 					}
 
 					// size of data folder
-					wStats.DockerDisk.SizeDataDir, err = getDirSize(w.DataDir)
+					wStats.DockerDisk.SizeDataDir, err = worker.GetDirSize(w.DataDir)
 					if err != nil {
 						return errors.Wrap(err, "getting directory size: data folder")
 					}
 					log.Printf("docker disk: size data dir: %+v", wStats.DockerDisk.SizeDataDir) // TODO
 
 					// size of output folder
-					wStats.DockerDisk.SizeOutputDir, err = getDirSize(w.OutputDir)
+					wStats.DockerDisk.SizeOutputDir, err = worker.GetDirSize(w.OutputDir)
 					if err != nil {
 						return errors.Wrap(err, "getting directory size: output folder")
 					}
@@ -177,20 +175,4 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 			stochPeriod = maxPeriod
 		}
 	}
-}
-
-func getDirSize(dir string) (int64, error) {
-	var dirSize int64
-	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			dirSize += info.Size()
-		}
-		return nil
-	}); err != nil {
-		return 0, err
-	}
-	return dirSize, nil
 }

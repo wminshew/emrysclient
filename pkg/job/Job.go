@@ -6,10 +6,10 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
-	"github.com/shirou/gopsutil/disk"
 	"github.com/wminshew/emrys/pkg/check"
 	specs "github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/emrys/pkg/validate"
+	"github.com/wminshew/emrysclient/pkg/worker"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -212,13 +212,13 @@ func (j *Job) ValidateAndTransform() error {
 			return fmt.Errorf("error parsing disk buffer: %v", err)
 		}
 
-		diskUsage, err := disk.Usage(path.Join(filepath.Dir(j.Data), j.Data))
+		dataDirSize, err := worker.GetDirSize(path.Join(filepath.Dir(j.Data), j.Data))
 		if err != nil {
-			return errors.Wrapf(err, "getting data set size")
-		} else if diskUsage.Total > (j.Specs.Disk + diskBuffer) {
+			return errors.Wrapf(err, "getting data dir size")
+		} else if dataDirSize > int64(j.Specs.Disk+diskBuffer) {
 			return fmt.Errorf("insufficient requested disk space (data set: %s "+
 				" + required disk buffer %s > requested disk space %s)", humanize.Bytes(j.Specs.Disk),
-				humanize.Bytes(diskBuffer), humanize.Bytes(diskUsage.Total))
+				humanize.Bytes(diskBuffer), humanize.Bytes(uint64(dataDirSize)))
 		}
 	}
 	pcieStr := pcieRegexp.FindStringSubmatch(j.PCIEStr)[1]
