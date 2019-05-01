@@ -32,16 +32,15 @@ func (j *Job) BuildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- e
 		log.Printf("Image: packing request...\n")
 		r, w := io.Pipe()
 		go func() {
+			defer check.Err(w.Close)
+
 			dockerContext := []string{j.Requirements}
 			if !j.Notebook || j.Main != "" {
 				dockerContext = append(dockerContext, j.Main)
 			}
+
 			if err := archiver.TarGz.Write(w, dockerContext); err != nil {
 				log.Printf("Image: error: tar-gzipping docker context files: %v", err)
-				return
-			}
-			if err := w.Close(); err != nil {
-				log.Printf("Image: error: closing pipe writer: %v", err)
 				return
 			}
 		}()
@@ -51,7 +50,9 @@ func (j *Job) BuildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- e
 		}
 		req = req.WithContext(ctx)
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", j.AuthToken))
-		req.Header.Set("X-Main", filepath.Base(j.Main))
+		if j.Main != "" {
+			req.Header.Set("X-Main", filepath.Base(j.Main))
+		}
 		req.Header.Set("X-Reqs", filepath.Base(j.Requirements))
 
 		log.Printf("Image: building...\n")
