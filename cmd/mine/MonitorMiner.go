@@ -110,14 +110,12 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 					if err != nil {
 						return errors.Wrap(err, "getting directory size: data folder")
 					}
-					log.Printf("docker disk: size data dir: %+v", wStats.DockerDisk.SizeDataDir) // TODO
 
 					// size of output folder
 					wStats.DockerDisk.SizeOutputDir, err = worker.GetDirSize(w.OutputDir)
 					if err != nil {
 						return errors.Wrap(err, "getting directory size: output folder")
 					}
-					log.Printf("docker disk: size output dir: %+v", wStats.DockerDisk.SizeOutputDir) // TODO
 
 					// TODO: should be uint64, but keeping check consistent with server
 					if int64(w.Disk) < (wStats.DockerDisk.SizeRw + wStats.DockerDisk.SizeRootFs +
