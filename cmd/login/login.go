@@ -109,7 +109,7 @@ var Cmd = &cobra.Command{
 			log.Printf("Error storing login token: %v", err)
 			os.Exit(1)
 		}
-		log.Printf("Success! Your login token will expire in %s days (you will not be logged off as long as you continue running the client)\n", duration)
+		log.Printf("Success! Your login token will expire in %s days (you will not be logged off mid-job or while mining)\n", duration)
 	},
 }
 
