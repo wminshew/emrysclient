@@ -27,11 +27,6 @@ var Cmd = &cobra.Command{
 	Short: "Updates emrys client",
 	Long:  "Updates emrys client",
 	Run: func(cmd *cobra.Command, args []string) {
-		if os.Geteuid() != 0 {
-			log.Printf("Insufficient privileges. Are you root?\n")
-			return
-		}
-
 		ctx := context.Background()
 		client := &http.Client{}
 		u := url.URL{

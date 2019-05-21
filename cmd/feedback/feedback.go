@@ -13,7 +13,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -43,11 +42,6 @@ var Cmd = &cobra.Command{
 	Short: "Send feedback to emrys",
 	Long:  "Send feedback to emrys",
 	Run: func(cmd *cobra.Command, args []string) {
-		if os.Geteuid() != 0 {
-			log.Printf("Insufficient privileges. Are you root?\n")
-			return
-		}
-
 		message := viper.GetString("message")
 		if message == "" {
 			log.Printf("Feedback: no message included (use --message or -m \"Here's some feedback for you!\")")

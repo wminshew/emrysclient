@@ -92,11 +92,6 @@ var Cmd = &cobra.Command{
 		"\nIf you have any questions, please visit our forum https://forum.emrys.io " +
 		"or slack channel https://emrysio.slack.com",
 	Run: func(cmd *cobra.Command, args []string) {
-		if os.Geteuid() != 0 {
-			log.Printf("Insufficient privileges. Are you root?\n")
-			return
-		}
-
 		authToken, err := token.Get()
 		if err != nil {
 			log.Printf("Notebook: error retrieving authToken: %v", err)
