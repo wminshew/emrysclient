@@ -16,6 +16,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -75,7 +76,7 @@ var Cmd = &cobra.Command{
 			}()
 
 			u.Host = "storage.googleapis.com"
-			p = path.Join("emrys-public", "clients", fmt.Sprintf("emrys_u%s_m%s.tar.gz", latestUserVer.String(), latestMinerVer.String()))
+			p = path.Join("emrys-public", "clients", fmt.Sprintf("emrys_u%s_m%s_%s.tar.gz", latestUserVer.String(), latestMinerVer.String(), runtime.GOOS))
 			u.Path = p
 			operation := func() error {
 				resp, err := client.Get(u.String())
