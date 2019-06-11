@@ -1,18 +1,23 @@
-DATE := $(shell date +%Y-%m-%d_%H-%M-%S)
+UNAME := ${shell uname -s}
+CMD_DIRS = $(shell find ./cmd/ -type d)
+CMD_FILES = $(shell find ./cmd/ -type f -name '*')
 
-dep-ensure:
-	dep ensure -v
+test:
+	echo "${UNAME}"
 
-build-darwin:
-	echo "Building ${version} for darwin...\n"
+build: ./cmd ${CMD_DIRS} ${CMD_FILES}
+	@echo "${UNAME}"
+ifeq ($(UNAME),Darwin)
+	@echo "Building ${version} for darwin..."
 	go build -o emrys
 	tar -czf emrys_${version}_darwin.tar.gz emrys
 	gsutil cp emrys_${version}_darwin.tar.gz gs://emrys-public/clients/emrys_${version}_darwin.tar.gz
 	mv emrys_${version}_darwin.tar.gz ../emrys/download/
-
-build-linux:
-	echo "Building ${version} for linux...\n"
+endif
+ifeq ($(UNAME),Linux)
+	@echo "Building ${version} for linux..."
 	go build -o emrys
 	tar -czf emrys_${version}_linux.tar.gz emrys
 	gsutil cp emrys_${version}_linux.tar.gz gs://emrys-public/clients/emrys_${version}_linux.tar.gz
 	mv emrys_${version}_linux.tar.gz ../emrys/download/
+endif
