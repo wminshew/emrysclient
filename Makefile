@@ -6,7 +6,7 @@ test:
 	echo "${UNAME}"
 
 build: ./cmd ${CMD_DIRS} ${CMD_FILES}
-	@echo "${UNAME}"
+	@echo "Build OS: ${UNAME}"
 ifeq ($(UNAME),Darwin)
 	@echo "Building ${version} for darwin..."
 	go build -o emrys
