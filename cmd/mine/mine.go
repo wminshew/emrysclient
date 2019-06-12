@@ -175,9 +175,9 @@ var Cmd = &cobra.Command{
 		}
 
 		viper.SetConfigName(viper.GetString("config"))
-		viper.AddConfigPath("$HOME")
-		viper.AddConfigPath("$HOME/.config/emrys")
 		viper.AddConfigPath(".")
+		viper.AddConfigPath("$HOME/.config/emrys")
+		viper.AddConfigPath("$HOME")
 		if err := viper.ReadInConfig(); err != nil {
 			log.Printf("Mine: error reading config file: %v", err)
 			return
