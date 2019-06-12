@@ -18,6 +18,7 @@ ifeq ($(UNAME),Linux)
 	@echo "Building ${version} for linux..."
 	go build -o emrys
 	tar -czf emrys_${version}_linux.tar.gz emrys
+	gsutil cp emrys_${version}_linux.tar.gz gs://emrys-public/clients/emrys_${version}.tar.gz
 	gsutil cp emrys_${version}_linux.tar.gz gs://emrys-public/clients/emrys_${version}_linux.tar.gz
 	mv emrys_${version}_linux.tar.gz ../emrys/download/
 endif
