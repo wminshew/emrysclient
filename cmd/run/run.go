@@ -29,12 +29,12 @@ const (
 )
 
 func init() {
-	Cmd.Flags().String("config", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
-	Cmd.Flags().String("project", "", "User project (required)")
-	Cmd.Flags().String("requirements", "", "Path to requirements file (required)")
-	Cmd.Flags().String("main", "", "Path to main execution file (required)")
-	Cmd.Flags().String("data", "", "Path to the data directory")
-	Cmd.Flags().String("output", "", "Path to save the output directory (required)")
+	Cmd.Flags().StringP("config", "c", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
+	Cmd.Flags().StringP("project", "p", "", "User project (required)")
+	Cmd.Flags().StringP("requirements", "r", "", "Path to requirements file (required)")
+	Cmd.Flags().StringP("main", "m", "", "Path to main execution file (required)")
+	Cmd.Flags().StringP("data", "d", "", "Path to the data directory")
+	Cmd.Flags().StringP("output", "o", "", "Path to save the output directory (required)")
 	Cmd.Flags().Float64("rate", 0, "Maximum $ / hr willing to pay for job")
 	Cmd.Flags().String("gpu", "k80", "Minimum acceptable gpu for job. Defaults to k80")
 	Cmd.Flags().String("ram", "8gb", "Minimum acceptable gb of available ram for job. Defaults to 8gb")
