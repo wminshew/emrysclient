@@ -165,7 +165,7 @@ func (j *Job) ValidateAndTransform() error {
 	if j.Main == "" && j.Notebook == false {
 		return fmt.Errorf("must specify a main execution file in config or with flag")
 	} else if j.Notebook && j.Main != "" && filepath.Ext(j.Main) != ".ipynb" {
-		return fmt.Errorf("with notebooks, must leave main blank or specify a .ipynb file in config or with flag")
+		return fmt.Errorf("with notebooks, must leave main (%s) blank or specify a .ipynb file in config or with flag", j.Main)
 	}
 	if j.Requirements == "" {
 		return fmt.Errorf("must specify a requirements file in config or with flag")
