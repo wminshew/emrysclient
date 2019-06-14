@@ -56,30 +56,6 @@ func init() {
 	Cmd.Flags().StringSlice("disk", []string{"25gb"}, "Per device disk allocation for mining jobs (defaults to 25gb; may set 1 value for all devices, or 1 value per device)")
 	Cmd.Flags().StringP("mining-command", "m", "", "Mining command to execute between emrys jobs. Must use $DEVICE flag so emrys can toggle mining-per-device correctly between jobs.")
 	Cmd.Flags().SortFlags = false
-	if err := func() error {
-		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("miner.devices", Cmd.Flags().Lookup("devices")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("miner.bid-rates", Cmd.Flags().Lookup("bid-rates")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("miner.ram", Cmd.Flags().Lookup("ram")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("miner.disk", Cmd.Flags().Lookup("disk")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("miner.mining-command", Cmd.Flags().Lookup("mining-command")); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		log.Printf("Mine: error binding pflag: %v", err)
-		panic(err)
-	}
 }
 
 // Cmd exports mine subcommand to root
@@ -92,6 +68,32 @@ var Cmd = &cobra.Command{
 		"\n\nReport bugs to support@emrys.io or with the feedback subcommand" +
 		"\nIf you have any questions, please visit our forum https://forum.emrys.io " +
 		"or slack channel https://emrysio.slack.com",
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := func() error {
+			if err := viper.BindPFlag("config", cmd.Flags().Lookup("config")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("miner.devices", cmd.Flags().Lookup("devices")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("miner.bid-rates", cmd.Flags().Lookup("bid-rates")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("miner.ram", cmd.Flags().Lookup("ram")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("miner.disk", cmd.Flags().Lookup("disk")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("miner.mining-command", cmd.Flags().Lookup("mining-command")); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			log.Printf("Mine: error binding pflag: %v", err)
+			panic(err)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if os.Geteuid() != 0 {
 			log.Printf("Insufficient privileges. Are you root?\n")
