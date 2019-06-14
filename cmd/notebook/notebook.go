@@ -40,45 +40,6 @@ func init() {
 	Cmd.Flags().String("disk", "25gb", "Minimum acceptable gb of disk space for job. Defaults to 25gb")
 	Cmd.Flags().String("pcie", "8x", "Minimum acceptable gpu pci-e for job. Defaults to 8x")
 	Cmd.Flags().SortFlags = false
-	if err := func() error {
-		if err := viper.BindPFlag("config", Cmd.Flags().Lookup("config")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.project", Cmd.Flags().Lookup("project")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.requirements", Cmd.Flags().Lookup("requirements")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.main", Cmd.Flags().Lookup("main")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.data", Cmd.Flags().Lookup("data")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.output", Cmd.Flags().Lookup("output")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.rate", Cmd.Flags().Lookup("rate")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.gpu", Cmd.Flags().Lookup("gpu")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.ram", Cmd.Flags().Lookup("ram")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.disk", Cmd.Flags().Lookup("disk")); err != nil {
-			return err
-		}
-		if err := viper.BindPFlag("user.pcie", Cmd.Flags().Lookup("pcie")); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		log.Printf("Notebook: error binding pflag: %v", err)
-		panic(err)
-	}
 }
 
 // Cmd exports notebook subcommand to root
@@ -91,6 +52,47 @@ var Cmd = &cobra.Command{
 		"\n\nReport bugs to support@emrys.io or with the feedback subcommand" +
 		"\nIf you have any questions, please visit our forum https://forum.emrys.io " +
 		"or slack channel https://emrysio.slack.com",
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := func() error {
+			if err := viper.BindPFlag("config", cmd.Flags().Lookup("config")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.project", cmd.Flags().Lookup("project")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.requirements", cmd.Flags().Lookup("requirements")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.main", cmd.Flags().Lookup("main")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.data", cmd.Flags().Lookup("data")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.output", cmd.Flags().Lookup("output")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.rate", cmd.Flags().Lookup("rate")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.gpu", cmd.Flags().Lookup("gpu")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.ram", cmd.Flags().Lookup("ram")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.disk", cmd.Flags().Lookup("disk")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.pcie", cmd.Flags().Lookup("pcie")); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			log.Printf("Notebook: error binding pflag: %v", err)
+			panic(err)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		authToken, err := token.Get()
 		if err != nil {
@@ -131,11 +133,6 @@ var Cmd = &cobra.Command{
 			}
 		}
 
-		log.Printf("viper: main: %s\n", viper.GetString("main"))
-		log.Printf("viper: main: is set: %v\n", viper.IsSet("main"))
-		log.Printf("viper: user.main: %s\n", viper.GetString("user.main"))
-		log.Printf("viper: user.main: is set: %v\n", viper.IsSet("user.main"))
-
 		viper.SetConfigName(viper.GetString("config"))
 		viper.AddConfigPath(".")
 		viper.AddConfigPath("$HOME/.config/emrys")
@@ -144,11 +141,6 @@ var Cmd = &cobra.Command{
 			log.Printf("Notebook: error reading config file: %v", err)
 			return
 		}
-
-		log.Printf("viper: main: %s\n", viper.GetString("main"))
-		log.Printf("viper: main: is set: %v\n", viper.IsSet("main"))
-		log.Printf("viper: user.main: %s\n", viper.GetString("user.main"))
-		log.Printf("viper: user.main: is set: %v\n", viper.IsSet("user.main"))
 
 		client := &http.Client{}
 		s := "https"
