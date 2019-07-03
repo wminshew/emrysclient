@@ -367,11 +367,6 @@ var Cmd = &cobra.Command{
 		}
 		dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
 
-		if err := seedDockerdCache(ctx, dClient, dockerAuthStr); err != nil {
-			log.Printf("Mine: error seeding docker cache: %v", err)
-			return
-		}
-
 		m := "GET"
 		p := path.Join("miner", "connect")
 		u.Path = p
@@ -391,6 +386,10 @@ var Cmd = &cobra.Command{
 			}
 			if err := version.CheckMine(ctx, client, u); err != nil {
 				log.Printf("Version error: %v", err)
+				return
+			}
+			if err := seedDockerdCache(ctx, dClient, dockerAuthStr); err != nil {
+				log.Printf("Mine: error seeding docker cache: %v", err)
 				return
 			}
 
