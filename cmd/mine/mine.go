@@ -367,7 +367,6 @@ var Cmd = &cobra.Command{
 		}
 		dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
 
-		m := "GET"
 		p := path.Join("miner", "connect")
 		u.Path = p
 		q := u.Query()
@@ -394,9 +393,9 @@ var Cmd = &cobra.Command{
 			}
 
 			operation := func() error {
-				req, err := http.NewRequest(m, u.String(), nil)
+				req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 				if err != nil {
-					return fmt.Errorf("creating request %v %v: %v", m, u.Path, err)
+					return fmt.Errorf("creating request %v %v: %v", http.MethodGet, u.Path, err)
 				}
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", authToken))
 				req = req.WithContext(ctx)
