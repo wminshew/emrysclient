@@ -42,10 +42,11 @@ var (
 )
 
 const (
-	maxRetries = 10
-	gpuPeriod  = 10 * time.Second
-	meanPeriod = 30 * time.Second
-	maxPeriod  = 90 * time.Second
+	maxBackOffElapsedTime = 24 * time.Hour
+	maxRetries            = 10
+	gpuPeriod             = 10 * time.Second
+	meanPeriod            = 30 * time.Second
+	maxPeriod             = 90 * time.Second
 )
 
 func init() {
@@ -419,8 +420,10 @@ var Cmd = &cobra.Command{
 
 				return nil
 			}
+			expBackOff := backoff.NewExponentialBackOff()
+			expBackOff.MaxElapsedTime = maxBackOffElapsedTime
 			if err := backoff.RetryNotify(operation,
-				backoff.WithContext(backoff.NewExponentialBackOff(), ctx),
+				backoff.WithContext(expBackOff, ctx),
 				func(err error, t time.Duration) {
 					log.Printf("Connect error: %v", err)
 					log.Printf("Retrying in %s seconds\n", t.Round(time.Second).String())
