@@ -101,6 +101,36 @@ var Cmd = &cobra.Command{
 			return
 		}
 
+		dClient, err := docker.NewEnvClient()
+		if err != nil {
+			log.Printf("Mine: error creating docker client: %v", err)
+			return
+		}
+		defer check.Err(dClient.Close)
+
+		info, err := dClient.Info(context.Background())
+		if err != nil {
+			log.Printf("Mine: error getting docker info: %v", err)
+			return
+		}
+
+		if _, ok := info.Runtimes["nvidia"]; !ok {
+			log.Printf("Mine: please add nvidia-docker to dockerd before connecting (detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n")
+			return
+		}
+
+		if hasUserNS := func() bool {
+			for _, opt := range info.SecurityOptions {
+				if strings.Contains(opt, "userns") {
+					return true
+				}
+			}
+			return false
+		}(); !hasUserNS {
+			log.Printf("Mine: please add userns-remap to dockerd before connecting (detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n")
+			return
+		}
+
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -163,13 +193,6 @@ var Cmd = &cobra.Command{
 				}
 			}
 		}()
-
-		dClient, err := docker.NewEnvClient()
-		if err != nil {
-			log.Printf("Mine: error creating docker client: %v", err)
-			return
-		}
-		defer check.Err(dClient.Close)
 
 		if err := version.CheckMine(ctx, client, u); err != nil {
 			log.Printf("Version error: %v", err)
