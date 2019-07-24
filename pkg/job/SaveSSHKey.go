@@ -9,7 +9,6 @@ import (
 )
 
 // SaveSSHKey saves the job's ssh-key to disk
-// TODO: is it possible to use ssh w/o saving key locally?
 func (j *Job) SaveSSHKey() (string, error) {
 	u, err := user.Current()
 	if err != nil {

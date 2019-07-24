@@ -219,7 +219,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	w.DataDir = hostDataDir
 	defer func() { w.DataDir = "" }()
 
-	sizeDataDir, err := GetDirSize(w.DataDir) // TODO
+	sizeDataDir, err := GetDirSize(w.DataDir)
 	if err != nil {
 		log.Printf("Device %s: error getting directory size: data folder: %v", dStr, err)
 		return
@@ -250,6 +250,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		return
 	}
 	// TODO: unsetting env at end of job could potentially interfere with another gpu's job I think?
+	// chances of triggering this are very low though, fine for now
 	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
 
 	var exposedPorts nat.PortSet
@@ -280,8 +281,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 			"ALL",
 		},
 		PortBindings: portBindings,
-		// ReadonlyRootfs: true, // TODO
-		Runtime: "nvidia",
+		Runtime:      "nvidia",
 		Resources: container.Resources{
 			DiskQuota:  int64(w.Disk) - sizeDataDir,
 			Memory:     int64(w.RAM),
