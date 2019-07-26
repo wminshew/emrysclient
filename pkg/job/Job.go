@@ -23,21 +23,22 @@ import (
 
 // Job represents a user job
 type Job struct {
-	ID           string
-	AuthToken    string
-	Client       *http.Client
-	Project      string
-	Requirements string
-	Main         string
-	Notebook     bool
-	SSHKey       []byte
-	Data         string
-	Output       string
-	GPURaw       string
-	RAMStr       string
-	DiskStr      string
-	PCIEStr      string
-	Specs        *specs.Specs
+	ID        string
+	AuthToken string
+	Client    *http.Client
+	Project   string
+	CondaEnv  string
+	PipReqs   string
+	Main      string
+	Notebook  bool
+	SSHKey    []byte
+	Data      string
+	Output    string
+	GPURaw    string
+	RAMStr    string
+	DiskStr   string
+	PCIEStr   string
+	Specs     *specs.Specs
 }
 
 const (
@@ -52,7 +53,7 @@ var (
 
 // Send sends the job to the server
 func (j *Job) Send(ctx context.Context, u url.URL) error {
-	log.Printf("Sending requirements...\n")
+	log.Printf("Connecting to server...\n")
 	p := path.Join("user", "project", j.Project, "job")
 	u.Path = p
 	if j.Notebook {
@@ -100,13 +101,13 @@ func (j *Job) Send(ctx context.Context, u url.URL) error {
 		return err
 	}
 
-	log.Printf("Beginning %s...\n", j.ID)
+	log.Printf("Beginning job %s...\n", j.ID)
 	return nil
 }
 
 // Cancel cancels the job with the server
 func (j *Job) Cancel(u url.URL) error {
-	log.Printf("Canceling...\n")
+	log.Printf("Canceling job %s...\n", j.ID)
 
 	ctx := context.Background()
 	p := path.Join("user", "project", j.Project, "job", j.ID, "cancel")
@@ -166,9 +167,6 @@ func (j *Job) ValidateAndTransform() error {
 		return fmt.Errorf("must specify a main execution file in config or with flag")
 	} else if j.Notebook && j.Main != "" && filepath.Ext(j.Main) != ".ipynb" {
 		return fmt.Errorf("with notebooks, must leave main (%s) blank or specify a .ipynb file in config or with flag", j.Main)
-	}
-	if j.Requirements == "" {
-		return fmt.Errorf("must specify a requirements file in config or with flag")
 	}
 	if j.Output == "" {
 		return fmt.Errorf("must specify an output directory in config or with flag")

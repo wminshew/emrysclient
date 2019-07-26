@@ -30,7 +30,8 @@ const (
 func init() {
 	Cmd.Flags().StringP("config", "c", ".emrys", "Path to config file (don't include extension). Defaults to .emrys")
 	Cmd.Flags().StringP("project", "p", "", "User project (required)")
-	Cmd.Flags().StringP("requirements", "r", "", "Path to requirements file (required)")
+	Cmd.Flags().StringP("conda-env", "e", "", "Path to conda environment yaml")
+	Cmd.Flags().StringP("pip-reqs", "r", "", "Path to pip requirements file")
 	Cmd.Flags().StringP("main", "m", "", "Path to main execution file (required)")
 	Cmd.Flags().StringP("data", "d", "", "Path to the data directory")
 	Cmd.Flags().StringP("output", "o", "", "Path to save the output directory (required)")
@@ -60,7 +61,10 @@ var Cmd = &cobra.Command{
 			if err := viper.BindPFlag("user.project", cmd.Flags().Lookup("project")); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag("user.requirements", cmd.Flags().Lookup("requirements")); err != nil {
+			if err := viper.BindPFlag("user.conda-env", cmd.Flags().Lookup("conda-env")); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag("user.pip-reqs", cmd.Flags().Lookup("pip-reqs")); err != nil {
 				return err
 			}
 			if err := viper.BindPFlag("user.main", cmd.Flags().Lookup("main")); err != nil {
@@ -151,18 +155,19 @@ var Cmd = &cobra.Command{
 		}
 
 		j := &job.Job{
-			Client:       client,
-			AuthToken:    authToken,
-			Notebook:     false,
-			Project:      viper.GetString("user.project"),
-			Requirements: viper.GetString("user.requirements"),
-			Main:         viper.GetString("user.main"),
-			Data:         viper.GetString("user.data"),
-			Output:       viper.GetString("user.output"),
-			GPURaw:       viper.GetString("user.gpu"),
-			RAMStr:       viper.GetString("user.ram"),
-			DiskStr:      viper.GetString("user.disk"),
-			PCIEStr:      viper.GetString("user.pcie"),
+			Client:    client,
+			AuthToken: authToken,
+			Notebook:  false,
+			Project:   viper.GetString("user.project"),
+			CondaEnv:  viper.GetString("user.conda-env"),
+			PipReqs:   viper.GetString("user.pip-reqs"),
+			Main:      viper.GetString("user.main"),
+			Data:      viper.GetString("user.data"),
+			Output:    viper.GetString("user.output"),
+			GPURaw:    viper.GetString("user.gpu"),
+			RAMStr:    viper.GetString("user.ram"),
+			DiskStr:   viper.GetString("user.disk"),
+			PCIEStr:   viper.GetString("user.pcie"),
 			Specs: &specs.Specs{
 				Rate: viper.GetFloat64("user.rate"),
 			},

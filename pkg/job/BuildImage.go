@@ -34,9 +34,15 @@ func (j *Job) BuildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- e
 		go func() {
 			defer check.Err(w.Close)
 
-			dockerContext := []string{j.Requirements}
-			if !j.Notebook || j.Main != "" {
+			dockerContext := []string{}
+			if j.Main != "" {
 				dockerContext = append(dockerContext, j.Main)
+			}
+			if j.CondaEnv != "" {
+				dockerContext = append(dockerContext, j.CondaEnv)
+			}
+			if j.PipReqs != "" {
+				dockerContext = append(dockerContext, j.PipReqs)
 			}
 
 			if err := archiver.TarGz.Write(w, dockerContext); err != nil {
@@ -53,7 +59,12 @@ func (j *Job) BuildImage(ctx context.Context, wg *sync.WaitGroup, errCh chan<- e
 		if j.Main != "" {
 			req.Header.Set("X-Main", filepath.Base(j.Main))
 		}
-		req.Header.Set("X-Reqs", filepath.Base(j.Requirements))
+		if j.CondaEnv != "" {
+			req.Header.Set("X-Conda-Env", filepath.Base(j.CondaEnv))
+		}
+		if j.PipReqs != "" {
+			req.Header.Set("X-Pip-Reqs", filepath.Base(j.PipReqs))
+		}
 
 		log.Printf("Image: building...\n")
 		resp, err := j.Client.Do(req)
