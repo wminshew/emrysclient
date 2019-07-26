@@ -16,10 +16,11 @@ import (
 func seedDockerdCache(ctx context.Context, dClient *docker.Client, dockerAuthStr string) error {
 	log.Printf("Pulling base image to seed dockerd cache...\n")
 
+	// TODO: image string ref should be dynamic; pull from server?
 	registry := "registry.emrys.io"
 	repo := "emrys"
 	img := "base"
-	tag := "1604-90"
+	tag := "18.04-10.1"
 	refStr := fmt.Sprintf("%s/%s/%s:%s", registry, repo, img, tag)
 	operation := func() error {
 		pullResp, err := dClient.ImagePull(ctx, refStr, types.ImagePullOptions{
