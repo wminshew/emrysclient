@@ -60,6 +60,7 @@ func Monitor(ctx context.Context, client *http.Client, u url.URL, authToken *str
 					return fmt.Errorf("decoding response: %v", err)
 				}
 
+				// TODO: I think there's an argument to make for /not/ storing the extension token on disk
 				if err := Store(loginResp.Token); err != nil {
 					return fmt.Errorf("storing login token: %v", err)
 				}

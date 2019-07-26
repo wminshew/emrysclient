@@ -381,16 +381,6 @@ var Cmd = &cobra.Command{
 			// TODO: check if system has sufficient ram / disk for new totalRAM/totalDisk? will be tricky
 		})
 
-		dockerAuthConfig := types.AuthConfig{
-			RegistryToken: authToken,
-		}
-		dockerAuthJSON, err := json.Marshal(dockerAuthConfig)
-		if err != nil {
-			log.Printf("Mine: error marshaling docker auth config: %v", err)
-			return
-		}
-		dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
-
 		p := path.Join("miner", "connect")
 		u.Path = p
 		q := u.Query()
@@ -407,10 +397,21 @@ var Cmd = &cobra.Command{
 				log.Printf("Mining job search canceled.\n")
 				return
 			}
+
 			if err := version.CheckMine(ctx, client, u); err != nil {
 				log.Printf("Version error: %v", err)
 				return
 			}
+
+			dockerAuthConfig := types.AuthConfig{
+				RegistryToken: authToken,
+			}
+			dockerAuthJSON, err := json.Marshal(dockerAuthConfig)
+			if err != nil {
+				log.Printf("Mine: error marshaling docker auth config: %v", err)
+				return
+			}
+			dockerAuthStr := base64.URLEncoding.EncodeToString(dockerAuthJSON)
 			if err := seedDockerdCache(ctx, dClient, dockerAuthStr); err != nil {
 				log.Printf("Mine: error seeding docker cache: %v", err)
 				return
