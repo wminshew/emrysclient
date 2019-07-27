@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/blang/semver"
 	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dustin/go-humanize"
@@ -36,9 +37,19 @@ import (
 )
 
 var (
-	terminate     = false
-	jobsInProcess = 0
-	bidsOut       = 0
+	terminate             = false
+	jobsInProcess         = 0
+	bidsOut               = 0
+	minDockerServerSemver = semver.Version{
+		Major: 19,
+		Minor: 3,
+		Patch: 0,
+	}
+	minNvidiaDriverSemver = semver.Version{
+		Major: 418,
+		Minor: 0,
+		Patch: 0,
+	}
 )
 
 const (
@@ -114,8 +125,11 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		if _, ok := info.Runtimes["nvidia"]; !ok {
-			log.Printf("Mine: please add nvidia-docker to dockerd before connecting (detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n")
+		if dockerServerSemver, err := semver.Make(info.ServerVersion); err != nil {
+			log.Printf("Mine: error converting docker server version (%s) to semver: %v", info.ServerVersion, err)
+			return
+		} else if dockerServerSemver.LT(minDockerServerSemver) {
+			log.Printf("Mine: please upgrade dockerd before connecting (current: %s, must use at least %s; detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n", dockerServerSemver.String(), minDockerServerSemver.String())
 			return
 		}
 
@@ -224,6 +238,22 @@ var Cmd = &cobra.Command{
 		driverVersion, err := gonvml.SystemDriverVersion()
 		if err != nil {
 			log.Printf("Mine: error finding nvidia driver: %v", err)
+			return
+		}
+		nvidiaDriverSemver := semver.Version{}
+		driverVersionParts := strings.Split(driverVersion, ".")
+		if driverVersionMajor, err := strconv.ParseUint(driverVersionParts[0], 10, 64); err != nil {
+
+		} else {
+			nvidiaDriverSemver.Major = driverVersionMajor
+		}
+		// if driverVersionMinor, err := strconv.ParseUint(driverVersionParts[1], 10, 64); err != nil {
+		//
+		// } else {
+		// 	nvidiaDriverSemver.Minor = driverVersionMinor
+		// }
+		if nvidiaDriverSemver.LT(minNvidiaDriverSemver) {
+			log.Printf("Mine: please upgrade your nvidia driver before connecting (current: %d, must use at least %d; detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n", nvidiaDriverSemver.Major, minNvidiaDriverSemver.Major)
 			return
 		}
 		log.Printf("Nvidia driver: %v\n", driverVersion)
