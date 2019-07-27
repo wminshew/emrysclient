@@ -240,19 +240,10 @@ var Cmd = &cobra.Command{
 			log.Printf("Mine: error finding nvidia driver: %v", err)
 			return
 		}
-		nvidiaDriverSemver := semver.Version{}
-		driverVersionParts := strings.Split(driverVersion, ".")
-		if driverVersionMajor, err := strconv.ParseUint(driverVersionParts[0], 10, 64); err != nil {
-
-		} else {
-			nvidiaDriverSemver.Major = driverVersionMajor
-		}
-		// if driverVersionMinor, err := strconv.ParseUint(driverVersionParts[1], 10, 64); err != nil {
-		//
-		// } else {
-		// 	nvidiaDriverSemver.Minor = driverVersionMinor
-		// }
-		if nvidiaDriverSemver.LT(minNvidiaDriverSemver) {
+		if nvidiaDriverSemver, err := semver.ParseTolerant(driverVersion); err != nil {
+			log.Printf("Mine: error converting nvidia driver version (%s) to semver: %v", driverVersion, err)
+			return
+		} else if nvidiaDriverSemver.LT(minNvidiaDriverSemver) {
 			log.Printf("Mine: please upgrade your nvidia driver before connecting (current: %d, must use at least %d; detailed instructions may be found at https://docs.emrys.io/docs/suppliers/installation)\n", nvidiaDriverSemver.Major, minNvidiaDriverSemver.Major)
 			return
 		}
