@@ -2,30 +2,6 @@
 
 
 [[projects]]
-  name = "docker.io/go-docker"
-  packages = [
-    ".",
-    "api",
-    "api/types",
-    "api/types/blkiodev",
-    "api/types/container",
-    "api/types/events",
-    "api/types/filters",
-    "api/types/image",
-    "api/types/mount",
-    "api/types/network",
-    "api/types/registry",
-    "api/types/strslice",
-    "api/types/swarm",
-    "api/types/swarm/runtime",
-    "api/types/time",
-    "api/types/versions",
-    "api/types/volume"
-  ]
-  revision = "b3f5b5de7bbce0acc6a7fc0a4c2b88db678e262e"
-  version = "v1.0.0"
-
-[[projects]]
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
   revision = "7da180ee92d8bd8bb8c37fc560e673e6557c392f"
@@ -40,8 +16,8 @@
 [[projects]]
   name = "github.com/blang/semver"
   packages = ["."]
-  revision = "2ee87856327ba09384cabd113bc6b5d174e9ec0f"
-  version = "v3.5.1"
+  revision = "ba2c2ddd89069b46a7011d4106f6868f17ee1705"
+  version = "v3.6.1"
 
 [[projects]]
   name = "github.com/cenkalti/backoff"
@@ -59,9 +35,36 @@
   name = "github.com/docker/distribution"
   packages = [
     "digestset",
-    "reference"
+    "reference",
+    "registry/api/errcode"
   ]
   revision = "edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
+
+[[projects]]
+  name = "github.com/docker/docker"
+  packages = [
+    "api",
+    "api/types",
+    "api/types/blkiodev",
+    "api/types/container",
+    "api/types/events",
+    "api/types/filters",
+    "api/types/image",
+    "api/types/mount",
+    "api/types/network",
+    "api/types/registry",
+    "api/types/strslice",
+    "api/types/swarm",
+    "api/types/swarm/runtime",
+    "api/types/time",
+    "api/types/versions",
+    "api/types/volume",
+    "client",
+    "errdefs"
+  ]
+  revision = "fa8dd90ceb7bcb9d554d27e0b9087ab83e54bd2b"
+  source = "https://github.com/docker/engine"
+  version = "v19.03.1"
 
 [[projects]]
   name = "github.com/docker/go-connections"
@@ -120,6 +123,18 @@
   version = "v0.4"
 
 [[projects]]
+  name = "github.com/golang/protobuf"
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
+  ]
+  revision = "6c65a5562fc06764971b7c5d05c76c75e84bdbf7"
+  version = "v1.3.2"
+
+[[projects]]
   branch = "master"
   name = "github.com/golang/snappy"
   packages = ["."]
@@ -147,6 +162,12 @@
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
+
+[[projects]]
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
+  version = "v1.0.2"
 
 [[projects]]
   name = "github.com/magiconair/properties"
@@ -229,6 +250,12 @@
   version = "v2.19.03"
 
 [[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "839c75faf7f98a33d445d181f3018b5c3409a45e"
+  version = "v1.4.2"
+
+[[projects]]
   name = "github.com/spf13/afero"
   packages = [
     ".",
@@ -288,7 +315,7 @@
     "pkg/jsonmessage",
     "pkg/validate"
   ]
-  revision = "27b992bb912a266fb8863817f888268a26f3a771"
+  revision = "24958324a7a33ede4bbd0892c426d0bd3c6ea5e6"
 
 [[projects]]
   branch = "master"
@@ -307,7 +334,6 @@
   name = "golang.org/x/net"
   packages = [
     "context",
-    "context/ctxhttp",
     "internal/socks",
     "proxy"
   ]
@@ -336,6 +362,24 @@
   version = "v0.3.0"
 
 [[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "c506a9f9061087022822e8da603a52fc387115a8"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [
+    "codes",
+    "connectivity",
+    "grpclog",
+    "internal",
+    "status"
+  ]
+  revision = "045159ad57f3781d409358e3ade910a018c16b30"
+  version = "v1.22.1"
+
+[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -344,6 +388,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0efb09c9c32798b0236fc735ac94066a77e90d20b6efff92c5b9131faaf8730f"
+  inputs-digest = "1eafd8a87fef76e5b5bb6aac2a8a1374c319b1daed688d1b77d424fb8190638b"
   solver-name = "gps-cdcl"
   solver-version = 1

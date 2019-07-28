@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"docker.io/go-docker"
+	docker "github.com/docker/docker/client"
 	"github.com/wminshew/emrys/pkg/job"
 	"github.com/wminshew/gonvml"
 	"net/http"

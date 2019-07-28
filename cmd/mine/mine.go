@@ -2,14 +2,14 @@ package mine
 
 import (
 	"context"
-	"docker.io/go-docker"
-	"docker.io/go-docker/api/types"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/blang/semver"
 	"github.com/cenkalti/backoff"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/docker/docker/api/types"
+	docker "github.com/docker/docker/client"
 	"github.com/dustin/go-humanize"
 	"github.com/fsnotify/fsnotify"
 	"github.com/shirou/gopsutil/disk"
@@ -125,7 +125,7 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		if dockerServerSemver, err := semver.Make(info.ServerVersion); err != nil {
+		if dockerServerSemver, err := semver.ParseTolerant(info.ServerVersion); err != nil {
 			log.Printf("Mine: error converting docker server version (%s) to semver: %v", info.ServerVersion, err)
 			return
 		} else if dockerServerSemver.LT(minDockerServerSemver) {

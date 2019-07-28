@@ -2,10 +2,10 @@ package mine
 
 import (
 	"context"
-	"docker.io/go-docker"
-	"docker.io/go-docker/api/types"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	"github.com/docker/docker/api/types"
+	docker "github.com/docker/docker/client"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/jsonmessage"
 	"log"

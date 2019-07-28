@@ -2,11 +2,11 @@ package worker
 
 import (
 	"context"
-	"docker.io/go-docker/api/types"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	"github.com/docker/docker/api/types"
 	"github.com/wminshew/emrys/pkg/check"
 	"github.com/wminshew/emrys/pkg/jsonmessage"
 	"io/ioutil"

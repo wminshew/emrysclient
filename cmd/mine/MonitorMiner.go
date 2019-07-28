@@ -3,10 +3,10 @@ package mine
 import (
 	"bytes"
 	"context"
-	"docker.io/go-docker"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	docker "github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	"github.com/shirou/gopsutil/cpu"

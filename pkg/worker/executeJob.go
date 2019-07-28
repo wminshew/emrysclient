@@ -2,11 +2,12 @@ package worker
 
 import (
 	"context"
-	"docker.io/go-docker/api/types"
-	"docker.io/go-docker/api/types/container"
 	"encoding/json"
 	"fmt"
 	"github.com/cenkalti/backoff"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	// "github.com/docker/docker/api/types/filters"
 	"github.com/docker/go-connections/nat"
 	"github.com/mholt/archiver"
 	"github.com/wminshew/emrys/pkg/check"
@@ -27,11 +28,10 @@ import (
 	"time"
 )
 
-const (
-	pidsLimit = 200
+var (
+	maxTimeout = 60 * 10 // job server has a 10 minute timeout
+	pidsLimit  = int64(200)
 )
-
-var maxTimeout = 60 * 10 // job server has a 10 minute timeout
 
 func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	w.JobID = jID
@@ -170,15 +170,18 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	go w.downloadImage(ctx, &wg, errCh, u, imgRefStr)
 	defer func() {
 		ctx := context.Background()
-		log.Printf("Device %s: Removing image...\n", dStr)
+		log.Printf("Device %s: removing image...\n", dStr)
 		if _, err := w.Docker.ImageRemove(ctx, imgRefStr, types.ImageRemoveOptions{
 			Force: true,
 		}); err != nil {
 			log.Printf("Device %s: error removing job image %v: %v", dStr, w.JobID, err)
 		}
-		if _, err := w.Docker.BuildCachePrune(ctx); err != nil {
-			log.Printf("Device %s: error pruning build cache: %v", dStr, err)
-		}
+		// TODO: may need to prune danglings; will have to monitor
+		// filter := filters.Args{}
+		// filter.Add("dangling", "true")
+		// if _, err := w.Docker.ImagesPrune(ctx, filter); err != nil {
+		// 	log.Printf("Device %s: error pruning build cache: %v", dStr, err)
+		// }
 	}()
 
 	go w.downloadData(ctx, &wg, errCh, u, jobDir)
@@ -219,11 +222,11 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	w.DataDir = hostDataDir
 	defer func() { w.DataDir = "" }()
 
-	sizeDataDir, err := GetDirSize(w.DataDir)
-	if err != nil {
-		log.Printf("Device %s: error getting directory size: data folder: %v", dStr, err)
-		return
-	}
+	// sizeDataDir, err := GetDirSize(w.DataDir)
+	// if err != nil {
+	// 	log.Printf("Device %s: error getting directory size: data folder: %v", dStr, err)
+	// 	return
+	// }
 
 	hostOutputDir := filepath.Join(jobDir, "output")
 	w.OutputDir = hostOutputDir
@@ -281,16 +284,25 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 			"ALL",
 		},
 		PortBindings: portBindings,
-		Runtime:      "nvidia",
+		// ReadonlyPaths: []string{}, TODO?
 		Resources: container.Resources{
-			DiskQuota:  int64(w.Disk) - sizeDataDir,
+			// DiskQuota: int64(w.Disk) - sizeDataDir,
+			DeviceRequests: []container.DeviceRequest{
+				container.DeviceRequest{
+					DeviceIDs:    []string{dStr},
+					Capabilities: [][]string{[]string{"gpu"}},
+				},
+			},
 			Memory:     int64(w.RAM),
 			MemorySwap: int64(w.RAM),
-			PidsLimit:  pidsLimit,
+			PidsLimit:  &pidsLimit,
 		},
 		SecurityOpt: []string{
 			"no-new-privileges",
 		},
+		// StorageOpt: map[string]string{ TODO?
+		// 	"size", "120gb"
+		// },
 	}, nil, "")
 	if err != nil {
 		log.Printf("Device %s: error creating container: %v", dStr, err)
@@ -298,26 +310,26 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	}
 	w.ContainerID = c.ID
 	defer func() { w.ContainerID = "" }()
-
-	if err := check.ContextCanceled(ctx); err != nil {
-		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
-		return
-	}
-
-	log.Printf("Device %s: Running container...\n", dStr)
-	if err := w.Docker.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
-		log.Printf("Device %s: error starting container: %v", dStr, err)
-		return
-	}
 	defer func() {
 		ctx := context.Background()
-		log.Printf("Device %s: Removing container...\n", dStr)
+		log.Printf("Device %s: removing container...\n", dStr)
 		if err := w.Docker.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
 			Force: true,
 		}); err != nil {
 			log.Printf("Device %s: error removing job container %v: %v", dStr, w.JobID, err)
 		}
 	}()
+
+	if err := check.ContextCanceled(ctx); err != nil {
+		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
+		return
+	}
+
+	log.Printf("Device %s: running container...\n", dStr)
+	if err := w.Docker.ContainerStart(ctx, c.ID, types.ContainerStartOptions{}); err != nil {
+		log.Printf("Device %s: error starting container: %v", dStr, err)
+		return
+	}
 
 	out, err := w.Docker.ContainerLogs(ctx, c.ID, types.ContainerLogsOptions{
 		Follow:     true,
@@ -331,7 +343,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	defer check.Err(out.Close)
 
 	if w.notebook {
-		log.Printf("Device %s: Forwarding port...\n", dStr)
+		log.Printf("Device %s: forwarding port...\n", dStr)
 		sshCmd := w.sshRemoteForward(ctx, sshKeyFile)
 		if err = sshCmd.Start(); err != nil {
 			log.Printf("Device %s: error remote forwarding notebook requests: %v", dStr, err)
@@ -345,7 +357,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		}()
 	}
 
-	log.Printf("Device %s: Uploading log...\n", dStr)
+	log.Printf("Device %s: uploading log...\n", dStr)
 	logStrCh := make(chan string)
 	logErrCh := make(chan error)
 	go func() {
@@ -491,13 +503,13 @@ FinishLogAndUploadData:
 		log.Printf("Device %s: error uploading output: %v", dStr, err)
 		return
 	}
-	log.Printf("Device %s: Log uploaded!\n", dStr)
+	log.Printf("Device %s: log uploaded!\n", dStr)
 
 	if err := check.ContextCanceled(ctx); err != nil {
 		log.Printf("Device %s: miner canceled job execution: %v", dStr, err)
 		return
 	}
-	log.Printf("Device %s: Uploading data...\n", dStr)
+	log.Printf("Device %s: uploading data...\n", dStr)
 	p = path.Join("job", w.JobID, "data")
 	u.Path = p
 	if jCanceled {
@@ -557,5 +569,5 @@ FinishLogAndUploadData:
 		return
 	}
 
-	log.Printf("Device %s: Job completed!\n", dStr)
+	log.Printf("Device %s: job completed!\n", dStr)
 }
