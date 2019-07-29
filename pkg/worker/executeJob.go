@@ -248,13 +248,13 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	userHome := "/home/user"
 	dockerDataDir := filepath.Join(userHome, filepath.Base(hostDataDir))
 	dockerOutputDir := filepath.Join(userHome, "output")
-	if err = os.Setenv("NVIDIA_VISIBLE_DEVICES", dStr); err != nil {
-		log.Printf("Device %s: error setting NVIDIA_VISIBLE_DEVICES=%s: %v", dStr, dStr, err)
-		return
-	}
-	// TODO: unsetting env at end of job could potentially interfere with another gpu's job I think?
-	// chances of triggering this are very low though, fine for now
-	defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
+	// if err = os.Setenv("NVIDIA_VISIBLE_DEVICES", dStr); err != nil {
+	// 	log.Printf("Device %s: error setting NVIDIA_VISIBLE_DEVICES=%s: %v", dStr, dStr, err)
+	// 	return
+	// }
+	// // TODO: unsetting env at end of job could potentially interfere with another gpu's job I think?
+	// // chances of triggering this are very low though, fine for now
+	// defer check.Err(func() error { return os.Unsetenv("NVIDIA_VISIBLE_DEVICES") })
 
 	var exposedPorts nat.PortSet
 	var portBindings nat.PortMap
