@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -230,10 +231,19 @@ func (w *Worker) GetGPUStats(ctx context.Context, period time.Duration) (*job.De
 func (w *Worker) UserGPULog(ctx context.Context, period time.Duration) {
 	controlFan := true
 	if err := w.updateFanControlState(ctx, 1); err != nil {
+		log.Printf("Mine: device %d: error updating fan control state", w.Device)
+		controlFan = false
+	} else if fanControlState, err := w.getFanControlState(ctx); err != nil {
 		log.Printf("Mine: device %d: error setting GPUFanControlState=1; emrys will not update your fan speed: %v", w.Device, err)
+		controlFan = false
+	} else if fanControlState != 1 {
+		log.Printf("Mine: device %d: error setting GPUFanControlState=1; emrys will not update your fan speed: please ensure your cards don't overheat. If you would like emrys to control your fans, please visit https://docs.emrys.io/docs/suppliers/installation and follow the instructions under 'GPU cooling'. Please contact support@emrys.io if you think there is a mistake.", w.Device)
 		controlFan = false
 	}
 
+	// TODO: may need to dynamically determine number of fans w/ nvidia-settings -q fans or something
+	// (apparently some cards can have multiple fans (/controllers) per card)
+	// nvidia-settings -q fans | sed -n 's/\s*FAN/FAN/p' | wc -l
 	for {
 		select {
 		case <-ctx.Done():
@@ -295,4 +305,24 @@ func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState i
 	args := append([]string{"-a"}, fmt.Sprintf("[gpu:%d]/GPUFanControlState=%d", w.Device, newFanControlState))
 	cmd := exec.CommandContext(ctx, cmdStr, args...)
 	return cmd.Run()
+}
+
+func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
+	// nvidia-settings -q "[gpu:0]/GPUFanControlState" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g'
+	cmdStr := "nvidia-settings -q \"[gpu:0]/GPUFanControlState\" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g'"
+	cmd := exec.CommandContext(ctx, cmdStr)
+	// Output runs the command and returns its standard output.
+	// Any returned error will usually be of type *ExitError.
+	// If c.Stderr was nil, Output populates ExitError.Stderr.
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	fanControlState, err := strconv.Atoi(string(output))
+	if err != nil {
+		return 0, err
+	}
+
+	return fanControlState, nil
 }
