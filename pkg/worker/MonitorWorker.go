@@ -23,7 +23,7 @@ const (
 	maxTemp                     = 75
 	minFan                      = 25
 	incFan                      = 5
-	maxFan                      = 85
+	maxFan                      = 100
 )
 
 // InitGPUMonitoring initializes nvml
