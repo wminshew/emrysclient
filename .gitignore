@@ -2,7 +2,7 @@ vendor
 emrys
 emrysclient
 output
-test
+examples
 .emrys.*
 tags
 *.swp
