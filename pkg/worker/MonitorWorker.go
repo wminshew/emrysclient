@@ -310,6 +310,7 @@ func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState i
 
 func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
 	// nvidia-settings -q "[gpu:0]/GPUFanControlState" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g -'
+	// TODO: use idiomatic go pipes instead of shelling out?
 	cmdStr := fmt.Sprintf("nvidia-settings -q \"[gpu:%d]/GPUFanControlState\" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g' -", w.Device)
 	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
 	// Output runs the command and returns its standard output.
@@ -320,6 +321,7 @@ func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
 		return 0, err
 	}
 
+	// TODO: use strings.TrimSpace instead for more general correction?
 	fanControlState, err := strconv.Atoi(strings.TrimSuffix(string(output), "\n"))
 	if err != nil {
 		return 0, err
