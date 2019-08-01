@@ -12,6 +12,7 @@ import (
 	"math"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -309,8 +310,8 @@ func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState i
 
 func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
 	// nvidia-settings -q "[gpu:0]/GPUFanControlState" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g'
-	cmdStr := "nvidia-settings -q \"[gpu:0]/GPUFanControlState\" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g'"
-	cmd := exec.CommandContext(ctx, cmdStr)
+	cmdStr := fmt.Sprintf("nvidia-settings -q \"[gpu:%d]/GPUFanControlState\" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g' -", w.Device)
+	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
 	// Output runs the command and returns its standard output.
 	// Any returned error will usually be of type *ExitError.
 	// If c.Stderr was nil, Output populates ExitError.Stderr.
@@ -319,7 +320,7 @@ func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
 		return 0, err
 	}
 
-	fanControlState, err := strconv.Atoi(string(output))
+	fanControlState, err := strconv.Atoi(strings.TrimSuffix(string(output), "\n"))
 	if err != nil {
 		return 0, err
 	}
