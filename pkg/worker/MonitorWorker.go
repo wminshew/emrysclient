@@ -309,7 +309,7 @@ func (w *Worker) updateFanControlState(ctx context.Context, newFanControlState i
 }
 
 func (w *Worker) getFanControlState(ctx context.Context) (int, error) {
-	// nvidia-settings -q "[gpu:0]/GPUFanControlState" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g'
+	// nvidia-settings -q "[gpu:0]/GPUFanControlState" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g -'
 	cmdStr := fmt.Sprintf("nvidia-settings -q \"[gpu:%d]/GPUFanControlState\" | sed -n 's/Attribute//p' - | awk '{print $NF}' | sed 's/[^0-9]*//g' -", w.Device)
 	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
 	// Output runs the command and returns its standard output.
