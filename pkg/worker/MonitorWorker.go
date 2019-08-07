@@ -131,7 +131,7 @@ func (w *Worker) GetGPUStats(ctx context.Context, period time.Duration) (*job.De
 		return &job.DeviceSnapshot{}, errors.Wrapf(err, "device %d: getting power limit", w.Device)
 	}
 	if powerLimit != w.Snapshot.DefaultPowerLimit {
-		return &job.DeviceSnapshot{}, errors.New("power limit not set to default")
+		return &job.DeviceSnapshot{}, fmt.Errorf("power limit (%d) not set to default (%d)", powerLimit, w.Snapshot.DefaultPowerLimit)
 	}
 
 	operation := func() error {
