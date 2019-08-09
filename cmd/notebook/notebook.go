@@ -121,7 +121,7 @@ var Cmd = &cobra.Command{
 		}
 
 		var uid, gid int
-		if os.Geteuid() == 0 {
+		if os.Geteuid() == 0 && os.Getenv("SUDO_USER") != "" {
 			sudoUser, err := user.Lookup(os.Getenv("SUDO_USER"))
 			if err != nil {
 				log.Printf("Notebook: error getting current sudo user: %v", err)
@@ -309,7 +309,7 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		if os.Geteuid() == 0 {
+		if os.Geteuid() == 0 && os.Getenv("SUDO_USER") != "" {
 			if err = os.Chown(j.Output, uid, gid); err != nil {
 				log.Printf("Notebook: error changing ownership: %v", err)
 			}

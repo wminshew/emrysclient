@@ -134,7 +134,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		log.Printf("Device %s: error getting current user: %v", dStr, err)
 		return
 	}
-	if os.Geteuid() == 0 {
+	if os.Geteuid() == 0 && os.Getenv("SUDO_USER") != "" {
 		currUser, err = user.Lookup(os.Getenv("SUDO_USER"))
 		if err != nil {
 			log.Printf("Device %s: error getting current sudo user: %v", dStr, err)

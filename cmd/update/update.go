@@ -57,7 +57,7 @@ var Cmd = &cobra.Command{
 				log.Printf("Error getting current user: %v", err)
 				return
 			}
-			if os.Geteuid() == 0 {
+			if os.Geteuid() == 0 && os.Getenv("SUDO_USER") != "" {
 				currUser, err = user.Lookup(os.Getenv("SUDO_USER"))
 				if err != nil {
 					log.Printf("Error getting current sudo user: %v", err)

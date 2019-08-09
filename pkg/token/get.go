@@ -14,7 +14,7 @@ func Get() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getting current user: %v", err)
 	}
-	if os.Geteuid() == 0 {
+	if os.Geteuid() == 0 && os.Getenv("SUDO_USER") != "" {
 		u, err = user.Lookup(os.Getenv("SUDO_USER"))
 		if err != nil {
 			return "", fmt.Errorf("getting current sudo user: %v", err)
