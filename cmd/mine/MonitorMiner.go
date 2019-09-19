@@ -31,6 +31,7 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 		select {
 		case <-ctx.Done():
 		default:
+			log.Printf("Mine: error monitoring system: canceling...")
 			cancelFunc()
 		}
 	}()
@@ -154,8 +155,10 @@ func MonitorMiner(ctx context.Context, client *http.Client, dClient *docker.Clie
 
 			return nil
 		}
+		expBackOff := backoff.NewExponentialBackOff()
+		expBackOff.MaxElapsedTime = maxBackOffElapsedTime
 		if err := backoff.RetryNotify(operation,
-			backoff.WithContext(backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries), ctx),
+			backoff.WithContext(expBackOff, ctx),
 			func(err error, t time.Duration) {
 				log.Printf("Mine: error monitoring system: %v", err)
 				log.Printf("Mine: retrying in %s seconds\n", t.Round(time.Second).String())
