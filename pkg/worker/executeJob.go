@@ -31,6 +31,7 @@ import (
 var (
 	maxTimeout = 60 * 10 // job server has a 10 minute timeout
 	pidsLimit  = int64(200)
+	shmSize    = int64(1 * 1000 * 1000 * 1000) // 1 GB
 )
 
 func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
@@ -283,6 +284,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		CapDrop: []string{
 			"ALL",
 		},
+		// IpcMode:      "private", TODO?
 		PortBindings: portBindings,
 		// ReadonlyPaths: []string{}, TODO?
 		Resources: container.Resources{
@@ -300,6 +302,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 		SecurityOpt: []string{
 			"no-new-privileges",
 		},
+		ShmSize: shmSize,
 		// StorageOpt: map[string]string{ TODO?
 		// 	"size", "120gb"
 		// },
