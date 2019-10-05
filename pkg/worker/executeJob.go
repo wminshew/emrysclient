@@ -29,8 +29,7 @@ import (
 )
 
 var (
-	maxTimeout = 60 * 10 // job server has a 10 minute timeout
-	pidsLimit  = int64(200)
+	maxTimeout = 60 * 10                       // job server has a 10 minute timeout
 	shmSize    = int64(1 * 1000 * 1000 * 1000) // 1 GB
 )
 
@@ -297,7 +296,7 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 			},
 			Memory:     int64(w.RAM),
 			MemorySwap: int64(w.RAM),
-			PidsLimit:  &pidsLimit,
+			// PidsLimit:  &pidsLimit, TODO
 		},
 		SecurityOpt: []string{
 			"no-new-privileges",
