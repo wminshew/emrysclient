@@ -28,7 +28,7 @@ var UserVer = semver.Version{
 var MinerVer = semver.Version{
 	Major: 0,
 	Minor: 13,
-	Patch: 0,
+	Patch: 1,
 }
 
 const (
