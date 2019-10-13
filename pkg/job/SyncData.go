@@ -247,7 +247,6 @@ func (j *Job) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{},
 				errCh <- err
 				return
 			}
-			log.Printf(fmt.Sprintf("Inside worker: Data: uploaded %s\n", relPath)) // TODO
 
 			results <- fmt.Sprintf("Data: uploaded %s\n", relPath)
 		}
