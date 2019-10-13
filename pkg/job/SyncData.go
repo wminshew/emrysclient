@@ -143,23 +143,31 @@ func (j *Job) SyncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- err
 	if len(uploadList) > 0 {
 		numUploaders := 5
 		done := make(chan struct{})
-		errCh := make(chan error, numUploaders)
-		chUploadPaths := make(chan string, numUploaders)
+		defer close(done)
+		uploadErrCh := make(chan error, numUploaders)
+		uploadPathCh := make(chan string, numUploaders)
 		results := make(chan string, numUploaders)
 		for i := 0; i < numUploaders; i++ {
-			go j.uploadWorker(ctx, u, done, errCh, chUploadPaths, results)
+			go j.uploadWorker(ctx, u, done, uploadErrCh, uploadPathCh, results)
 		}
 
-		for _, relPath := range uploadList {
-			chUploadPaths <- relPath
-		}
+		go func() {
+			for _, relPath := range uploadList {
+				select {
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				case uploadPathCh <- relPath:
+				}
+			}
+		}()
 
 		n := 0
-	loop:
+		// loop: TODO
 		for {
 			select {
-			case err := <-errCh:
-				close(done)
+			case err := <-uploadErrCh:
 				log.Printf("Data: error uploading data set: %v", err)
 				errCh <- err
 				return
@@ -167,13 +175,14 @@ func (j *Job) SyncData(ctx context.Context, wg *sync.WaitGroup, errCh chan<- err
 				log.Printf(result)
 				n++
 				if n == len(uploadList) {
-					break loop
+					log.Printf("Data: synced!\n")
+					return
+					// break loop TODO
 				}
 			}
 		}
 	}
 
-	log.Printf("Data: synced!\n")
 }
 
 func (j *Job) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{}, errCh chan<- error, upload <-chan string, results chan<- string) {
@@ -238,6 +247,7 @@ func (j *Job) uploadWorker(ctx context.Context, u url.URL, done <-chan struct{},
 				errCh <- err
 				return
 			}
+			log.Printf(fmt.Sprintf("Inside worker: Data: uploaded %s\n", relPath)) // TODO
 
 			results <- fmt.Sprintf("Data: uploaded %s\n", relPath)
 		}
