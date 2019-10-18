@@ -27,8 +27,8 @@ var UserVer = semver.Version{
 // MinerVer is the semver miner client version
 var MinerVer = semver.Version{
 	Major: 0,
-	Minor: 13,
-	Patch: 1,
+	Minor: 14,
+	Patch: 0,
 }
 
 const (
