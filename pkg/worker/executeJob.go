@@ -233,11 +233,22 @@ func (w *Worker) executeJob(ctx context.Context, u url.URL, jID string) {
 	defer func() { w.OutputDir = "" }()
 
 	oldUMask := syscall.Umask(000)
-	if err = os.Chmod(hostDataDir, 0777); err != nil {
-		log.Printf("Device %s: error modifying data dir %v permissions: %v", dStr, hostDataDir, err)
+	if err := filepath.Walk(hostDataDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if err = os.Chmod(path, 0777); err != nil {
+			return fmt.Errorf("modifying permissions: %v", err)
+		}
+
+		return nil
+	}); err != nil {
+		log.Printf("Device %s: error walking data directory %v: %v", dStr, hostDataDir, err)
 		_ = syscall.Umask(oldUMask)
 		return
 	}
+
 	if err = os.MkdirAll(hostOutputDir, 0777); err != nil {
 		log.Printf("Device %s: error making output dir %v: %v", dStr, hostOutputDir, err)
 		_ = syscall.Umask(oldUMask)
